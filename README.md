@@ -11,7 +11,13 @@ Hai repo gốc được gắn dưới dạng Git submodule. Skill đi kèm hư�
 
 ## 1. Tải về
 
-Cần Windows, Git, Python 3.10–3.13 có `tkinter`, AutoCAD đang mở với một bản vẽ, và Internet cho lần cài thư viện đầu tiên. Repo GitHub này là **private**, nên tài khoản GitHub tải về cần được cấp quyền.
+Cần Windows, Python 3.10–3.13 có `tkinter`, AutoCAD đang mở với một bản vẽ, và Internet cho lần cài thư viện đầu tiên. Repo GitHub này là **private**, nên tài khoản GitHub tải về cần được cấp quyền.
+
+### Máy không có Git
+
+Mở [autocad-mcp-launcher-complete.zip](dist/autocad-mcp-launcher-complete.zip) trên GitHub, bấm **Download raw**, rồi giải nén. ZIP này chứa app, skill và mã nguồn của **cả hai MCP**. Mở thư mục `autocad-mcp-launcher` vừa giải nén và làm tiếp mục **2. Chạy app**. Máy dùng app không cần cài Git.
+
+### Máy có Git
 
 Mở PowerShell tại thư mục bạn muốn lưu app:
 
@@ -26,12 +32,12 @@ Nếu đã clone mà hai thư mục MCP chưa có mã nguồn, chạy:
 git submodule update --init --recursive
 ```
 
-**Không dùng nút Download ZIP của GitHub** cho bản này: ZIP của repo chính không chứa mã nguồn trong submodule.
+**Không dùng nút Download ZIP của toàn bộ repo trên GitHub**: ZIP đó không chứa mã nguồn trong submodule. Hãy dùng tệp **complete.zip** ở trên hoặc lệnh clone kèm `--recurse-submodules`.
 
 ## 2. Chạy app
 
 1. Mở AutoCAD và mở bản vẽ cần làm việc. Đóng các hộp thoại đang chặn AutoCAD.
-2. Nhấp đúp `Start AutoCAD MCP.cmd` trong thư mục vừa clone.
+2. Nhấp đúp `Start AutoCAD MCP.cmd` trong thư mục vừa clone hoặc giải nén.
 3. Bấm **Bật kết nối cho agent** và đợi trạng thái `autocad_beiming` báo đã kết nối AutoCAD. Lần đầu app tạo môi trường Python riêng và cài thư viện cho từng MCP.
 4. Giữ app chạy trong lúc dùng agent.
 
@@ -102,3 +108,5 @@ Nếu agent không hiện tool, kiểm tra theo thứ tự: app vẫn đang ch�
 Gateway dùng backend `file_ipc` để làm việc với AutoCAD. App tạm thêm thư mục LISP vào `TRUSTEDPATHS` khi tải dispatcher rồi khôi phục giá trị cũ; `SECURELOAD` không bị tắt. Skill hướng dẫn agent nhưng chưa phải một cơ chế bắt buộc ở gateway: agent có thể gọi thẳng MCP tool nếu không nạp hoặc không làm theo skill.
 
 Mã nguồn hai MCP thuộc các repo upstream được dẫn ở đầu trang và giữ nguyên lịch sử Git của họ. Launcher và skill của dự án này nằm trong repo chính.
+
+Người duy trì repo có thể tạo lại ZIP đầy đủ bằng `python scripts/build_portable.py` sau khi cập nhật launcher hoặc submodule. ZIP loại bỏ `.git`, môi trường `.venv`, log và file output phát sinh.
