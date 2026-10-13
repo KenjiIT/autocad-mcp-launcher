@@ -10,6 +10,7 @@ PACKAGE_NAME = "autocad-mcp-launcher"
 INCLUDE = (
     "README.md",
     "Start AutoCAD MCP.cmd",
+    "Start AutoCAD MCP.vbs",
     "start.ps1",
     "launcher",
     "scripts",

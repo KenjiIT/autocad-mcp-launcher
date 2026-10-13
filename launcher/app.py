@@ -11,6 +11,8 @@ import urllib.request
 from pathlib import Path
 from tkinter import messagebox, ttk
 
+from tray import TrayIcon
+
 ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT / "launcher" / "logs"
 REPOS = {
@@ -78,8 +80,17 @@ class App(tk.Tk):
         self.status = tk.StringVar(value="Sẵn sàng")
         self.build()
         self.refresh_config()
+        self.tray_menu = tk.Menu(self, tearoff=False)
+        self.tray_menu.add_command(label="Mở ứng dụng", command=self.restore)
+        self.tray_menu.add_separator()
+        self.tray_menu.add_command(label="Thoát hẳn", command=self.close)
+        try:
+            self.tray = TrayIcon(self, self.restore, self.show_tray_menu)
+        except OSError:
+            self.tray = None
+        self.bind("<Unmap>", self.on_unmap)
         self.after(500, self.tick)
-        self.protocol("WM_DELETE_WINDOW", self.close)
+        self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         if "--start" in sys.argv[1:]:
             self.after(300, self.start)
 
@@ -131,6 +142,32 @@ class App(tk.Tk):
         self.clipboard_clear()
         self.clipboard_append(self.config_box.get("1.0", "end-1c"))
         self.status.set("Đã sao chép cấu hình")
+
+    def on_unmap(self, event):
+        if event.widget is self and self.tray:
+            self.after(0, self.hide_if_iconic)
+
+    def hide_if_iconic(self):
+        if self.state() == "iconic":
+            self.withdraw()
+
+    def hide_to_tray(self):
+        if self.tray:
+            self.withdraw()
+        else:
+            self.close()
+
+    def restore(self):
+        self.deiconify()
+        self.state("normal")
+        self.lift()
+        self.focus_force()
+
+    def show_tray_menu(self, x, y):
+        try:
+            self.tray_menu.tk_popup(x, y)
+        finally:
+            self.tray_menu.grab_release()
 
     def start(self):
         if self.busy or (self.gateway and self.gateway.poll() is None):
@@ -241,6 +278,8 @@ class App(tk.Tk):
     def close(self):
         self.closing = True
         self.stop()
+        if self.tray:
+            self.tray.close()
         self.destroy()
 
 

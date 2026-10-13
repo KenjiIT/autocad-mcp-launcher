@@ -37,9 +37,9 @@ git submodule update --init --recursive
 ## 2. Chạy app
 
 1. Mở AutoCAD và mở bản vẽ cần làm việc. Đóng các hộp thoại đang chặn AutoCAD.
-2. Nhấp đúp `Start AutoCAD MCP.cmd` trong thư mục vừa clone hoặc giải nén.
+2. Nhấp đúp `Start AutoCAD MCP.vbs` trong thư mục vừa clone hoặc giải nén. App mở mà không hiện cửa sổ CMD. File `.cmd` vẫn có trong bộ cài để xem lỗi khởi động khi cần.
 3. Bấm **Bật kết nối cho agent** và đợi trạng thái `autocad_beiming` báo đã kết nối AutoCAD. Lần đầu app tạo môi trường Python riêng và cài thư viện cho từng MCP.
-4. Giữ app chạy trong lúc dùng agent.
+4. Thu nhỏ hoặc bấm X để đưa app xuống khay hệ thống; gateway vẫn chạy. Bấm biểu tượng khay để mở lại, hoặc nhấp phải và chọn **Thoát hẳn** để dừng app cùng gateway.
 
 Bạn có thể xem trạng thái gateway tại `http://127.0.0.1:8764/status`. Nhật ký nằm trong `launcher/logs/`. App giữ AutoCAD mở khi đổi MCP hoặc tắt gateway.
 
@@ -101,7 +101,7 @@ ChatGPT chạy trên cloud và không truy cập trực tiếp được `127.0.0
 
 Trong agent đã cấu hình, yêu cầu: “Kiểm tra bản vẽ AutoCAD đang mở, cho tôi biết tên bản vẽ và trạng thái kết nối. Chưa sửa gì.” Tool đọc trạng thái giúp xác nhận kết nối trước khi vẽ. Với yêu cầu thay đổi bản vẽ, skill sẽ hướng dẫn agent trình bày phương án bằng lời dễ hiểu trước khi gọi tool sửa, sau đó kiểm tra kết quả thực tế.
 
-Nếu agent không hiện tool, kiểm tra theo thứ tự: app vẫn đang chạy; `/status` truy cập được; đã thêm cấu hình cho **đúng agent**; agent đã được khởi động lại; Claude Desktop đang ở **Chat**; và nhật ký trong `launcher/logs/` có lỗi hay không. Nếu `autocad_beiming` không kết nối, kiểm tra AutoCAD đang mở với một bản vẽ và không có hộp thoại chặn thao tác.
+Nếu agent không hiện tool, kiểm tra theo thứ tự: app vẫn đang chạy; `/status` truy cập được; đã thêm cấu hình cho **đúng agent**; agent đã được khởi động lại; Claude Desktop đang ở **Chat**; và nhật ký trong `launcher/logs/` có lỗi hay không. Nếu app không mở khi nhấp `.vbs`, xem `launcher/logs/startup.log` hoặc mở `.cmd` để thấy lỗi. Nếu `autocad_beiming` không kết nối, kiểm tra AutoCAD đang mở với một bản vẽ và không có hộp thoại chặn thao tác.
 
 ## Giới hạn và nguồn
 
