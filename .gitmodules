@@ -1,6 +1,3 @@
-[submodule "beiming183-cloud-AutoCAD-MCP"]
-	path = beiming183-cloud-AutoCAD-MCP
-	url = https://github.com/beiming183-cloud/AutoCAD-MCP.git
 [submodule "puran-water-autocad-mcp"]
 	path = puran-water-autocad-mcp
 	url = https://github.com/puran-water/autocad-mcp.git

@@ -1,0 +1,37 @@
+---
+name: autocad-start-construction-drawing
+description: Chuẩn bị và bắt đầu vẽ bản vẽ xây dựng 2D trong AutoCAD: kiểm tra dữ liệu đầu vào, đơn vị, layer, hệ trục, tường/cửa, chữ kích thước, Layout và in. Dùng khi tạo mặt bằng xây dựng mới hoặc dựng lại bản vẽ từ hồ sơ/căn cứ thiết kế; không dùng cho yêu cầu chỉ đọc hoặc chỉ nhận diện ranh giới.
+---
+
+# Bắt đầu bản vẽ xây dựng 2D
+
+Áp dụng trình tự dựng bản vẽ từ [bài hướng dẫn AutoCAD xây dựng của RDSIC](https://rdsic.edu.vn/hoc-thuat/autocad/huong-dan-su-dung-autocad-xay-dung-mot-cach-de-dang-va-hieu-qua-vi-cb.html): đơn vị và tỉ lệ thực, layer, trục–tường–cửa, ghi chú và kích thước, Layout, kiểm tra bản in. Các giá trị trong bài như mm, tên layer mẫu, tường 220 mm và tỉ lệ 1:100 là **ví dụ**, không phải kích thước hoặc chuẩn bắt buộc cho mọi dự án.
+
+Skill hướng dẫn agent ra quyết định và kiểm tra sản phẩm. Nó không tạo thêm lệnh AutoCAD hoặc tool MCP. Khi làm qua launcher, dùng `autocad-agent-coordinator` để chọn MCP, thông báo cách làm và xác nhận kết quả bằng công cụ thực tế. Đọc schema của tool trước khi gọi; không tự đặt tên lệnh hoặc tham số MCP.
+
+## Chốt đầu vào trước khi dựng hình
+
+Xác định loại bản vẽ và giai đoạn hồ sơ (tổng mặt bằng, mặt bằng tầng, mặt đứng, mặt cắt, chi tiết; kiến trúc hay kết cấu), tầng/khu vực, bản vẽ hoặc tệp đích, tài liệu nguồn và phiên bản. Kiểm tra các dữ liệu quyết định hình học: ranh/giới hạn, hệ trục, kích thước nhịp, cao độ, bề dày tường, vị trí cửa và cấu kiện. Phân biệt dữ liệu đã được cung cấp, thông số suy ra và thông số còn thiếu. Nếu thiếu thông số làm thay đổi hình học, hỏi đúng thông số đó; có thể dựng phần độc lập đã đủ căn cứ và ghi rõ phần nháp.
+
+Khi bắt đầu từ DWG đang có, kiểm tra bản vẽ đang hoạt động, Model/Layout, đơn vị, gốc tọa độ, hướng, layer và các đối tượng sẵn có trước khi thêm nét. Khi cần xác định ranh đất hoặc khối nhà, dùng [autocad-identify-boundaries](../autocad-identify-boundaries/SKILL.md). Khi hồ sơ cần chỉ giới và hệ trục phối hợp, dùng [construction-boundaries-grids](../construction-boundaries-grids/SKILL.md). Không suy chỉ giới xây dựng từ ranh thửa hoặc mép đường.
+
+**Chặn vẽ trục và chỉ giới khi thiếu căn cứ:** Người dùng/người thiết kế phải cung cấp hoặc xác nhận vị trí chỉ giới và phương án hệ trục, hoặc chỉ rõ bản vẽ/tài liệu đã được chọn làm căn cứ. Để dựng trục cần đủ mốc/gốc, hướng, tọa độ hoặc chuỗi kích thước nhịp và quy ước tên trục; để vẽ chỉ giới cần đường/vị trí được xác định từ hồ sơ quy hoạch, giấy phép hoặc tài liệu dự án được duyệt. Nếu thiếu, mâu thuẫn hoặc chỉ có ảnh chụp, không tự chia nhịp, suy vị trí, tạo đường nháp hay ghi kích thước định vị tương ứng trong CAD. Hỏi đúng dữ liệu còn thiếu; có thể tiếp tục phần độc lập đủ căn cứ. Nếu được yêu cầu đề xuất phương án, trình bày ngoài CAD để người dùng chọn/xác nhận trước khi vẽ.
+
+Trước thao tác thay đổi đầu tiên, nói cho người dùng biết bản vẽ/khu vực sẽ vẽ, căn cứ và đơn vị dự kiến, trình tự các phần chính, cách kiểm tra. Với yêu cầu đã giao rõ, tiến hành vẽ theo phạm vi đó.
+
+## Trình tự dựng bản vẽ
+
+1. **Đơn vị và không gian.** Xác nhận đơn vị dự án và tệp nguồn; hồ sơ kiến trúc ở Việt Nam thường dùng mm, tổng mặt bằng có thể dùng m. Vẽ hình học kích thước thật 1:1 trong Model; quy đổi đơn vị ở ranh giới tệp khi chèn/copy block hoặc xref. Không thu nhỏ hình học theo tỉ lệ in. Với bản vẽ mới, dùng template hệ mét/phù hợp dự án nếu có; không đổi đơn vị tệp đang dùng một cách âm thầm.
+2. **Layer và kiểu nét.** Ưu tiên template, tên layer, màu, kiểu nét, độ dày, CTB/STB của hồ sơ đang dùng. Nếu chưa có, đề xuất lớp tối thiểu theo chức năng: trục, tường, cửa, cột, thiết bị, kích thước, chữ, hatch và đường tham chiếu. Chỉ tạo lớp thực sự cần; không áp tên mẫu của bài viết cho bản vẽ có quy ước riêng. Dùng màu `ByLayer` khi phù hợp và xem màu hiệu dụng của đối tượng nguồn. Nếu bản vẽ hiện tại áp quy ước ACI đã ghi trong `autocad-agent-coordinator`, dùng quy ước đó cho đối tượng mới.
+3. **Hệ trục và hình học chính.** Dựng trục theo nhịp, mốc và hướng được cung cấp; kiểm tra khoảng cách giữa các trục trước khi dựa vào chúng để đặt tường/cột. Dựng đường bao công trình và các tường theo tim/mép đã xác định; phép OFFSET chỉ dùng khi biết rõ bề dày và phía đặt tường. Với nhiều tầng hoặc nhiều khối, gắn đúng hệ trục và phạm vi mỗi tầng/khối. Không tự đoán tường 220 mm hoặc nhịp 3600/4200 mm chỉ vì đó là ví dụ của bài RDSIC.
+4. **Cửa và chi tiết.** Đặt cửa, cửa sổ, cột, cầu thang, thiết bị và các chi tiết theo kích thước/vị trí nguồn. Dùng block đã có hoặc block được tạo theo yêu cầu; kiểm tra đơn vị, điểm chèn, góc xoay, chiều mở và tỷ lệ khi chèn. Chỉ hatch vùng vật liệu đã xác định, trên layer riêng nếu quy ước dự án yêu cầu. Không coi hatch hoặc khung bản vẽ là đường bao nhà.
+5. **Chữ và kích thước.** Chọn chiều cao chữ, kiểu kích thước và tỷ lệ trình bày theo tờ in cần có. Với nhãn dán/nhãn ghi chú mới, dùng **Arial B** theo quy ước của người dùng thay cho font mặc định để tránh lỗi hiển thị; tạo hoặc chọn text style trỏ đúng font này và kiểm tra font thực tế AutoCAD đã nạp. Nếu máy không có Arial B hoặc AutoCAD thay bằng font khác, báo rõ và hỏi font tương đương trước khi tạo hàng loạt nhãn. Giữ nguyên kiểu chữ của nhãn đã có, trừ khi người dùng yêu cầu đổi. Có thể dùng annotative hoặc kích thước/chữ Model quy đổi theo tỷ lệ; chọn nhất quán với hồ sơ, tránh nhân tỷ lệ hai lần. Ví dụ 2,5 mm trên giấy ở 1:100 tương ứng 250 mm trong Model nếu dùng chữ không annotative. Kiểm tra số đo lấy từ hình học 1:1, không sửa văn bản kích thước để che sai hình học. Chỉ thêm thông tin có căn cứ.
+6. **Layout và xuất bản khi được yêu cầu.** Chọn khổ giấy, khung tên, tỷ lệ viewport và vùng nhìn theo hồ sơ. Trong Layout, thiết lập giấy 1:1, viewport theo tỷ lệ được giao và khóa viewport sau khi căn chỉnh. Chọn CTB/STB đã được dự án chấp nhận; `monochrome.ctb` là một lựa chọn in đen trắng, không áp dụng mặc định khi hồ sơ dùng bảng nét khác. Xem trước hoặc xuất bản in thử để kiểm tra nét, chữ, linetype, lề, khung tên và tỷ lệ. Chỉ kết luận bản in đúng khi đã kiểm được bản xem trước/PDF hoặc công cụ tương đương.
+
+## Kiểm tra sau mỗi phần quan trọng
+
+Đọc lại từ bản vẽ thực tế: đúng DWG/tầng/layer, số lượng đối tượng, tọa độ và kích thước chính, các vòng kín cần thiết, hướng mở cửa, kết quả chèn block, kích thước và chữ. Sau cùng kiểm tra các đối tượng thừa/trùng và xung đột layer; không chạy lệnh dọn dẹp làm thay đổi bản vẽ hàng loạt khi chưa xác định phạm vi ảnh hưởng. Ghi rõ phần đã kiểm tra, phần còn chưa đủ căn cứ và kết quả lưu/xuất thực sự quan sát được.
+
+Nếu AutoCAD không sẵn sàng, theo quy trình chuyển DXF và hỏi người dùng của `autocad-agent-coordinator`; không coi DXF là DWG. Nếu tool hiện tại không hỗ trợ một bước (ví dụ Layout, block, plot preview), làm phần được hỗ trợ, báo bước còn thiếu và không tuyên bố bản vẽ đã hoàn tất để in.
+
+Nguồn quy trình tham khảo: [RDSIC, “AutoCAD xây dựng: 6 bước dựng bản vẽ đúng tỉ lệ, in chuẩn”](https://rdsic.edu.vn/hoc-thuat/autocad/huong-dan-su-dung-autocad-xay-dung-mot-cach-de-dang-va-hieu-qua-vi-cb.html). Dùng tài liệu dự án và quy định áp dụng của hồ sơ để chốt kích thước, layer, ký hiệu và tỷ lệ cụ thể.

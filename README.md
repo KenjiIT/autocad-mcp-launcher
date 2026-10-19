@@ -1,17 +1,18 @@
 # AutoCAD MCP Launcher
 
-Ứng dụng Windows nối AutoCAD đang mở với hai MCP server, rồi tạo cấu hình để dùng trong Codex, Claude Code, Claude Desktop hoặc Cursor. Khi bật ứng dụng, `autocad_beiming` kết nối mặc định. Nếu agent gọi tool của `autocad_puran`, gateway ngắt MCP cũ trước khi kết nối MCP mới. Tại một thời điểm chỉ có một MCP làm việc với AutoCAD.
+Ứng dụng Windows chạy hai MCP server cho Codex, Claude Code, Claude Desktop hoặc Cursor. App khởi động mà không cần AutoCAD. Khi agent gọi tool, gateway ưu tiên AutoCAD và `autocad_beiming`; nếu AutoCAD không chạy, agent hỏi người dùng trước khi chuyển sang tạo DXF bằng `ezdxf`. Nếu agent gọi tool của `autocad_puran`, gateway ngắt MCP cũ trước khi mở MCP mới.
 
 | MCP | Địa chỉ trong máy |
 | --- | --- |
-| [beiming183-cloud/AutoCAD-MCP](https://github.com/beiming183-cloud/AutoCAD-MCP) | `http://127.0.0.1:8764/beiming/mcp` |
+| Beiming custom MCP, derived from [beiming183-cloud/AutoCAD-MCP](https://github.com/beiming183-cloud/AutoCAD-MCP) | `http://127.0.0.1:8764/beiming/mcp` |
 | [puran-water/autocad-mcp](https://github.com/puran-water/autocad-mcp) | `http://127.0.0.1:8764/puran/mcp` |
 
-Hai repo gốc được gắn dưới dạng Git submodule. Skill đi kèm hướng dẫn agent nói rõ phương án trước khi sửa bản vẽ và đọc lại kết quả sau khi dùng tool. Skill là hướng dẫn cho agent; MCP mới là thành phần thao tác với AutoCAD.
+Puran được gắn dưới dạng Git submodule. Source Beiming đã được tách vào `autocad-beiming-mcp-custom` và tích hợp các tool sao chép theo lô, sao chép theo vùng giữa hai bản vẽ, và xóa theo lô. Skill đi kèm hướng dẫn agent nói rõ phương án trước khi sửa bản vẽ và đọc lại kết quả sau khi dùng tool. Skill là hướng dẫn cho agent; MCP mới là thành phần thao tác với AutoCAD.
+
 
 ## 1. Tải về
 
-Cần Windows, Python 3.10–3.13 có `tkinter`, AutoCAD đang mở với một bản vẽ, và Internet cho lần cài thư viện đầu tiên. Repo GitHub này là **private**, nên tài khoản GitHub tải về cần được cấp quyền.
+Cần Windows, Python 3.10–3.13 có `tkinter`, và Internet cho lần cài thư viện đầu tiên. DWG cần AutoCAD; DXF offline không cần AutoCAD. Repo GitHub này là **private**, nên tài khoản GitHub tải về cần được cấp quyền.
 
 ### Máy không có Git
 
@@ -26,22 +27,28 @@ git clone --recurse-submodules https://github.com/KenjiIT/autocad-mcp-launcher.g
 cd autocad-mcp-launcher
 ```
 
-Nếu đã clone mà hai thư mục MCP chưa có mã nguồn, chạy:
+Nếu đã clone mà thư mục Puran chưa có mã nguồn, chạy:
 
 ```powershell
 git submodule update --init --recursive
 ```
 
-**Không dùng nút Download ZIP của toàn bộ repo trên GitHub**: ZIP đó không chứa mã nguồn trong submodule. Hãy dùng tệp **complete.zip** ở trên hoặc lệnh clone kèm `--recurse-submodules`.
+**Không dùng nút Download ZIP của toàn bộ repo trên GitHub** nếu cần chạy Puran: ZIP đó không chứa mã nguồn trong submodule. Hãy dùng tệp **complete.zip** ở trên hoặc clone kèm `--recurse-submodules`.
 
 ## 2. Chạy app
 
-1. Mở AutoCAD và mở bản vẽ cần làm việc. Đóng các hộp thoại đang chặn AutoCAD.
-2. Nhấp đúp `Start AutoCAD MCP.vbs` trong thư mục vừa clone hoặc giải nén. App mở mà không hiện cửa sổ CMD. File `.cmd` vẫn có trong bộ cài để xem lỗi khởi động khi cần.
-3. Bấm **Bật kết nối cho agent** và đợi trạng thái `autocad_beiming` báo đã kết nối AutoCAD. Lần đầu app tạo môi trường Python riêng và cài thư viện cho từng MCP.
-4. Thu nhỏ hoặc bấm X để đưa app xuống khay hệ thống; gateway vẫn chạy. Bấm biểu tượng khay để mở lại, hoặc nhấp phải và chọn **Thoát hẳn** để dừng app cùng gateway.
+1. Nhấp đúp `Start AutoCAD MCP.vbs` trong thư mục vừa clone hoặc giải nén. App mở mà không hiện cửa sổ CMD. Lần đầu, cửa sổ cài đặt chạy trước và cho biết tiến độ cài hai MCP. File `.cmd` vẫn có trong bộ cài để xem lỗi khởi động khi cần.
+2. Bấm **Bật kết nối cho agent**. Gateway sẵn sàng ngay cả khi AutoCAD chưa chạy; các MCP tool vẫn hiện trong agent.
+3. Khi làm việc, agent thử AutoCAD trước. Nếu AutoCAD không chạy, tool trả `AUTOCAD_UNAVAILABLE` và agent hỏi bạn có muốn xuất DXF thay thế không. Chỉ sau khi bạn đồng ý, agent gọi `launcher_set_backend` để dùng `ezdxf`. Agent cần gọi `drawing.save` để lưu DXF trước khi đổi MCP hoặc quay lại AutoCAD. Tệp `.dwg` chỉ dùng qua AutoCAD.
+4. Thu nhỏ hoặc bấm X để đưa app xuống khay hệ thống; gateway vẫn chạy. Bấm biểu tượng khay hoặc nhấp đúp `Start AutoCAD MCP.vbs` để mở lại app đang chạy. Nhấp phải biểu tượng khay và chọn **Thoát hẳn** để dừng app cùng gateway.
 
-Bạn có thể xem trạng thái gateway tại `http://127.0.0.1:8764/status`. Nhật ký nằm trong `launcher/logs/`. App giữ AutoCAD mở khi đổi MCP hoặc tắt gateway.
+Bạn có thể xem trạng thái gateway tại `http://127.0.0.1:8764/status`. Nhật ký nằm trong `launcher/logs/`. Khi làm việc với AutoCAD, app giữ AutoCAD mở lúc đổi MCP hoặc tắt gateway.
+
+Với Beiming, launcher cho các thao tác đọc bản vẽ lớn (`drawing.audit`, `entity.collect`) tối đa **300 giây** thay vì 60 giây; File IPC cũng chờ tối đa 300 giây và gateway chờ phản hồi tối đa 360 giây. Các giới hạn này chỉ có hiệu lực sau khi thoát hẳn và mở lại app.
+
+Beiming có thêm tool `copy_batching` để sao chép hàng loạt từ các handle gốc. Truyền `entity_ids` và `offsets` (`[dx, dy]`); tool tạo một bản sao cho mỗi cặp handle và độ dời, tối đa 100 bản sao/lần. Ví dụ, `entity_ids=["A1","A2"], offsets=[[100,0]]` sao chép hai đối tượng cùng độ dời; `entity_ids=["A1"], offsets=[[100,0],[200,0]]` sao chép một đối tượng đến hai vị trí. Kết quả trả handle từng bản sao. Mặc định nếu có lỗi, tool thử xóa các bản sao đã tạo và trả rõ các handle chưa xóa được; xem kết quả trước khi gọi lại.
+
+Tool `copy_region_between_dwgs` chọn đối tượng trong một vùng chữ nhật của DWG nguồn và chép sang Model Space của DWG đích (tối đa 5.000 đối tượng mỗi lần). Mở cả hai DWG trong cùng một AutoCAD và kích hoạt DWG nguồn. Gọi `operation="preview"` với `source_path`, `target_path`, `corner1`, `corner2` và `selection_mode="window"` hoặc `"crossing"`; kết quả trả số lượng và `source_handles`. Sau khi xem danh sách, gọi `operation="copy"` với cùng vùng, `expected_handles` bằng `source_handles`, ngữ cảnh tài liệu nguồn hiện tại và `idempotency_key` duy nhất. `offset` là độ dời WCS tùy chọn. Đặt `save_target=true` nếu muốn lưu DWG đích ngay; mặc định chỉ sửa bản vẽ đang mở. Tool từ chối khi đơn vị `INSUNITS` hai bản vẽ khác nhau, trừ khi truyền `allow_unit_mismatch=true` sau khi đã kiểm tra tỷ lệ.
 
 ## 3. Thêm MCP vào agent
 
@@ -61,6 +68,15 @@ url = "http://127.0.0.1:8764/puran/mcp"
 
 Skill của dự án đã nằm tại `.codex/skills/autocad-agent-coordinator/SKILL.md`. Mở Codex từ thư mục project này để nó có thể tìm skill. MCP và skill được cài riêng: phải có cả hai nếu muốn agent dùng CAD và làm theo quy trình điều phối.
 
+Trước khi dựng hoặc sửa bản vẽ từ hồ sơ đầu vào, coordinator sẽ gợi ý `autocad-verify-drawing-inputs` để kiểm tra nguồn, phiên bản, đơn vị, định vị và dữ liệu còn thiếu. Khi bắt đầu bản vẽ xây dựng 2D, coordinator tiếp tục gợi ý `autocad-start-construction-drawing`: tổ chức layer, hệ trục, hình học, chữ/kích thước và tờ in. Skill này tham khảo [hướng dẫn AutoCAD xây dựng của RDSIC](https://rdsic.edu.vn/hoc-thuat/autocad/huong-dan-su-dung-autocad-xay-dung-mot-cach-de-dang-va-hieu-qua-vi-cb.html) và dùng thông số thực tế của dự án thay cho các kích thước ví dụ trong bài. Nếu cần nhận diện ranh đất hoặc khối nhà trước khi vẽ, coordinator gợi ý `autocad-identify-boundaries`. Các skill đã có sẵn trong `.codex/skills/` và `.claude/skills/` của bản tải đầy đủ.
+
+Với hồ sơ thiết kế xây dựng, `construction-document-router` xác định yêu cầu thuộc giai đoạn thiết kế, thi công hay hoàn công, sau đó kiểm tra tài liệu đầu vào còn thiếu. Hai skill `construction-design-stages` và `construction-drawing-records` hướng dẫn cụ thể thiết kế cơ sở, thiết kế kỹ thuật, thiết kế bản vẽ thi công, bản vẽ dùng trong thi công và cập nhật hiện trường. Giai đoạn hoàn công mới được nhận diện, chưa có quy trình xử lý. Các skill nằm trong `.codex/skills/` và `.claude/skills/`; skill điều phối AutoCAD vẫn áp dụng khi agent sửa bản vẽ qua MCP.
+
+### Đọc bản vẽ và theo dõi thay đổi
+
+Gọi `drawing` với `operation="audit"` để lấy tóm tắt bản vẽ; dùng `data={"include_entities":false}` nếu chưa cần danh sách đối tượng. `changed_only=true` trả các đối tượng thay đổi so với lần audit trước của cùng bản vẽ trong cùng tiến trình MCP và cùng phạm vi. Bỏ tùy chọn này nếu cần toàn bộ đối tượng. Khi chuyển sang bản vẽ khác, baseline được tách riêng; sau khi sửa, hãy đọc lại trước khi kết luận kết quả.
+
+
 ### Claude Code
 
 Mở terminal trong project này và chạy:
@@ -76,7 +92,7 @@ Mở lại phiên Claude Code. Skill đã nằm tại `.claude/skills/autocad-ag
 
 Mở hoặc tạo `%APPDATA%\Claude\claude_desktop_config.json`. Trong app chọn **Claude Desktop** và sao chép JSON được tạo theo đường dẫn trên **máy của bạn**. Gộp hai mục vào `mcpServers` hiện có, giữ nguyên các MCP khác. Thoát hẳn Claude Desktop, kể cả biểu tượng khay hệ thống, rồi mở lại. Trong Chat, bấm **+ → Connectors** để kiểm tra hai server và tool.
 
-Để thêm skill vào Claude Chat: vào **Customize → Skills**, tải tệp `dist/autocad-agent-coordinator.zip` lên và bật skill. Việc tải skill không thay thế bước thêm MCP ở trên.
+Để thêm skill vào Claude Chat: vào **Customize → Skills**, tải `dist/autocad-agent-coordinator.zip` lên và bật skill. Nếu muốn agent kiểm tra đầu vào trước khi vẽ, bắt đầu bản vẽ xây dựng hoặc nhận diện ranh đất/khối nhà, tải thêm `dist/autocad-verify-drawing-inputs.zip`, `dist/autocad-start-construction-drawing.zip` và `dist/autocad-identify-boundaries.zip`. Việc tải skill không thay thế bước thêm MCP ở trên.
 
 ### Cursor
 

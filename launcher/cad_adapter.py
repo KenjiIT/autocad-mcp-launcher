@@ -90,6 +90,17 @@ def _load_puran_dispatcher(repo: Path) -> None:
 
 
 async def prove_connection(name: str, repo: Path, port: int) -> dict:
+    if name == "autocad_beiming":
+        # Beiming can initialize its native worker without COM or AutoLISP.
+        # A failing COM TRUSTEDPATHS probe must not block that path.
+        try:
+            direct = await asyncio.wait_for(_call_system(port, "ensure_ready"), timeout=180)
+            payload = direct.get("payload") or {}
+            if (direct.get("ok") and payload.get("ready") is True
+                    and payload.get("transport") in ("native_pipe", "file_ipc")):
+                return payload
+        except Exception:
+            pass  # Try the legacy LISP path with a temporary trusted directory.
     try:
         original = await asyncio.to_thread(_set_trusted_path, repo)
     except Exception as exc:
@@ -107,7 +118,7 @@ async def prove_connection(name: str, repo: Path, port: int) -> dict:
 
         last = None
         attempts = 2 if name == "autocad_puran" else 1
-        timeout = 20 if name == "autocad_puran" else 45
+        timeout = 20 if name == "autocad_puran" else 180
         for index in range(attempts):
             try:
                 last = await asyncio.wait_for(_call_system(port, operation), timeout=timeout)
@@ -127,3 +138,11 @@ async def prove_connection(name: str, repo: Path, port: int) -> dict:
         raise RuntimeError(f"AutoCAD chưa kết nối với {name}: {last}")
     finally:
         await asyncio.to_thread(_restore_trusted_path, original)
+
+
+async def prove_offline(port: int) -> dict:
+    result = await asyncio.wait_for(_call_system(port, "get_backend"), timeout=30)
+    payload = result.get("payload") or {}
+    if not result.get("ok") or payload.get("backend") != "ezdxf":
+        raise RuntimeError(f"Backend DXF offline chưa sẵn sàng: {result}")
+    return payload

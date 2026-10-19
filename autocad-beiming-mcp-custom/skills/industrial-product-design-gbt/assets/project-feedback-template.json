@@ -1,0 +1,58 @@
+{
+  "schema_version": 2,
+  "record_id": "AUTO",
+  "project_id": "PROJECT-ID",
+  "project_revision": "REVISION",
+  "iteration": {
+    "index": null,
+    "branch": "main",
+    "parent_record_id": null,
+    "status": "proposed",
+    "reason": "Why this iteration was created",
+    "baseline_revision": "previous revision or none",
+    "candidate_revision": "current revision",
+    "change_summary": ["meaningful source-level change"],
+    "design_dna_disposition": "preserved | explicitly-changed | violated"
+  },
+  "timestamp": "YYYY-MM-DDTHH:MM:SS+08:00",
+  "task_summary": "What the other task or window attempted",
+  "maturity": "concept",
+  "skill_version": "commit or local version",
+  "design_dna": ["immutable feature"],
+  "feedback": [
+    {
+      "verbatim": "Exact user feedback",
+      "category": "aesthetics",
+      "target": "view, feature, state, or artifact",
+      "expected": "expected condition",
+      "observed": "observed condition",
+      "severity": "major",
+      "user_disposition": "unresolved"
+    }
+  ],
+  "outcome": {
+    "selected_direction": "identifier or TBD",
+    "what_changed": ["source-level change or none"],
+    "verification": ["before/after evidence or pending test"],
+    "accepted": false,
+    "unresolved": ["remaining question"]
+  },
+  "evidence": [
+    {
+      "type": "render",
+      "identity": "controlled path, artifact ID, or hash",
+      "notes": "bounded relevance; do not embed credentials or private asset data"
+    }
+  ],
+  "learning": {
+    "reuse_scope": "project-only",
+    "proposed_rule": "bounded lesson or none",
+    "counterexamples_or_limits": "where it may not apply",
+    "confidence": "low"
+  },
+  "privacy": {
+    "may_store_locally": true,
+    "may_publish": false,
+    "contains_private_assets": false
+  }
+}

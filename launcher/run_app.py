@@ -5,6 +5,16 @@ from pathlib import Path
 
 
 try:
+    from tray import restore_existing
+
+    if restore_existing():
+        raise SystemExit(0)
+
+    from install_ui import prepare
+
+    if not prepare():
+        raise SystemExit(0)
+
     from app import App
 
     App().mainloop()
