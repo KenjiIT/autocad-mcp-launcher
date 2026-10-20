@@ -7,6 +7,7 @@ Bản MCP độc lập dựa trên AutoCAD-MCP của Beiming, có tích hợp th
 - `copy_batching`: sao chép nhiều đối tượng theo lô.
 - `copy_region_between_dwgs`: chọn vùng chữ nhật/cắt qua và sao chép đối tượng giữa các bản vẽ.
 - `delete_batching`: xóa nhiều đối tượng theo danh sách handle.
+- `cad_batch`: gộp tối đa 100 thao tác entity vào một lần gọi MCP; hỗ trợ tham chiếu handle từ bước trước và rollback qua undo transaction khi có lỗi.
 
 Các tool này được đăng ký trong server MCP nên client kết nối trực tiếp tới bản custom sẽ thấy chúng; không cần launcher đăng ký bổ sung.
 
