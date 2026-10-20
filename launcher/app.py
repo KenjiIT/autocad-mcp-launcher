@@ -2,6 +2,7 @@
 import json
 import os
 import queue
+import shutil
 import socket
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import threading
 import time
 import tkinter as tk
 import urllib.request
+import winreg
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -22,6 +24,32 @@ REPOS = {
 }
 NAMES = {"puran": "autocad_puran", "beiming": "autocad_beiming"}
 UPDATE_REPO = "KenjiIT/autocad-mcp-launcher"
+STARTUP_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+STARTUP_VALUE = "AutoCADMcpLauncher"
+
+
+def startup_enabled():
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_KEY) as key:
+            winreg.QueryValueEx(key, STARTUP_VALUE)
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def set_startup_enabled(enabled):
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, STARTUP_KEY, 0,
+                        winreg.KEY_SET_VALUE) as key:
+        if enabled:
+            wscript = Path(os.environ.get("WINDIR", r"C:\Windows")) / "System32" / "wscript.exe"
+            launcher = ROOT / "Start AutoCAD MCP.vbs"
+            command = f'"{wscript}" "{launcher}"'
+            winreg.SetValueEx(key, STARTUP_VALUE, 0, winreg.REG_SZ, command)
+        else:
+            try:
+                winreg.DeleteValue(key, STARTUP_VALUE)
+            except FileNotFoundError:
+                pass
 
 
 def app_version():
@@ -60,17 +88,12 @@ def config_for(agent):
         return "\n\n".join(f'[mcp_servers.{name}]\nurl = "{url}"' for name, url in urls.items())
     if agent == "Claude Code":
         return "\n".join(f"claude mcp add --transport http {name} {url}" for name, url in urls.items())
-    if agent == "Cursor":
-        return json.dumps({"mcpServers": {name: {"url": url} for name, url in urls.items()}}, indent=2)
     if agent == "Claude Desktop":
         python = str(python_in(REPOS["puran"]))
         bridge = str(ROOT / "launcher" / "stdio_bridge.py")
         return json.dumps({"mcpServers": {
             NAMES[key]: {"command": python, "args": [bridge, key]} for key in REPOS
         }}, indent=2)
-    if agent == "ChatGPT (web)":
-        return ("ChatGPT chạy trên cloud nên không truy cập được 127.0.0.1.\n"
-                "Cần tunnel an toàn hoặc HTTPS public đến gateway trước khi thêm custom MCP server.")
     raise ValueError(agent)
 
 class App(tk.Tk):
@@ -89,6 +112,7 @@ class App(tk.Tk):
         self.update_wait_started = None
         self.update_busy_notice_shown = False
         self.agent = tk.StringVar(value="OpenAI Codex")
+        self.startup_var = tk.BooleanVar(value=startup_enabled())
         self.status = tk.StringVar(value="Sẵn sàng")
         self.build()
         self.refresh_config()
@@ -108,8 +132,13 @@ class App(tk.Tk):
             self.after(300, self.start)
 
     def build(self):
-        main = ttk.Frame(self, padding=22)
-        main.pack(fill="both", expand=True)
+        pages = ttk.Notebook(self)
+        pages.pack(fill="both", expand=True, padx=12, pady=12)
+        main = ttk.Frame(pages, padding=18)
+        settings = ttk.Frame(pages, padding=24)
+        pages.add(main, text="Điều khiển")
+        pages.add(settings, text="Cài đặt")
+        self.build_settings(settings)
         ttk.Label(main, text="AutoCAD MCP", font=("Segoe UI", 20, "bold")).pack(anchor="w")
         ttk.Label(main, text=f"Phiên bản {app_version()}", foreground="#65736f").pack(anchor="w", pady=(0, 5))
         ttk.Label(main, text="Agent ưu tiên AutoCAD; nếu AutoCAD không chạy, agent sẽ hỏi trước khi dùng DXF.",
@@ -129,8 +158,7 @@ class App(tk.Tk):
         row.pack(fill="x")
         ttk.Label(row, text="Agent:").pack(side="left")
         agents = ttk.Combobox(row, textvariable=self.agent, state="readonly", width=21,
-                              values=("OpenAI Codex", "Claude Code", "Cursor",
-                                      "Claude Desktop", "ChatGPT (web)"))
+                              values=("OpenAI Codex", "Claude Code", "Claude Desktop"))
         agents.pack(side="left", padx=10)
         agents.bind("<<ComboboxSelected>>", lambda _: self.refresh_config())
         ttk.Button(row, text="Sao chép cấu hình", command=self.copy).pack(side="right")
@@ -140,13 +168,100 @@ class App(tk.Tk):
                                   bg="#ffffff", fg="#1b2926", relief="flat", padx=12, pady=12)
         self.config_box.pack(fill="both", expand=True)
 
+    def build_settings(self, frame):
+        ttk.Label(frame, text="Cài đặt", font=("Segoe UI", 18, "bold")).pack(anchor="w")
+        ttk.Label(frame, text="Tùy chỉnh cách AutoCAD MCP Launcher hoạt động trên máy này.",
+                  wraplength=650).pack(anchor="w", pady=(6, 22))
+        ttk.Checkbutton(frame, text="Khởi động AutoCAD MCP Launcher cùng Windows",
+                        variable=self.startup_var,
+                        command=self.save_startup_setting).pack(anchor="w")
+        ttk.Label(frame,
+                  text="Khi bật, launcher sẽ mở sau khi bạn đăng nhập Windows. Bạn có thể tắt lựa chọn này bất cứ lúc nào.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", padx=(24, 0), pady=(6, 12))
+        self.settings_status = ttk.Label(frame, text="")
+        self.settings_status.pack(anchor="w", padx=(24, 0))
+        ttk.Separator(frame).pack(fill="x", pady=18)
+        ttk.Label(frame, text="Cài skill cho agent", font=("Segoe UI", 13, "bold")).pack(anchor="w")
+        ttk.Label(frame,
+                  text="Chọn agent và các skill AutoCAD muốn cài hoặc cập nhật. Skill được chép vào thư mục dùng chung của tài khoản Windows.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 10))
+        self.skill_agent = tk.StringVar(value="OpenAI Codex")
+        self.skill_agents = {
+            "OpenAI Codex": Path.home() / ".codex" / "skills",
+            "Claude Code": Path.home() / ".claude" / "skills",
+        }
+        ttk.Combobox(frame, textvariable=self.skill_agent, state="readonly", width=24,
+                     values=tuple(self.skill_agents)).pack(anchor="w", pady=(0, 8))
+        list_frame = ttk.Frame(frame)
+        list_frame.pack(fill="both", expand=True)
+        self.skill_list = tk.Listbox(list_frame, selectmode="extended", height=8,
+                                     exportselection=False, font=("Segoe UI", 9))
+        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.skill_list.yview)
+        self.skill_list.configure(yscrollcommand=scrollbar.set)
+        self.skill_list.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        self.skill_names = self.available_skills()
+        for name in self.skill_names:
+            self.skill_list.insert("end", name)
+        skill_actions = ttk.Frame(frame)
+        skill_actions.pack(fill="x", pady=(8, 0))
+        ttk.Button(skill_actions, text="Chọn tất cả", command=self.select_all_skills).pack(side="left")
+        ttk.Button(skill_actions, text="Cài / cập nhật skill đã chọn",
+                   command=self.install_selected_skills).pack(side="right")
+        self.skill_status = ttk.Label(frame, text=f"Có {len(self.skill_names)} skill trong bản này.",
+                                      foreground="#225c53")
+        self.skill_status.pack(anchor="w", pady=(8, 0))
+
+    @staticmethod
+    def available_skills():
+        skills_dir = ROOT / ".codex" / "skills"
+        if not skills_dir.is_dir():
+            skills_dir = ROOT / ".claude" / "skills"
+        return sorted(path.name for path in skills_dir.iterdir()
+                      if path.is_dir() and (path / "SKILL.md").is_file()) if skills_dir.is_dir() else []
+
+    def select_all_skills(self):
+        self.skill_list.selection_set(0, "end")
+
+    def install_selected_skills(self):
+        selected = [self.skill_names[index] for index in self.skill_list.curselection()]
+        if not selected:
+            self.skill_status.configure(text="Hãy chọn ít nhất một skill.", foreground="#9a5b00")
+            return
+        target_root = self.skill_agents[self.skill_agent.get()]
+        source_root = ROOT / ".codex" / "skills"
+        if not source_root.is_dir():
+            source_root = ROOT / ".claude" / "skills"
+        try:
+            target_root.mkdir(parents=True, exist_ok=True)
+            for name in selected:
+                source = source_root / name
+                target = target_root / name
+                if not (source / "SKILL.md").is_file():
+                    raise FileNotFoundError(f"Không tìm thấy nội dung skill: {source}")
+                shutil.copytree(source, target, dirs_exist_ok=True)
+            self.skill_status.configure(
+                text=f"Đã cài / cập nhật {len(selected)} skill cho {self.skill_agent.get()} tại {target_root}.",
+                foreground="#225c53")
+        except OSError as exc:
+            self.skill_status.configure(text=f"Không cài được skill: {exc}", foreground="#a12622")
+
+    def save_startup_setting(self):
+        enabled = self.startup_var.get()
+        try:
+            set_startup_enabled(enabled)
+            self.settings_status.configure(
+                text="Đã bật khởi động cùng Windows." if enabled else "Đã tắt khởi động cùng Windows."
+            )
+        except OSError as exc:
+            self.startup_var.set(not enabled)
+            self.settings_status.configure(text=f"Không lưu được cài đặt: {exc}")
+
     def refresh_config(self):
         hints = {
             "OpenAI Codex": "Gộp hai mục vào %USERPROFILE%\\.codex\\config.toml rồi mở lại Codex.",
             "Claude Code": "Chạy hai lệnh trong terminal của project cần dùng.",
-            "Cursor": "Gộp mcpServers vào %USERPROFILE%\\.cursor\\mcp.json rồi mở lại Cursor.",
-            "Claude Desktop": "Gộp mcpServers vào %APPDATA%\\Claude\\claude_desktop_config.json rồi mở lại Claude Desktop. App phải tiếp tục chạy.",
-            "ChatGPT (web)": "ChatGPT cần endpoint HTTPS ngoài máy; gateway local không truy cập được từ cloud.",
+            "Claude Desktop": "Gộp mcpServers vào %APPDATA%\\Claude\\claude_desktop_config.json rồi thoát hẳn và mở lại Claude Desktop. Launcher phải tiếp tục chạy.",
         }
         self.hint.configure(text=hints[self.agent.get()])
         self.config_box.delete("1.0", "end")
