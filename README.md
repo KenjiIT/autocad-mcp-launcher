@@ -14,6 +14,10 @@ Puran được gắn dưới dạng Git submodule. Source Beiming đã được 
 
 Cần Windows, Python 3.10–3.13 có `tkinter`, và Internet cho lần cài thư viện đầu tiên. DWG cần AutoCAD; DXF offline không cần AutoCAD. Repo GitHub này là **public**. Có thể tải gói cài đặt từ mục Releases mà không cần Git hoặc đăng nhập GitHub.
 
+### Cài bằng bộ cài EXE
+
+Trong mục Releases, tải `AutoCAD-MCP-Launcher-Setup-<phiên-bản>.exe` rồi mở file. Chọn thư mục cài đặt; shortcut Start Menu được tạo tự động. Có thể chọn thêm shortcut Desktop ở bước tác vụ bổ sung. Khi hoàn tất, bộ cài mở launcher; lần đầu chạy sẽ cài thư viện MCP rồi mới hiện ứng dụng. Cần cài sẵn Python 3.10–3.13 có `tkinter`.
+
 ### Máy không có Git
 
 Mở [autocad-mcp-launcher-complete.zip](dist/autocad-mcp-launcher-complete.zip) trên GitHub, bấm **Download raw**, rồi giải nén. ZIP này chứa app, skill và mã nguồn của **cả hai MCP**. Mở thư mục `autocad-mcp-launcher` vừa giải nén và làm tiếp mục **2. Chạy app**. Máy dùng app không cần cài Git.

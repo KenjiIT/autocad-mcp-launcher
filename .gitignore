@@ -1,5 +1,9 @@
 **/.venv/
 **/__pycache__/
+/dist/installer-payload/
+/dist/AutoCAD-MCP-Launcher-Setup-*.exe
+/dist/AutoCAD-MCP-Launcher-Setup-*.exe.sha256
+/dist/*.sha256
 launcher/logs/
 autocad-beiming-mcp-custom/.local-data/
 autocad-beiming-mcp-custom/output/

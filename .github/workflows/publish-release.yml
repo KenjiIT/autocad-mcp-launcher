@@ -35,13 +35,37 @@ jobs:
           $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
           Set-Content -Path "$archive.sha256" -Value "$hash  autocad-mcp-launcher-complete.zip" -NoNewline
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build Windows setup executable
+        shell: pwsh
+        run: |
+          ./installer/build_installer.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Windows setup build failed" }
+          $installer = Get-ChildItem dist/AutoCAD-MCP-Launcher-Setup-*.exe | Select-Object -First 1
+          if (-not $installer) { throw "Windows setup executable was not created" }
+          $hash = (Get-FileHash $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path "$($installer.FullName).sha256" -Value "$hash  $($installer.Name)" -NoNewline
+
       - name: Publish GitHub Release and update package
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh release create $env:GITHUB_REF_NAME `
-            dist/autocad-mcp-launcher-complete.zip `
-            dist/autocad-mcp-launcher-complete.zip.sha256 `
-            --title "AutoCAD MCP Launcher $env:GITHUB_REF_NAME" `
-            --notes-file RELEASE-v0.1.0.md
+          $installer = Get-ChildItem dist/AutoCAD-MCP-Launcher-Setup-*.exe | Select-Object -First 1
+          if (-not $installer) { throw "Windows setup executable was not created" }
+          $assets = @(
+            "dist/autocad-mcp-launcher-complete.zip",
+            "dist/autocad-mcp-launcher-complete.zip.sha256",
+            $installer.FullName,
+            "$($installer.FullName).sha256"
+          )
+          $notesFile = "RELEASE-$env:GITHUB_REF_NAME.md"
+          $title = "AutoCAD MCP Launcher $env:GITHUB_REF_NAME"
+          if (Test-Path $notesFile) {
+            gh release create $env:GITHUB_REF_NAME $assets --title $title --notes-file $notesFile
+          } else {
+            gh release create $env:GITHUB_REF_NAME $assets --title $title --generate-notes
+          }
