@@ -236,7 +236,7 @@ You should see `backend: "file_ipc"` if AutoCAD is running, or `backend: "ezdxf"
 
 `create_batch` is atomic in the headless backend. The COM/LISP path uses an AutoCAD undo group and returns rollback evidence, but callers must treat unverified compensation as a hard stop. This path supports high-throughput batches without enabling arbitrary AutoLISP.
 
-For `ANSI31`, pass `angle: 0` to retain the pattern's native 45-degree section angle. `scale` and hatch `layer` are also explicit parameters. Every HATCH is read back by handle and checked for type, layer, pattern, angle, and scale; a mismatch is erased and returned as `E_POSTCONDITION_MISMATCH`.
+For `ANSI31`, pass `angle: 0` to retain the pattern's native 45-degree section angle. `scale` and hatch `layer` are also explicit parameters. In AutoCAD mode, HATCH uses COM `AddHatch`/`AppendOuterLoop` against the specified closed 2D polyline instead of command-line boundary detection. The boundary is checked for type, closure, ModelSpace ownership, positive area, and planarity. The created HATCH is read back by handle and checked for type, layer, pattern, area, and extents, plus angle/scale for non-SOLID patterns; a mismatch is erased and returned as `E_POSTCONDITION_MISMATCH`.
 
 **Read:** `list`, `count`, `get`
 

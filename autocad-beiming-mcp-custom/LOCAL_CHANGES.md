@@ -196,6 +196,10 @@
     the MCP transcript.
 80. The incident runbook records the 2026-07-19 454-call/18-screenshot context
     flood as a host-pressure failure distinct from AutoCAD's startup crash.
+81. AutoCAD HATCH creation now uses COM `AddHatch` plus `AppendOuterLoop` for
+    the exact closed ModelSpace polyline. It validates boundary type, closure,
+    area, and planarity, then checks the resulting area and extents against the
+    boundary; failed postconditions erase the new hatch.
 
 ## MCP client registration
 

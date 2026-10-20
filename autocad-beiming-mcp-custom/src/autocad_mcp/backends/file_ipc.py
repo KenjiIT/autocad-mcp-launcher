@@ -4220,25 +4220,103 @@ class FileIPCBackend(AutoCADBackend):
 
     @sta_async_method("hatch.create", idempotent=False)
     async def _create_hatch_com(self, entity_id, pattern, angle, scale, layer) -> CommandResult:
+        hatch = None
         try:
             import pythoncom
             import win32com.client
 
             document = self._get_autocad_application().ActiveDocument
             boundary = document.HandleToObject(str(entity_id))
+            object_name = str(_com_value(boundary, "ObjectName", ""))
+            if object_name not in {"AcDbPolyline", "AcDb2dPolyline"}:
+                return CommandResult(
+                    ok=False,
+                    error=f"Hatch boundary must be a closed 2D polyline; received {object_name or 'unknown entity'}",
+                    error_code="E_INVALID_HATCH_BOUNDARY",
+                    recoverable=False,
+                    recommended_action="provide_a_closed_2d_polyline_handle",
+                    payload={"boundary_entity_id": str(entity_id), "entity_created": False},
+                )
+            if not bool(_com_value(boundary, "Closed", False)):
+                return CommandResult(
+                    ok=False,
+                    error="Hatch boundary polyline is open",
+                    error_code="E_INVALID_HATCH_BOUNDARY",
+                    recoverable=False,
+                    recommended_action="close_the_boundary_polyline_before_hatching",
+                    payload={"boundary_entity_id": str(entity_id), "entity_created": False},
+                )
+            model_space_id = str(_com_value(document.ModelSpace, "ObjectID", ""))
+            owner_id = str(_com_value(boundary, "OwnerID", ""))
+            if model_space_id and owner_id and owner_id != model_space_id:
+                return CommandResult(
+                    ok=False,
+                    error="Hatch boundary must be in ModelSpace",
+                    error_code="E_INVALID_HATCH_BOUNDARY",
+                    recoverable=False,
+                    recommended_action="provide_a_modelspace_polyline_handle",
+                    payload={"boundary_entity_id": str(entity_id), "entity_created": False},
+                )
+
+            boundary_area = float(_com_value(boundary, "Area"))
+            if not math.isfinite(boundary_area) or boundary_area <= 0:
+                return CommandResult(
+                    ok=False,
+                    error="Hatch boundary must have a finite positive area",
+                    error_code="E_INVALID_HATCH_BOUNDARY",
+                    recoverable=False,
+                    recommended_action="provide_a_non_degenerate_closed_polyline",
+                    payload={"boundary_entity_id": str(entity_id), "boundary_area": boundary_area, "entity_created": False},
+                )
+            minimum, maximum = boundary.GetBoundingBox()
+            boundary_bounds = {
+                "min": [float(value) for value in minimum],
+                "max": [float(value) for value in maximum],
+            }
+            if len(boundary_bounds["min"]) < 3 or len(boundary_bounds["max"]) < 3:
+                raise ValueError("AutoCAD returned incomplete boundary extents")
+            if not all(
+                math.isfinite(value)
+                for point in boundary_bounds.values()
+                for value in point[:3]
+            ):
+                return CommandResult(
+                    ok=False,
+                    error="Hatch boundary returned non-finite extents",
+                    error_code="E_INVALID_HATCH_BOUNDARY",
+                    recoverable=False,
+                    recommended_action="repair_or_recreate_the_boundary_polyline",
+                    payload={"boundary_entity_id": str(entity_id), "boundary_bounds": boundary_bounds, "entity_created": False},
+                )
+            extent_scale = max(
+                1.0,
+                *(abs(value) for point in boundary_bounds.values() for value in point[:3]),
+            )
+            flat_tolerance = max(1e-6, extent_scale * 1e-9)
+            if abs(boundary_bounds["max"][2] - boundary_bounds["min"][2]) > flat_tolerance:
+                return CommandResult(
+                    ok=False,
+                    error="Hatch boundary must lie in a plane parallel to the XY plane",
+                    error_code="E_INVALID_HATCH_BOUNDARY",
+                    recoverable=False,
+                    recommended_action="flatten_the_boundary_to_a_2d_polyline",
+                    payload={"boundary_entity_id": str(entity_id), "boundary_bounds": boundary_bounds, "entity_created": False},
+                )
+
+            hatch_layer = str(layer or "0")
             hatch = document.ModelSpace.AddHatch(0, str(pattern), True)
+            hatch.Layer = hatch_layer
+            hatch.color = 256
+            if str(pattern).casefold() != "solid":
+                hatch.PatternScale = float(scale)
+                hatch.PatternAngle = float(angle) * math.pi / 180.0
             loop = win32com.client.VARIANT(
                 pythoncom.VT_ARRAY | pythoncom.VT_DISPATCH, [boundary]
             )
             hatch.AppendOuterLoop(loop)
-            if str(pattern).upper() != "SOLID":
-                hatch.PatternScale = float(scale)
-                hatch.PatternAngle = float(angle) * 3.141592653589793 / 180.0
             hatch.Evaluate()
-            if layer:
-                hatch.Layer = str(layer)
-            hatch.color = 256
             area = float(hatch.Area)
+            hatch_bounds_min, hatch_bounds_max = hatch.GetBoundingBox()
             return CommandResult(
                 ok=True,
                 payload={
@@ -4248,32 +4326,81 @@ class FileIPCBackend(AutoCADBackend):
                     "layer": str(hatch.Layer),
                     "area": area,
                     "boundary_entity_id": str(entity_id),
+                    "boundary_area": boundary_area,
+                    "boundary_bounds": boundary_bounds,
+                    "bounds": {
+                        "min": [float(value) for value in hatch_bounds_min],
+                        "max": [float(value) for value in hatch_bounds_max],
+                    },
                 },
             )
         except Exception as exc:
-            return self._exception_result(
+            cleanup = None
+            if hatch is not None:
+                try:
+                    cleanup = {"deleted": True}
+                    hatch.Delete()
+                except Exception as cleanup_error:
+                    cleanup = {"deleted": False, "error": str(cleanup_error)}
+            result = self._exception_result(
                 exc,
                 operation="hatch.create",
                 parameters={"entity_id": entity_id, "pattern": pattern, "layer": layer},
                 system_call="AutoCAD.ModelSpace.AddHatch",
             )
+            if cleanup is not None:
+                payload = result.payload if isinstance(result.payload, dict) else {}
+                payload["hatch_cleanup"] = cleanup
+                result.payload = payload
+            return result
 
     async def create_hatch(
         self, entity_id, pattern="ANSI31", angle=0.0, scale=1.0, layer=None
     ) -> CommandResult:
-        if str(entity_id).lower() != "last":
-            if layer:
-                layer_check = await self.layer_exists(str(layer))
-                if not layer_check.ok or not layer_check.payload.get("exists"):
-                    return CommandResult(
-                        ok=False,
-                        error=f"Layer does not exist: {layer}",
-                        error_code="E_LAYER_NOT_FOUND",
-                        recoverable=False,
-                        recommended_action="create_or_select_an_existing_layer",
-                        payload={"layer": str(layer), "entity_created": False},
+        requested_entity_id = str(entity_id)
+        if "," in requested_entity_id:
+            created, failed = [], []
+            for part in (p.strip() for p in requested_entity_id.split(",")):
+                if not part:
+                    continue
+                single = await self.create_hatch(part, pattern, angle, scale, layer)
+                if single.ok and isinstance(single.payload, dict):
+                    created.append(
+                        {
+                            "boundary": part,
+                            "handle": single.payload.get("handle"),
+                            "area": single.payload.get("area"),
+                            "boundary_area": single.payload.get("boundary_area"),
+                        }
                     )
-            return await self._create_hatch_com(entity_id, pattern, angle, scale, layer)
+                else:
+                    failed.append({"boundary": part, "error": single.error})
+            return CommandResult(
+                ok=not failed,
+                payload={"created": len(created), "failed": failed, "hatches": created},
+                error=None if not failed else f"{len(failed)} hatch(es) failed",
+            )
+        if requested_entity_id.casefold() in {"last", "$last"}:
+            resolved = await self._dispatch("entity-get", {"entity_id": "last"})
+            if not resolved.ok or not isinstance(resolved.payload, dict):
+                return CommandResult(
+                    ok=False,
+                    error=f"Unable to resolve last entity as a hatch boundary: {resolved.error or 'entity not found'}",
+                    error_code="E_INVALID_HATCH_BOUNDARY",
+                    recoverable=False,
+                    recommended_action="provide_an_explicit_closed_polyline_handle",
+                    payload={"boundary_entity_id": requested_entity_id, "entity_created": False},
+                )
+            entity_id = resolved.payload.get("handle")
+            if not entity_id:
+                return CommandResult(
+                    ok=False,
+                    error="AutoCAD did not return a handle for the last entity",
+                    error_code="E_INVALID_HATCH_BOUNDARY",
+                    recoverable=False,
+                    recommended_action="provide_an_explicit_closed_polyline_handle",
+                    payload={"boundary_entity_id": requested_entity_id, "entity_created": False},
+                )
         if layer:
             layer_check = await self.layer_exists(str(layer))
             if not layer_check.ok:
@@ -4287,16 +4414,153 @@ class FileIPCBackend(AutoCADBackend):
                     recommended_action="create_or_select_an_existing_layer",
                     payload={"layer": str(layer), "entity_created": False},
                 )
-        return await self._dispatch(
-            "create-hatch",
-            {
-                "entity_id": entity_id,
-                "pattern": pattern,
-                "angle": angle,
-                "scale": scale,
-                "layer": layer,
-            },
-        )
+        return await self._create_hatch_com(entity_id, pattern, angle, scale, layer)
+
+    @sta_async_method("entity.set_layer", idempotent=True)
+    async def entity_set_layer(self, entity_ids, layer) -> CommandResult:
+        try:
+            document = self._get_autocad_application().ActiveDocument
+            document.Layers.Item(str(layer))
+            handles = [str(h).strip() for h in entity_ids if str(h).strip()]
+            changed, failed = [], []
+            for handle in handles:
+                try:
+                    entity = document.HandleToObject(handle)
+                    entity.Layer = str(layer)
+                    if str(entity.Layer) != str(layer):
+                        raise ValueError(f"layer is {entity.Layer} after assignment")
+                    changed.append(handle)
+                except Exception as item_exc:
+                    failed.append({"handle": handle, "error": str(item_exc)})
+            return CommandResult(
+                ok=not failed,
+                payload={"layer": str(layer), "changed": len(changed), "failed": failed},
+                error=None if not failed else f"{len(failed)} entities not changed",
+            )
+        except Exception as exc:
+            return self._exception_result(
+                exc,
+                operation="entity.set_layer",
+                parameters={"count": len(entity_ids), "layer": layer},
+                system_call="AutoCAD.Entity.Layer",
+            )
+
+    @sta_async_method("entity.erase_layers", idempotent=True)
+    async def entity_erase_layers(self, layers) -> CommandResult:
+        """Erase every Model Space entity on the named layers (layers are kept)."""
+        try:
+            names = {str(n).upper() for n in layers}
+            if not names or "0" in names:
+                raise ValueError("refusing to erase layer 0 or an empty layer list")
+            document = self._get_autocad_application().ActiveDocument
+            modelspace = document.ModelSpace
+            victims = []
+            for index in range(modelspace.Count):
+                entity = modelspace.Item(index)
+                if str(entity.Layer).upper() in names:
+                    victims.append(entity)
+            per_layer = {}
+            for entity in victims:
+                per_layer[str(entity.Layer)] = per_layer.get(str(entity.Layer), 0) + 1
+            for entity in victims:
+                entity.Delete()
+            return CommandResult(ok=True, payload={"erased": len(victims), "per_layer": per_layer})
+        except Exception as exc:
+            return self._exception_result(
+                exc,
+                operation="entity.erase_layers",
+                parameters={"layers": list(layers)},
+                system_call="AutoCAD.Entity.Delete",
+            )
+
+    @sta_async_method("entity.create_lines_file", idempotent=False)
+    async def entity_create_lines_file(self, path) -> CommandResult:
+        """Draw straight LINEs listed in a JSON file: [{x1,y1,x2,y2,layer}, ...]."""
+        try:
+            import json
+            import pythoncom
+            import win32com.client
+
+            with open(str(path), "r", encoding="utf-8") as handle:
+                rows = json.load(handle)
+            document = self._get_autocad_application().ActiveDocument
+            layers = {str(r["layer"]) for r in rows}
+            for name in layers:
+                document.Layers.Item(name)  # raises if the layer does not exist
+            modelspace = document.ModelSpace
+            created = []
+            try:
+                for r in rows:
+                    start = self._solid_point(pythoncom, win32com, [float(r["x1"]), float(r["y1"]), 0.0])
+                    end = self._solid_point(pythoncom, win32com, [float(r["x2"]), float(r["y2"]), 0.0])
+                    line = modelspace.AddLine(start, end)
+                    line.Layer = str(r["layer"])
+                    created.append(line)
+            except Exception:
+                for line in created:
+                    try:
+                        line.Delete()
+                    except Exception:
+                        pass
+                raise
+            return CommandResult(
+                ok=True,
+                payload={
+                    "created": len(created),
+                    "layers": sorted(layers),
+                    "first_handle": str(created[0].Handle) if created else None,
+                    "last_handle": str(created[-1].Handle) if created else None,
+                },
+            )
+        except Exception as exc:
+            return self._exception_result(
+                exc,
+                operation="entity.create_lines_file",
+                parameters={"path": str(path)},
+                system_call="AutoCAD.ModelSpace.AddLine",
+            )
+
+    @sta_async_method("entity.set_hatch_pattern", idempotent=True)
+    async def entity_set_hatch_pattern(self, entity_ids, pattern="SOLID") -> CommandResult:
+        try:
+            document = self._get_autocad_application().ActiveDocument
+            handles = [str(h).strip() for h in entity_ids if str(h).strip()]
+            changed, failed = [], []
+            for handle in handles:
+                try:
+                    entity = document.HandleToObject(handle)
+                    if str(entity.ObjectName) != "AcDbHatch":
+                        raise ValueError(f"not a hatch: {entity.ObjectName}")
+                    before_min, before_max = entity.GetBoundingBox()
+                    entity.SetPattern(0, str(pattern))
+                    entity.Evaluate()
+                    after_min, after_max = entity.GetBoundingBox()
+                    if str(entity.PatternName).upper() != str(pattern).upper():
+                        raise ValueError(f"pattern is {entity.PatternName} after assignment")
+                    drift = max(
+                        abs(float(a) - float(b))
+                        for a, b in zip(
+                            list(before_min) + list(before_max),
+                            list(after_min) + list(after_max),
+                        )
+                    )
+                    if drift > 1.0:
+                        raise ValueError(f"bounds moved by {drift}")
+                    changed.append(handle)
+                except Exception as item_exc:
+                    failed.append({"handle": handle, "error": str(item_exc)})
+            return CommandResult(
+                ok=not failed,
+                payload={"pattern": str(pattern), "changed": len(changed), "failed": failed},
+                error=None if not failed else f"{len(failed)} hatches not changed",
+            )
+        except Exception as exc:
+            return self._exception_result(
+                exc,
+                operation="entity.set_hatch_pattern",
+                parameters={"count": len(entity_ids), "pattern": pattern},
+                system_call="AutoCAD.Hatch.SetPattern",
+            )
 
     async def entity_list(self, layer=None) -> CommandResult:
         return await self._dispatch("entity-list", {"layer": layer})

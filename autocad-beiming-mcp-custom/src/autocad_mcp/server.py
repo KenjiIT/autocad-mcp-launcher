@@ -882,7 +882,7 @@ async def entity(
         "create_arc", "create_tangent_arc", "create_ellipse", "create_mtext",
         "create_text", "create_hatch", "create_batch", "list", "count", "get",
         "copy", "move", "rotate", "scale", "mirror", "offset", "array", "fillet",
-        "chamfer", "trim", "extend", "break", "join", "constrain", "erase",
+        "chamfer", "trim", "extend", "break", "join", "constrain", "erase", "set_layer", "set_hatch_pattern", "create_lines_file", "erase_layers",
     }
     if operation not in known_operations:
         return tool_error(f"Unknown entity operation: {operation}", code="E_UNSUPPORTED_OPERATION")
@@ -1083,6 +1083,16 @@ async def entity(
         result = await backend.entity_join(data.get("entity_ids", []), data.get("tolerance", 0.0))
     elif operation == "constrain":
         result = await backend.entity_constrain(data["constraint"], data.get("entity_ids", []))
+    elif operation == "erase_layers":
+        result = await backend.entity_erase_layers(data["layers"])
+    elif operation == "create_lines_file":
+        result = await backend.entity_create_lines_file(data["path"])
+    elif operation == "set_hatch_pattern":
+        ids = data.get("entity_ids") or [part for part in str(entity_id or "").split(",") if part.strip()]
+        result = await backend.entity_set_hatch_pattern(ids, data.get("pattern", "SOLID"))
+    elif operation == "set_layer":
+        ids = data.get("entity_ids") or [part for part in str(entity_id or "").split(",") if part.strip()]
+        result = await backend.entity_set_layer(ids, data["layer"])
     elif operation == "erase":
         result = await backend.entity_erase(entity_id)
         if result.ok and doc_id and entity_id:
@@ -1096,7 +1106,14 @@ async def entity(
             payload["registry_sync"] = registry
             result.payload = payload
     if hatch_contract is not None:
-        result = await backend.verify_created_hatch(result, **hatch_contract)
+        verification_contract = dict(hatch_contract)
+        if isinstance(result.payload, dict):
+            verification_contract["entity_id"] = str(
+                result.payload.get("boundary_entity_id", verification_contract["entity_id"])
+            )
+            verification_contract["boundary_area"] = result.payload.get("boundary_area")
+            verification_contract["boundary_bounds"] = result.payload.get("boundary_bounds")
+        result = await backend.verify_created_hatch(result, **verification_contract)
     if expectation is not None:
         result = await backend.verify_created_entity(expectation, result)
 

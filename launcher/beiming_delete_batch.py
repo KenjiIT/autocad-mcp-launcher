@@ -167,5 +167,3 @@ def register(mcp) -> None:
                 payload["context_error"] = context.to_dict()
         result = _finish_journaled_mutation(idempotency_key, result)
         return await add_screenshot_if_available(result, False)
-
-\n

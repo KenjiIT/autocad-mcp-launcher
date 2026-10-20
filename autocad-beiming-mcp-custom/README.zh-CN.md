@@ -133,7 +133,7 @@ system(operation="status")
 
 每个写入请求都检查文档身份与 revision，并在写入前拒绝过期上下文。服务持久记录已接受、已提交和失败的操作，失败请求可在核对结果后安全重试。
 
-填充实体同样执行后置核验：创建后按句柄回读类型、图层、图案、角度和比例。任一字段不一致时自动删除可疑 HATCH，并返回 `E_POSTCONDITION_MISMATCH`，不会把 `entlast` 变化误当成正确交付。
+AutoCAD 模式下，HATCH 通过 COM 的 `AddHatch` 和 `AppendOuterLoop` 直接使用指定的闭合二维多段线，不再让 `-HATCH` 命令重新搜索边界。创建前检查边界类型、闭合状态、ModelSpace 所属、面积及平面；创建后按句柄回读类型、图层、图案、面积和边界范围，并核对角度/比例（SOLID 除外）。检查不符时删除可疑 HATCH 并返回 `E_POSTCONDITION_MISMATCH`；COM 创建中途失败时也会尝试清理未完成的实体。
 
 推荐的自动化闭环是：
 

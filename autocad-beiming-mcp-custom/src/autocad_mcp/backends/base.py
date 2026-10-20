@@ -709,6 +709,8 @@ class AutoCADBackend(ABC):
         angle: float,
         scale: float,
         layer: str | None = None,
+        boundary_area: float | None = None,
+        boundary_bounds: dict[str, Any] | None = None,
         tolerance: float = 0.000001,
     ) -> CommandResult:
         """Read back a HATCH and erase it when its contract is not true.
@@ -721,6 +723,7 @@ class AutoCADBackend(ABC):
             return result
         handle = result.payload.get("handle")
         requested_layer = str(layer or "0")
+        is_solid = str(pattern).casefold() == "solid"
         requested = {
             "type": "HATCH",
             "layer": requested_layer,
@@ -757,7 +760,10 @@ class AutoCADBackend(ABC):
                 differences.append({"path": "layer", "requested": requested_layer, "actual": actual.get("layer")})
             if str(actual.get("pattern", "")).casefold() != str(pattern).casefold():
                 differences.append({"path": "pattern", "requested": str(pattern), "actual": actual.get("pattern")})
-            for field, expected in (("angle", float(angle)), ("scale", float(scale))):
+            dimensional_checks = []
+            if not is_solid:
+                dimensional_checks.extend((("angle", float(angle)), ("scale", float(scale))))
+            for field, expected in dimensional_checks:
                 value = actual.get(field)
                 try:
                     actual_number = float(value)
@@ -778,6 +784,58 @@ class AutoCADBackend(ABC):
                             "actual": actual_number,
                             "delta": delta,
                             "tolerance": tolerance,
+                        }
+                    )
+            if boundary_area is not None:
+                try:
+                    expected_area = float(boundary_area)
+                    actual_area = float(actual.get("area"))
+                except (TypeError, ValueError):
+                    expected_area = float(boundary_area)
+                    actual_area = math.nan
+                area_tolerance = max(tolerance, abs(expected_area) * 1e-8)
+                if not math.isfinite(actual_area) or abs(actual_area - expected_area) > area_tolerance:
+                    differences.append(
+                        {
+                            "path": "area",
+                            "requested": expected_area,
+                            "actual": actual.get("area"),
+                            "tolerance": area_tolerance,
+                        }
+                    )
+            if boundary_bounds is not None:
+                actual_bounds = actual.get("bounds")
+                bound_tolerance = tolerance
+                try:
+                    expected_min = [float(value) for value in boundary_bounds["min"][:3]]
+                    expected_max = [float(value) for value in boundary_bounds["max"][:3]]
+                    actual_min = [float(value) for value in actual_bounds["min"][:3]]
+                    actual_max = [float(value) for value in actual_bounds["max"][:3]]
+                    coordinate_scale = max(1.0, *(abs(value) for value in expected_min + expected_max))
+                    bound_tolerance = max(tolerance, coordinate_scale * 1e-9)
+                    if len(expected_min) != 3 or len(expected_max) != 3 or len(actual_min) != 3 or len(actual_max) != 3:
+                        raise ValueError("incomplete bounds")
+                    for endpoint, expected_values, actual_values in (
+                        ("min", expected_min, actual_min),
+                        ("max", expected_max, actual_max),
+                    ):
+                        for axis, expected_value, actual_value in zip(("x", "y", "z"), expected_values, actual_values):
+                            if not math.isfinite(actual_value) or abs(actual_value - expected_value) > bound_tolerance:
+                                differences.append(
+                                    {
+                                        "path": f"bounds.{endpoint}.{axis}",
+                                        "requested": expected_value,
+                                        "actual": actual_value,
+                                        "tolerance": bound_tolerance,
+                                    }
+                                )
+                except (KeyError, TypeError, ValueError):
+                    differences.append(
+                        {
+                            "path": "bounds",
+                            "requested": boundary_bounds,
+                            "actual": actual_bounds,
+                            "tolerance": bound_tolerance,
                         }
                     )
         if differences:
