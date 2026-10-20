@@ -12,7 +12,7 @@ Puran được gắn dưới dạng Git submodule. Source Beiming đã được 
 
 ## 1. Tải về
 
-Cần Windows, Python 3.10–3.13 có `tkinter`, và Internet cho lần cài thư viện đầu tiên. DWG cần AutoCAD; DXF offline không cần AutoCAD. Repo GitHub này là **private**, nên tài khoản GitHub tải về cần được cấp quyền.
+Cần Windows, Python 3.10–3.13 có `tkinter`, và Internet cho lần cài thư viện đầu tiên. DWG cần AutoCAD; DXF offline không cần AutoCAD. Repo GitHub này là **public**. Có thể tải gói cài đặt từ mục Releases mà không cần Git hoặc đăng nhập GitHub.
 
 ### Máy không có Git
 
@@ -126,3 +126,9 @@ Gateway dùng backend `file_ipc` để làm việc với AutoCAD. App tạm thê
 Mã nguồn hai MCP thuộc các repo upstream được dẫn ở đầu trang và giữ nguyên lịch sử Git của họ. Launcher và skill của dự án này nằm trong repo chính.
 
 Người duy trì repo có thể tạo lại ZIP đầy đủ bằng `python scripts/build_portable.py` sau khi cập nhật launcher hoặc submodule. ZIP loại bỏ `.git`, môi trường `.venv`, log và file output phát sinh.
+
+## Cập nhật launcher
+
+Launcher kiểm tra GitHub Release mới khi mở app. Nếu có bản mới, app hiển thị phiên bản và ghi chú phát hành để người dùng chọn cập nhật hoặc để sau. Gói tải về được đối chiếu SHA-256, app chờ yêu cầu AutoCAD đang chạy hoàn tất, tạm dừng MCP, cập nhật các file trong gói rồi mở lại launcher. Môi trường `.venv`, `launcher/logs`, thư mục output và file DWG cục bộ được giữ nguyên.
+
+Tính năng này dùng GitHub Releases công khai. Để phát hành, cập nhật `VERSION` (ví dụ `0.2.0`), commit lên repo, sau đó đẩy tag tương ứng `v0.2.0`. GitHub Actions sẽ build `autocad-mcp-launcher-complete.zip`, tạo SHA-256 và đăng tải cả hai lên Release. Workflow nằm tại `.github/workflows/publish-release.yml`.

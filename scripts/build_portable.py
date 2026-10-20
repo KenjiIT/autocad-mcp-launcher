@@ -14,6 +14,7 @@ SKILL_ARCHIVES = (
     "autocad-verify-drawing-inputs",
 )
 INCLUDE = (
+    "VERSION",
     "README.md",
     "Start AutoCAD MCP.cmd",
     "Start AutoCAD MCP.vbs",
@@ -29,7 +30,7 @@ INCLUDE = (
     "puran-water-autocad-mcp",
     "autocad-beiming-mcp-custom",
 )
-SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "logs", "output", ".local-data"}
+SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "logs", "output", ".local-data", "bin", "obj"}
 SKIP_SUFFIXES = {".dwg"}  # User drawings must not be bundled with the launcher.
 
 

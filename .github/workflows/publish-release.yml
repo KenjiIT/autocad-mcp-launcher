@@ -1,0 +1,47 @@
+name: Build launcher release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify release version and build portable package
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match VERSION v$version"
+          }
+          python scripts/build_portable.py
+          if ($LASTEXITCODE -ne 0) { throw "Portable package build failed" }
+          $archive = "dist/autocad-mcp-launcher-complete.zip"
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path "$archive.sha256" -Value "$hash  autocad-mcp-launcher-complete.zip" -NoNewline
+
+      - name: Publish GitHub Release and update package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            dist/autocad-mcp-launcher-complete.zip `
+            dist/autocad-mcp-launcher-complete.zip.sha256 `
+            --title "AutoCAD MCP Launcher $env:GITHUB_REF_NAME" `
+            --notes-file RELEASE-v0.1.0.md

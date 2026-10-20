@@ -1,10 +1,12 @@
 """Windows desktop controller for the exclusive AutoCAD MCP gateway."""
 import json
+import os
 import queue
 import socket
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 import urllib.request
 from pathlib import Path
@@ -19,6 +21,14 @@ REPOS = {
     "beiming": ROOT / "autocad-beiming-mcp-custom",
 }
 NAMES = {"puran": "autocad_puran", "beiming": "autocad_beiming"}
+UPDATE_REPO = "KenjiIT/autocad-mcp-launcher"
+
+
+def app_version():
+    try:
+        return (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return "0.0.0"
 
 
 def python_in(repo):
@@ -74,6 +84,10 @@ class App(tk.Tk):
         self.events = queue.Queue()
         self.busy = False
         self.closing = False
+        self.updating = False
+        self.update_archive = None
+        self.update_wait_started = None
+        self.update_busy_notice_shown = False
         self.agent = tk.StringVar(value="OpenAI Codex")
         self.status = tk.StringVar(value="Sẵn sàng")
         self.build()
@@ -88,6 +102,7 @@ class App(tk.Tk):
             self.tray = None
         self.bind("<Unmap>", self.on_unmap)
         self.after(500, self.tick)
+        self.after(1600, self.check_for_updates)
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         if "--start" in sys.argv[1:]:
             self.after(300, self.start)
@@ -96,6 +111,7 @@ class App(tk.Tk):
         main = ttk.Frame(self, padding=22)
         main.pack(fill="both", expand=True)
         ttk.Label(main, text="AutoCAD MCP", font=("Segoe UI", 20, "bold")).pack(anchor="w")
+        ttk.Label(main, text=f"Phiên bản {app_version()}", foreground="#65736f").pack(anchor="w", pady=(0, 5))
         ttk.Label(main, text="Agent ưu tiên AutoCAD; nếu AutoCAD không chạy, agent sẽ hỏi trước khi dùng DXF.",
                   wraplength=690).pack(anchor="w", pady=(2, 18))
         self.start_btn = ttk.Button(main, text="▶  Bật kết nối cho agent", command=self.start)
@@ -168,7 +184,7 @@ class App(tk.Tk):
             self.tray_menu.grab_release()
 
     def start(self):
-        if self.busy or (self.gateway and self.gateway.poll() is None):
+        if self.updating or self.busy or (self.gateway and self.gateway.poll() is None):
             return
         self.busy = True
         self.start_btn.configure(state="disabled")
@@ -221,12 +237,146 @@ class App(tk.Tk):
             self.labels[key].configure(text=f"○  {NAMES[key]}  ·  Chưa khởi chạy")
         self.status.set("Đã dừng gateway và MCP đang hoạt động")
 
+    def check_for_updates(self):
+        if self.closing or self.updating:
+            return
+
+        def worker():
+            try:
+                from updater import find_update
+
+                update = find_update(UPDATE_REPO, app_version())
+                if update:
+                    self.events.put(("update_available", update))
+            except Exception:
+                # Update checks are best-effort; offline use should stay quiet.
+                pass
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def offer_update(self, update):
+        self.pending_update = update
+        notes = (update.get("notes") or "Không có ghi chú phát hành.").strip()
+        if len(notes) > 1800:
+            notes = notes[:1800].rstrip() + "…"
+        message = (
+            f"Đang dùng: v{app_version()}\n"
+            f"Bản mới: v{update['version']}\n\n"
+            f"{notes}\n\n"
+            "Cập nhật sẽ khởi động lại launcher và kết nối MCP. "
+            "Bạn có muốn cập nhật ngay không?"
+        )
+        if messagebox.askyesno("Có bản cập nhật AutoCAD MCP Launcher", message, parent=self):
+            self.begin_update(update)
+
+    def begin_update(self, update):
+        if self.updating:
+            return
+        self.updating = True
+        self.start_btn.configure(state="disabled")
+        self.stop_btn.configure(state="disabled")
+        self.status.set(f"Đang tải bản cập nhật v{update['version']}…")
+
+        def worker():
+            try:
+                from updater import download_release
+
+                archive = download_release(
+                    update,
+                    lambda received, total: self.events.put(
+                        ("update_progress", received, total)
+                    ),
+                )
+                self.events.put(("update_downloaded", str(archive)))
+            except Exception as exc:
+                self.events.put(("update_failed", str(exc)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def wait_for_idle_then_apply(self):
+        if self.closing or not self.update_archive:
+            return
+        busy = False
+        if self.gateway and self.gateway.poll() is None:
+            try:
+                with urllib.request.urlopen("http://127.0.0.1:8764/status", timeout=0.5) as response:
+                    state = json.load(response)
+                busy = bool(state.get("active_request") or state.get("queued_requests"))
+            except (OSError, ValueError):
+                busy = True
+        if busy:
+            self.status.set("Đang chờ các yêu cầu AutoCAD đang chạy hoàn tất trước khi cập nhật…")
+            if self.update_wait_started and time.monotonic() - self.update_wait_started > 600:
+                if not self.update_busy_notice_shown:
+                    self.update_busy_notice_shown = True
+                    proceed = messagebox.askyesno(
+                        "Đang chờ MCP",
+                        "MCP vẫn đang xử lý yêu cầu sau 10 phút. Tiếp tục chờ?\n"
+                        "Chọn Không để dừng cập nhật và giữ launcher đang chạy.",
+                        parent=self,
+                    )
+                    if not proceed:
+                        self.updating = False
+                        self.update_archive = None
+                        self.start_btn.configure(state="normal")
+                        self.stop_btn.configure(state="normal")
+                        self.status.set("Đã hủy cập nhật; launcher vẫn hoạt động.")
+                        return
+                    self.update_wait_started = time.monotonic()
+                    self.update_busy_notice_shown = False
+            self.after(1000, self.wait_for_idle_then_apply)
+            return
+
+        self.status.set("Đang cài đặt bản mới và khởi động lại launcher…")
+        try:
+            updater = ROOT / "launcher" / "updater.py"
+            command = [
+                sys.executable,
+                str(updater),
+                "--apply",
+                "--archive",
+                str(self.update_archive),
+                "--root",
+                str(ROOT),
+                "--parent-pid",
+                str(os.getpid()),
+                "--version",
+                str(self.pending_update["version"]),
+                "--python",
+                sys.executable,
+            ]
+            if self.gateway and self.gateway.poll() is None:
+                command.append("--start")
+            subprocess.Popen(
+                command,
+                cwd=ROOT,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+            self.close()
+        except Exception as exc:
+            self.updating = False
+            self.update_archive = None
+            self.start_btn.configure(state="normal")
+            self.stop_btn.configure(state="normal")
+            self.status.set(f"Không thể chạy trình cập nhật: {exc}")
+
+    def finish_update_download(self, archive):
+        self.update_archive = Path(archive)
+        self.update_wait_started = time.monotonic()
+        self.status.set("Đã tải và xác minh gói cập nhật.")
+        self.wait_for_idle_then_apply()
+
     def tick(self):
         if self.tray:
             self.tray.poll()
         try:
             while True:
-                kind, value = self.events.get_nowait()
+                event = self.events.get_nowait()
+                kind = event[0]
+                value = event[1] if len(event) > 1 else None
                 if kind == "status":
                     self.status.set(value)
                 elif kind == "error":
@@ -236,6 +386,22 @@ class App(tk.Tk):
                     self.busy = False
                     self.start_btn.configure(state="normal")
                     self.stop_btn.configure(state="normal")
+                elif kind == "update_available":
+                    self.offer_update(value)
+                elif kind == "update_progress":
+                    received, total = event[1], event[2]
+                    if total:
+                        self.status.set(f"Đang tải bản cập nhật… {received * 100 // total}%")
+                    else:
+                        self.status.set(f"Đang tải bản cập nhật… {received // (1024 * 1024)} MB")
+                elif kind == "update_downloaded":
+                    self.finish_update_download(value)
+                elif kind == "update_failed":
+                    self.updating = False
+                    self.start_btn.configure(state="normal")
+                    self.stop_btn.configure(state="normal")
+                    self.status.set("Không tải được bản cập nhật; launcher vẫn đang chạy.")
+                    messagebox.showerror("Cập nhật thất bại", value, parent=self)
         except queue.Empty:
             pass
         if self.gateway and self.gateway.poll() is None and not self.busy:
