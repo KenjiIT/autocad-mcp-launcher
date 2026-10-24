@@ -20,6 +20,7 @@ INCLUDE = (
     "Start AutoCAD MCP.vbs",
     "start.ps1",
     "launcher",
+    "lt-adapter",
     "scripts",
     ".codex",
     ".claude",
