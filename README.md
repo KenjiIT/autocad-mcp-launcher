@@ -127,6 +127,14 @@ Nếu agent không hiện tool, kiểm tra theo thứ tự: app vẫn đang ch�
 
 Gateway dùng backend `file_ipc` để làm việc với AutoCAD. App tạm thêm thư mục LISP vào `TRUSTEDPATHS` khi tải dispatcher rồi khôi phục giá trị cũ; `SECURELOAD` không bị tắt. Skill hướng dẫn agent nhưng chưa phải một cơ chế bắt buộc ở gateway: agent có thể gọi thẳng MCP tool nếu không nạp hoặc không làm theo skill.
 
+### AutoCAD LT trên Windows
+
+Beiming custom có adapter `lt-adapter/` cho AutoCAD LT 2024 trở lên. Khi chỉ LT đang mở, launcher tự chọn luồng `file_ipc_lt`; cũng có thể đặt `AUTOCAD_MCP_BACKEND=file_ipc_lt` để chọn rõ ràng. Mở một bản vẽ trong LT trước khi kết nối. Nếu có nhiều cửa sổ LT, đặt `AUTOCAD_MCP_ACAD_PID` theo PID cần dùng.
+
+Trên LT, Python gửi lệnh qua cửa sổ AutoCAD và dispatcher AutoLISP, không gọi Python COM. Hãy thêm thư mục `autocad-beiming-mcp-custom/lisp-code` vào `TRUSTEDPATHS` của LT. Adapter đặt bản runtime của dispatcher upstream đã đổi tên hàm vào thư mục tin cậy đó, rồi nạp overlay từ `lt-adapter/lisp/mcp_dispatch_lt.lsp`; mã nguồn adapter vẫn nằm trong `lt-adapter/`. `drawing.context` trả `doc_id`, revision và lease token; lấy lại context khi chuyển bản vẽ.
+
+Các đường riêng cho LT hiện gồm `entity.create_hatch` (polyline kín hoặc đường tròn), `delete_batching`, `block.define` (LINE, CIRCLE, ATTDEF), `copy_region_between_dwgs`, kiểm tra/tạo/chuyển/xóa layer, cập nhật system variable, đổi pattern hatch và tạo LINE từ JSON. Khi sao chép vùng, mở cả DWG nguồn và đích trong cùng một LT, kích hoạt nguồn, gọi `preview`, rồi dùng `source_handles` trả về để gọi `copy`. Các công cụ tạo hoặc sửa solid 3D không thuộc luồng LT này. DXF export, WBLOCK, quản lý nhiều document và các lệnh phụ thuộc giao diện trả `E_NOT_SUPPORTED_ON_LT`. Bốn luồng hatch, xóa theo lô, định nghĩa block và copy vùng đã được chạy trên AutoCAD LT 2027 với bản vẽ thử; không lưu các DWG thử.
+
 Mã nguồn hai MCP thuộc các repo upstream được dẫn ở đầu trang và giữ nguyên lịch sử Git của họ. Launcher và skill của dự án này nằm trong repo chính.
 
 Người duy trì repo có thể tạo lại ZIP đầy đủ bằng `python scripts/build_portable.py` sau khi cập nhật launcher hoặc submodule. ZIP loại bỏ `.git`, môi trường `.venv`, log và file output phát sinh.

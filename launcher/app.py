@@ -17,6 +17,7 @@ from tkinter import messagebox, ttk
 from tray import TrayIcon
 
 ROOT = Path(__file__).resolve().parent.parent
+SKILLS_SOURCE = ROOT / ".codex" / "skills"
 LOG_DIR = ROOT / "launcher" / "logs"
 REPOS = {
     "puran": ROOT / "puran-water-autocad-mcp",
@@ -214,11 +215,20 @@ class App(tk.Tk):
 
     @staticmethod
     def available_skills():
-        skills_dir = ROOT / ".codex" / "skills"
-        if not skills_dir.is_dir():
-            skills_dir = ROOT / ".claude" / "skills"
+        skills_dir = SKILLS_SOURCE
         return sorted(path.name for path in skills_dir.iterdir()
                       if path.is_dir() and (path / "SKILL.md").is_file()) if skills_dir.is_dir() else []
+
+    @staticmethod
+    def missing_skills():
+        """Skills that the other agent folders carry but the installer source lacks."""
+        names = set(App.available_skills())
+        extra = set()
+        for folder in (".claude", ".agents"):
+            root = ROOT / folder / "skills"
+            if root.is_dir():
+                extra |= {p.name for p in root.iterdir() if (p / "SKILL.md").is_file()}
+        return sorted(extra - names)
 
     def select_all_skills(self):
         self.skill_list.selection_set(0, "end")
@@ -229,9 +239,13 @@ class App(tk.Tk):
             self.skill_status.configure(text="Hãy chọn ít nhất một skill.", foreground="#9a5b00")
             return
         target_root = self.skill_agents[self.skill_agent.get()]
-        source_root = ROOT / ".codex" / "skills"
-        if not source_root.is_dir():
-            source_root = ROOT / ".claude" / "skills"
+        source_root = SKILLS_SOURCE
+        missing = self.missing_skills()
+        if missing:
+            self.skill_status.configure(
+                text=f"Nguồn skill thiếu: {', '.join(missing)}. Đồng bộ {SKILLS_SOURCE} trước khi cài.",
+                foreground="#a12622")
+            return
         try:
             target_root.mkdir(parents=True, exist_ok=True)
             for name in selected:

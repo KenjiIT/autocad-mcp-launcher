@@ -44,7 +44,7 @@ Dùng template của dự án nếu có. Nếu không, bộ mặc định: `S-GR
 2. Biên sàn (giữ nguyên cung) rồi cột (LWPOLYLINE đóng + hatch SOLID cùng layer).
 3. Lưới trục: đường trục dừng sát vùng sàn; ký hiệu đầu trục ở cả bốn phía nếu bản nguồn có.
 4. Lõi, tường, vách, lỗ mở.
-5. Dầm theo bảng `beams`: dầm thẳng là LWPOLYLINE đóng đúng bề rộng; dầm cong là hai ARC đồng tâm cùng hai đoạn đầu (công cụ `create_polyline` của MCP không hỗ trợ bulge). Hai đầu dầm phải nằm trên mặt cột hoặc dầm khác.
+5. Dầm theo bảng `beams`: dầm thẳng là LWPOLYLINE đóng đúng bề rộng; dầm cong là hai ARC đồng tâm cùng hai đoạn đầu (công cụ `create_polyline` của MCP không hỗ trợ bulge). Khi dầm chạy qua vách hoặc cột dẹt mỏng hơn bề rộng dầm (ví dụ cột dẹt 300 trên dầm 400), vẽ dầm liền qua, không cắt thành các đoạn dừng ở mặt vách; chỉ cắt dầm tại cột/vách dày bằng hoặc hơn bề rộng dầm, tại dầm khác hoặc tại lỗ mở. Hai đầu dầm phải nằm trên mặt cột, vách hoặc dầm khác; gối lên dầm khác chỉ hợp lệ khi dầm đỡ đó (lần theo chuỗi) kết thúc trên cột/vách/cột khuất. Khi đề xuất hoặc bổ sung dầm (đánh giá bản nháp), chọn tuyến dầm chính đi qua cột, vách, cột dẹt có thật; trục chỉ là mốc tham chiếu, không phải lý do đặt dầm. Không đặt dầm chỉ gác lên dầm ở cả hai đầu khi không có cột/vách dọc tuyến (lỗi đã gặp: dầm ~30 m trên trục 18 CR8-3 T3, trong khi cột và vách ở ngay bên phải).
 6. Hatch vùng sàn theo chiều dày + bảng chú thích; cao độ và ký hiệu hạ sàn.
 7. Nhãn dầm sau hình học (dầm đứng xoay 90°); kích thước; ghi chú chung và `CẦN XÁC NHẬN`.
 8. Zoom vùng mặt bằng chính, xuất ảnh xem trước.
@@ -53,6 +53,7 @@ Dùng template của dự án nếu có. Nếu không, bộ mặc định: `S-GR
 
 - Số thực thể theo layer: biên sàn, cột, dầm (thẳng/cong), hatch, nhãn, DIMENSION; so với bảng đầu vào (đủ N/N).
 - Số dầm có hai đầu chạm cột/dầm khác trong dung sai 1 mm; liệt kê dầm không thỏa.
+- Đường truyền tải: mỗi dầm (hoặc chuỗi dầm gối lên nhau) phải về tới ít nhất hai cột/vách/cột khuất. Liệt kê dầm chỉ gối lên dầm ở cả hai đầu và dầm dài hơn ~9 m không có gối trung gian; số này phải bằng 0 hoặc được người duyệt chấp nhận.
 - Số dầm nằm trong biên sàn. Nếu biên không khép kín, nói rõ chỉ kiểm bằng hình bao thay thế; không báo là đạt.
 - Cặp dầm chồng/trùng nhau và dầm đè lên cột: phải bằng 0.
 - Số nhãn gắn được vào dầm trên tổng nhãn; nhãn chỉ gán theo khoảng cách thì ghi "gán tạm". Mã dầm không được lấy từ nhãn gần nhất nếu bảng `beams` đã có mã.

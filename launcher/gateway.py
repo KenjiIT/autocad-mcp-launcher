@@ -18,7 +18,8 @@ from starlette.routing import Route
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "launcher"))
-from cad_adapter import prove_connection, prove_offline
+import acad_pid
+from cad_adapter import find_lt_window, prove_connection, prove_offline
 SERVERS = {
     "puran": ("autocad_puran", ROOT / "puran-water-autocad-mcp", 8875),
     "beiming": ("autocad_beiming", ROOT / "autocad-beiming-mcp-custom", 8876),
@@ -57,6 +58,8 @@ def cad_window_alive(hwnd):
 
 
 def autocad_available():
+    if find_lt_window():
+        return True
     try:
         from autocad_mcp.backends.file_ipc import find_autocad_window
         if find_autocad_window():
@@ -106,6 +109,7 @@ class Switchboard:
         self.mode = mode
         self.active = None
         self.active_hwnd = None
+        self.acad_pid = None
         self.process = None
         self.log = None
         self.state = "Gateway sẵn sàng; agent sẽ thử AutoCAD khi gọi tool"
@@ -118,6 +122,8 @@ class Switchboard:
                 return
             # Wait until in-flight CAD work finishes before stopping its server.
             await self.idle.wait()
+            # Pin every AutoCAD lookup to the process this session used before.
+            self.acad_pid = acad_pid.apply()
             if self.mode == "autocad" and not await asyncio.to_thread(autocad_available):
                 self.error = "AutoCAD hiện không chạy hoặc chưa mở bản vẽ. Hãy hỏi người dùng có muốn xuất DXF thay thế không."
                 self.state = "Đang chờ AutoCAD hoặc quyết định của người dùng"
@@ -178,6 +184,11 @@ class Switchboard:
                     self.active_hwnd = (payload.get("hwnd")
                                         or (payload.get("autocad") or {}).get("hwnd")
                                         or (payload.get("worker") or {}).get("hwnd"))
+                    connected = (payload.get("process_id")
+                                 or (payload.get("autocad") or {}).get("process_id"))
+                    if connected:
+                        acad_pid.save(connected, (payload.get("autocad") or {}).get("active_document"))
+                        self.acad_pid = connected
                 self.active = key
                 self.state = (f"{name} đang làm việc với DXF offline" if self.mode == "ezdxf"
                               else f"Đã kết nối AutoCAD qua {name}")
@@ -395,6 +406,7 @@ async def status_route(request: Request):
     return JSONResponse({"active": board.active, "mode": board.mode,
                          "state": board.state,
                          "error": board.error,
+                         "acad_pid": board.acad_pid,
                          "queued_requests": board.queued_requests,
                          "active_request": board.active_request})
 

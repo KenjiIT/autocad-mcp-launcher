@@ -1,0 +1,35 @@
+{
+  "upstream_repository": "https://github.com/beiming183-cloud/AutoCAD-MCP",
+  "upstream_commit": "11f7c47e5038796a20451b38b23032e625b5aa26",
+  "dispatcher_sha256": "B953E4FAB089CA46A1453C529BECA0252C52F28F7D5C10686AE09F7804796234",
+  "python_symbols": {
+    "autocad_mcp.backends.file_ipc": [
+      "FileIPCBackend", "find_autocad_window"
+    ],
+    "autocad_mcp.backends.file_ipc.FileIPCBackend": [
+      "_dispatch_unlocked", "_type_dispatch_trigger", "_autocad_crashed_result",
+      "_active_document_dispatch_key", "_find_command_line_hwnd",
+      "_wait_for_autocad_idle", "_type_command", "_send_command_via_com",
+      "_ensure_active_document", "_ensure_active_document_dispatcher_unlocked"
+    ],
+    "autocad_mcp.backends.base": ["CommandResult", "BackendCapabilities"],
+    "autocad_mcp.client": ["_backend", "_init_lock", "get_backend", "ensure_backend_ready"],
+    "autocad_mcp.config": ["LISP_DIR", "detect_backend"],
+    "autocad_mcp.custom_tools.batch_delete": ["register"],
+    "autocad_mcp.custom_tools.region_copy": ["register"]
+  },
+  "python_signatures": {
+    "autocad_mcp.backends.file_ipc.FileIPCBackend._dispatch_unlocked": ["self", "command", "params"],
+    "autocad_mcp.backends.file_ipc.FileIPCBackend._autocad_crashed_result": ["self", "state", "operation"],
+    "autocad_mcp.client.get_backend": [],
+    "autocad_mcp.client.ensure_backend_ready": []
+  },
+  "lisp_defuns": [
+    "mcp-dispatch-command", "c:mcp-dispatch", "mcp-json-get-string",
+    "mcp-json-get-number", "mcp-escape-string", "mcp-split-string"
+  ],
+  "replacement_tools": {
+    "delete_batching": "batch_delete",
+    "copy_region_between_dwgs": "region_copy"
+  }
+}

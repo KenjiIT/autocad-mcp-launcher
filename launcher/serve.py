@@ -10,6 +10,11 @@ def main():
     sys.path.insert(0, str(repo / "src"))
     os.chdir(repo)
     os.environ.setdefault("AUTOCAD_MCP_BACKEND", "file_ipc")
+    adapter_root = Path(__file__).resolve().parent.parent / "lt-adapter" / "py"
+    if repo.name == "autocad-beiming-mcp-custom" and adapter_root.is_dir():
+        sys.path.insert(0, str(adapter_root))
+        from lt_adapter.bootstrap import install as install_lt_adapter
+        install_lt_adapter()
     if repo.name.startswith("beiming183"):
         os.environ.setdefault("AUTOCAD_MCP_OUTPUT_ROOT", str(repo / "output"))
         os.environ.setdefault("AUTOCAD_MCP_AUTOSTART", "false")

@@ -35,4 +35,10 @@ Sau khi sửa cấu hình, khởi động lại MCP client để nạp danh sác
 
 ## Nguồn và license
 
+## AutoCAD LT
+
+Backend `file_ipc_lt` dùng AutoLISP qua file IPC, không dùng Python COM. Ngoài các tool `copy_batching`, `copy_region_between_dwgs`, `delete_batching` và `block.define`, LT hỗ trợ kiểm tra layer, đổi layer cho entity, xóa entity theo layer (trừ layer `0`), cập nhật system variables trong danh sách cho phép, đổi hatch pattern và tạo LINE từ file JSON. Chỉ dùng trên bản vẽ thử trước khi đưa vào bản vẽ công việc.
+
+Các thao tác quản lý document nhiều phiên, xuất DXF/WBLOCK và tool phụ thuộc giao diện trả `E_NOT_SUPPORTED_ON_LT`. Các hình khối solid 3D nằm ngoài phạm vi.
+
 Đây là bản phái sinh từ AutoCAD-MCP của Beiming, phân phối theo MIT. Xem [LICENSE](LICENSE), [UPSTREAM_NOTES.md](UPSTREAM_NOTES.md) và [LOCAL_CHANGES.md](LOCAL_CHANGES.md) để biết nguồn, thay đổi cục bộ và ghi nhận tác giả.

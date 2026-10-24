@@ -5,12 +5,31 @@ Keep that product-specific work here, and fail closed when it cannot be proved.
 """
 import asyncio
 import ctypes
+import importlib.util
 import json
 import time
 from pathlib import Path
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
+
+_LT_WINDOW_FILE = (Path(__file__).resolve().parent.parent / "lt-adapter"
+                   / "py" / "lt_adapter" / "lt_window.py")
+
+
+def find_lt_window():
+    """Find the AutoCAD LT frame without importing Beiming's package.
+
+    The gateway may run in Puran's environment, where ``autocad_mcp`` is a
+    different package, so the standalone module is loaded by file path.
+    """
+    try:
+        spec = importlib.util.spec_from_file_location("beiming_lt_window", _LT_WINDOW_FILE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module.find_lt_window()
+    except (ImportError, OSError, AttributeError):
+        return None
 
 
 def _set_trusted_path(repo: Path) -> str:
@@ -93,14 +112,32 @@ async def prove_connection(name: str, repo: Path, port: int) -> dict:
     if name == "autocad_beiming":
         # Beiming can initialize its native worker without COM or AutoLISP.
         # A failing COM TRUSTEDPATHS probe must not block that path.
+        last_direct = None
         try:
             direct = await asyncio.wait_for(_call_system(port, "ensure_ready"), timeout=180)
+            last_direct = direct
             payload = direct.get("payload") or {}
             if (direct.get("ok") and payload.get("ready") is True
-                    and payload.get("transport") in ("native_pipe", "file_ipc")):
+                    and payload.get("transport") in ("native_pipe", "file_ipc", "file_ipc_lt")):
                 return payload
-        except Exception:
-            pass  # Try the legacy LISP path with a temporary trusted directory.
+        except Exception as exc:
+            last_direct = {"ok": False, "error": str(exc)}
+        # Python COM cannot set TRUSTEDPATHS in LT.  Give the caller the real
+        # dispatcher failure instead of retrying an impossible COM probe.
+        lt_window = find_lt_window()
+        if lt_window:
+            try:
+                from autocad_mcp.backends.file_ipc import find_autocad_window
+                full_window = find_autocad_window()
+            except (ImportError, OSError):
+                full_window = None
+        else:
+            full_window = None
+        if lt_window and not full_window:
+            raise RuntimeError(
+                f"AutoCAD LT dispatcher is not ready: {last_direct}. "
+                f"Add {repo / 'lisp-code'} to TRUSTEDPATHS in LT and retry."
+            )
     try:
         original = await asyncio.to_thread(_set_trusted_path, repo)
     except Exception as exc:
@@ -127,7 +164,7 @@ async def prove_connection(name: str, repo: Path, port: int) -> dict:
                     if last.get("ok") and payload.get("backend") == "file_ipc":
                         return payload
                 elif (last.get("ok") and payload.get("ready") is True
-                      and payload.get("transport") in ("file_ipc", "native_pipe")):
+                      and payload.get("transport") in ("file_ipc", "file_ipc_lt", "native_pipe")):
                     return payload
             except asyncio.TimeoutError:
                 last = {"ok": False, "error": f"{operation} quá thời hạn {timeout} giây"}

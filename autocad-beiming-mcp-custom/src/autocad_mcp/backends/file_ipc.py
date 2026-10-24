@@ -4491,9 +4491,18 @@ class FileIPCBackend(AutoCADBackend):
             created = []
             try:
                 for r in rows:
-                    start = self._solid_point(pythoncom, win32com, [float(r["x1"]), float(r["y1"]), 0.0])
-                    end = self._solid_point(pythoncom, win32com, [float(r["x2"]), float(r["y2"]), 0.0])
-                    line = modelspace.AddLine(start, end)
+                    if str(r.get("type", "line")).lower() == "arc":
+                        center = self._solid_point(pythoncom, win32com, [float(r["cx"]), float(r["cy"]), 0.0])
+                        line = modelspace.AddArc(
+                            center,
+                            float(r["r"]),
+                            math.radians(float(r["a1"])),
+                            math.radians(float(r["a2"])),
+                        )
+                    else:
+                        start = self._solid_point(pythoncom, win32com, [float(r["x1"]), float(r["y1"]), 0.0])
+                        end = self._solid_point(pythoncom, win32com, [float(r["x2"]), float(r["y2"]), 0.0])
+                        line = modelspace.AddLine(start, end)
                     line.Layer = str(r["layer"])
                     created.append(line)
             except Exception:
