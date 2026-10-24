@@ -19,6 +19,7 @@ from tray import TrayIcon
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS_SOURCE = ROOT / ".codex" / "skills"
 LOG_DIR = ROOT / "launcher" / "logs"
+SETTINGS_FILE = ROOT / "launcher" / "state" / "settings.json"
 REPOS = {
     "puran": ROOT / "puran-water-autocad-mcp",
     "beiming": ROOT / "autocad-beiming-mcp-custom",
@@ -51,6 +52,23 @@ def set_startup_enabled(enabled):
                 winreg.DeleteValue(key, STARTUP_VALUE)
             except FileNotFoundError:
                 pass
+
+
+def load_settings():
+    try:
+        data = json.loads(SETTINGS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def save_setting(name, value):
+    settings = load_settings()
+    settings[name] = value
+    SETTINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    temporary = SETTINGS_FILE.with_suffix(".tmp")
+    temporary.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(SETTINGS_FILE)
 
 
 def app_version():
@@ -114,6 +132,7 @@ class App(tk.Tk):
         self.update_busy_notice_shown = False
         self.agent = tk.StringVar(value="OpenAI Codex")
         self.startup_var = tk.BooleanVar(value=startup_enabled())
+        self.autostart_mcp_var = tk.BooleanVar(value=bool(load_settings().get("autostart_mcp")))
         self.status = tk.StringVar(value="Sẵn sàng")
         self.build()
         self.refresh_config()
@@ -129,7 +148,7 @@ class App(tk.Tk):
         self.after(500, self.tick)
         self.after(1600, self.check_for_updates)
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
-        if "--start" in sys.argv[1:]:
+        if "--start" in sys.argv[1:] or self.autostart_mcp_var.get():
             self.after(300, self.start)
 
     def build(self):
@@ -178,6 +197,12 @@ class App(tk.Tk):
                         command=self.save_startup_setting).pack(anchor="w")
         ttk.Label(frame,
                   text="Khi bật, launcher sẽ mở sau khi bạn đăng nhập Windows. Bạn có thể tắt lựa chọn này bất cứ lúc nào.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", padx=(24, 0), pady=(6, 12))
+        ttk.Checkbutton(frame, text="Tự bật MCP khi mở launcher",
+                        variable=self.autostart_mcp_var,
+                        command=self.save_autostart_mcp_setting).pack(anchor="w", pady=(4, 0))
+        ttk.Label(frame,
+                  text="Khi bật, gateway MCP tự chạy ngay khi launcher mở, không cần bấm Bắt đầu. AutoCAD vẫn chỉ được kết nối khi agent gọi tool.",
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", padx=(24, 0), pady=(6, 12))
         self.settings_status = ttk.Label(frame, text="")
         self.settings_status.pack(anchor="w", padx=(24, 0))
@@ -269,6 +294,17 @@ class App(tk.Tk):
             )
         except OSError as exc:
             self.startup_var.set(not enabled)
+            self.settings_status.configure(text=f"Không lưu được cài đặt: {exc}")
+
+    def save_autostart_mcp_setting(self):
+        enabled = self.autostart_mcp_var.get()
+        try:
+            save_setting("autostart_mcp", enabled)
+            self.settings_status.configure(
+                text="Đã bật tự chạy MCP khi mở launcher." if enabled else "Đã tắt tự chạy MCP khi mở launcher."
+            )
+        except OSError as exc:
+            self.autostart_mcp_var.set(not enabled)
             self.settings_status.configure(text=f"Không lưu được cài đặt: {exc}")
 
     def refresh_config(self):
