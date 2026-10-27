@@ -10,3 +10,7 @@ autocad-beiming-mcp-custom/.local-data/
 autocad-beiming-mcp-custom/output/
 
 launcher/state/
+
+# Autodesk sample blocks extracted into the block library (not ours to redistribute)
+blocks/*.dwg
+blocks/*.dxf

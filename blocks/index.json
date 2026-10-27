@@ -1,0 +1,1997 @@
+{
+ "ARCH-CHIMNEY-ELEV-1180x3100": {
+  "bbox_mm": [
+   -1104.9,
+   0.0,
+   76.2,
+   3101.5
+  ],
+  "dynamic": false,
+  "meaning": "Ống khói, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1180,
+   3100
+  ],
+  "source_block": "Chimney - elevation",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "ARCH-STAIR-SPIRAL-1525x1525": {
+  "bbox_mm": [
+   -762.0,
+   -762.0,
+   762.0,
+   762.0
+  ],
+  "dynamic": false,
+  "meaning": "Cầu thang xoắn ốc, mặt bằng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   1525
+  ],
+  "source_block": "Staircase - Spiral",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "ARCH-STUD-DYN-38x90": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   38.0,
+   89.0
+  ],
+  "dynamic": true,
+  "meaning": "Thanh xương tường (stud) 38x89, mặt cắt",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   38,
+   90
+  ],
+  "source_block": "Stud - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "elevation"
+ },
+ "CIVIL-MANHOLE-600x600": {
+  "bbox_mm": [
+   -300.0,
+   -300.0,
+   300.0,
+   300.0
+  ],
+  "dynamic": true,
+  "meaning": "Hố ga, mặt bằng",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   600,
+   600
+  ],
+  "source_block": "Manhole - Metric",
+  "source_file": "Dynamic Blocks/Civil - Metric.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
+ "CIVIL-PARKING-STALL-2700x5500": {
+  "bbox_mm": [
+   0.0,
+   -5500.0,
+   2700.0,
+   0.0
+  ],
+  "dynamic": true,
+  "meaning": "Ô đỗ xe, mặt bằng",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   2700,
+   5500
+  ],
+  "source_block": "Parking - Metric",
+  "source_file": "Dynamic Blocks/Civil - Metric.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
+ "DOOR-BIFOLD-1525x420": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   1524.0,
+   421.8
+  ],
+  "dynamic": false,
+  "meaning": "Cửa xếp gấp đôi, ô cửa 60 in, mặt bằng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   420
+  ],
+  "source_block": "Door - Bifold 60 in. Opening",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "DOOR-DYN-ELEV-800x2030": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   800.0,
+   2032.0
+  ],
+  "dynamic": true,
+  "meaning": "Cửa đi động, mặt đứng",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   800,
+   2030
+  ],
+  "source_block": "Door Elevation - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "elevation"
+ },
+ "DOOR-DYN-PLAN-750x850": {
+  "bbox_mm": [
+   0.0,
+   -100.0,
+   750.0,
+   750.0
+  ],
+  "dynamic": true,
+  "meaning": "Cửa đi động, mặt bằng; đổi được rộng, hướng mở bằng tham số động",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   750,
+   850
+  ],
+  "source_block": "Door - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
+ "DOOR-FANCY-ELEV-915x2135": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   914.4,
+   2133.6
+  ],
+  "dynamic": false,
+  "meaning": "Cửa đi trang trí 36 in, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   2135
+  ],
+  "source_block": "Door - Fancy 36 in.",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "DOOR-GARAGE-ELEV-3050x2135": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   3048.0,
+   2133.6
+  ],
+  "dynamic": false,
+  "meaning": "Cửa gara chia ô 10 ft, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   3050,
+   2135
+  ],
+  "source_block": "Garage Door - Paneled 10 ft.",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "DOOR-LEFT-915x585": {
+  "bbox_mm": [
+   0.0,
+   -33.0,
+   914.4,
+   554.3
+  ],
+  "dynamic": false,
+  "meaning": "Cửa đi một cánh 36 in mở trái, mặt bằng có cung mở",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   585
+  ],
+  "source_block": "Door - Left Hung 36 in.",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "DOOR-PLAIN-ELEV-915x2135": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   914.4,
+   2133.6
+  ],
+  "dynamic": false,
+  "meaning": "Cửa đi phẳng 36 in, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   2135
+  ],
+  "source_block": "Door - Plain 36 in.",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "DOOR-RIGHT-915x585": {
+  "bbox_mm": [
+   -914.4,
+   -33.0,
+   0.0,
+   554.3
+  ],
+  "dynamic": false,
+  "meaning": "Cửa đi một cánh 36 in mở phải, mặt bằng có cung mở",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   585
+  ],
+  "source_block": "Door - Right Hung 36 in.",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "ELEC-LIGHT-RECESSED-DYN-1000x500": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   1000.0,
+   500.0
+  ],
+  "dynamic": true,
+  "meaning": "Đèn huỳnh quang âm trần, mặt bằng trần",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   1000,
+   500
+  ],
+  "source_block": "Fluorescent (Recessed) - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
+ "FURN-BED-QUEEN-1525x2030": {
+  "bbox_mm": [
+   0.0,
+   -2032.0,
+   1524.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Giường đôi cỡ Queen 60x80 in",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   2030
+  ],
+  "source_block": "Bed - Queen",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-CHAIR-DESK-535x430": {
+  "bbox_mm": [
+   -266.7,
+   -431.8,
+   266.7,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Ghế bàn làm việc",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   535,
+   430
+  ],
+  "source_block": "Chair - Desk",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-CHAIR-ROCKING-615x675": {
+  "bbox_mm": [
+   -306.9,
+   -673.1,
+   306.9,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Ghế bập bênh",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   615,
+   675
+  ],
+  "source_block": "Chair - Rocking",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-COMPUTER-510x585": {
+  "bbox_mm": [
+   -254.0,
+   -292.1,
+   254.0,
+   292.1
+  ],
+  "dynamic": false,
+  "meaning": "Máy tính để bàn",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   510,
+   585
+  ],
+  "source_block": "Computer Terminal",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-COPIER-840x405": {
+  "bbox_mm": [
+   -76.2,
+   -406.4,
+   762.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Máy photocopy",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   840,
+   405
+  ],
+  "source_block": "Copy Machine",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-DESK-1525x785": {
+  "bbox_mm": [
+   -762.0,
+   -787.4,
+   762.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Bàn làm việc 30x60 in",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   785
+  ],
+  "source_block": "Desk - 30 x 60 in.",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-DINING-SET-2310x1395": {
+  "bbox_mm": [
+   -1155.7,
+   -698.5,
+   1155.7,
+   698.5
+  ],
+  "dynamic": false,
+  "meaning": "Bộ bàn ăn 36x72 in kèm ghế",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   2310,
+   1395
+  ],
+  "source_block": "Dining Set - 36 x 72 in.",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-EXERCISE-BIKE-420x865": {
+  "bbox_mm": [
+   -209.5,
+   -431.8,
+   209.5,
+   431.8
+  ],
+  "dynamic": false,
+  "meaning": "Xe đạp tập thể dục",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   420,
+   865
+  ],
+  "source_block": "Exercise Bike",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-FILE-CABINET-380x1450": {
+  "bbox_mm": [
+   0.0,
+   -1447.8,
+   381.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Tủ hồ sơ khổ Letter",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   380,
+   1450
+  ],
+  "source_block": "File Cabinet - Letter",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-HUTCH-1830x485": {
+  "bbox_mm": [
+   0.0,
+   -482.6,
+   1828.8,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Tủ buffet, tủ trưng bày 19x72 in",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1830,
+   485
+  ],
+  "source_block": "Hutch - 19 x 72 in.",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-LAMP-TABLE-355x355": {
+  "bbox_mm": [
+   -177.8,
+   -177.8,
+   177.8,
+   177.8
+  ],
+  "dynamic": false,
+  "meaning": "Đèn bàn",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   355,
+   355
+  ],
+  "source_block": "Lamp - Table",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-PHONE-230x255": {
+  "bbox_mm": [
+   -114.3,
+   -127.0,
+   114.3,
+   127.0
+  ],
+  "dynamic": false,
+  "meaning": "Điện thoại để bàn",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   230,
+   255
+  ],
+  "source_block": "Phone - Desk",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-PIANO-GRAND-1475x1525": {
+  "bbox_mm": [
+   -736.6,
+   -946.1,
+   736.6,
+   577.9
+  ],
+  "dynamic": false,
+  "meaning": "Đàn piano cánh nhỏ",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1475,
+   1525
+  ],
+  "source_block": "Piano - Baby Grand",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-SOFA-7FT-2135x865": {
+  "bbox_mm": [
+   -1066.8,
+   -863.6,
+   1066.8,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Sofa lưng tròn 7 ft",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   2135,
+   865
+  ],
+  "source_block": "Sofa - Roundback 7 ft.",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-SOFA-LOVESEAT-5FT-1525x865": {
+  "bbox_mm": [
+   -762.0,
+   -863.6,
+   762.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Sofa đôi lưng tròn 5 ft",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   865
+  ],
+  "source_block": "Sofa - Roundback Loveseat 5 ft.",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-TABLE-RECT-1525x760": {
+  "bbox_mm": [
+   0.0,
+   -762.0,
+   1524.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Bàn chữ nhật 60x30 in",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   760
+  ],
+  "source_block": "Table - Rectangular Woodgrain 60 x 30 in.",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-TABLE-SQUARE-1065x1065": {
+  "bbox_mm": [
+   0.0,
+   -1066.8,
+   1066.8,
+   0.1
+  ],
+  "dynamic": false,
+  "meaning": "Bàn vuông 42x42 in",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1065,
+   1065
+  ],
+  "source_block": "Table - Square Woodgrain 42 x 42 in.",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-TV-UNIT-1525x535": {
+  "bbox_mm": [
+   -431.8,
+   -533.4,
+   1092.2,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Kệ ti vi, giải trí",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   535
+  ],
+  "source_block": "Entertainment Center",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "FURN-WET-BAR-915x660": {
+  "bbox_mm": [
+   0.0,
+   -660.4,
+   914.4,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Quầy bar nhỏ có bồn rửa",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   660
+  ],
+  "source_block": "Wet Bar",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "KITCH-CAB-BASE-FRONT-610x875": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   609.6,
+   876.3
+  ],
+  "dynamic": false,
+  "meaning": "Tủ bếp dưới 1 cánh rộng 24 in, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   610,
+   875
+  ],
+  "source_block": "Base Cabinet 1 Door - 24 in front",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-CAB-BASE-SIDE-610x875": {
+  "bbox_mm": [
+   -609.6,
+   0.0,
+   0.0,
+   876.3
+  ],
+  "dynamic": false,
+  "meaning": "Tủ bếp dưới 1 cánh, nhìn ngang",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   610,
+   875
+  ],
+  "source_block": "Base Cabinet 1 Door - side",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-CAB-WALL-FRONT-915x455": {
+  "bbox_mm": [
+   0.0,
+   -457.2,
+   914.4,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Tủ bếp trên 18x36 in, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   455
+  ],
+  "source_block": "Wall Cabinet - 18 x 36 in front",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-CAB-WALL-SIDE-330x455": {
+  "bbox_mm": [
+   -330.2,
+   -457.2,
+   0.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Tủ bếp trên, nhìn ngang",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   330,
+   455
+  ],
+  "source_block": "Wall Cabinet - 18 x 12 in side",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-DISHWASHER-610x875": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   609.6,
+   876.3
+  ],
+  "dynamic": false,
+  "meaning": "Máy rửa bát, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   610,
+   875
+  ],
+  "source_block": "Dishwasher",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-FAUCET-1H-FRONT-305x150": {
+  "bbox_mm": [
+   -152.4,
+   0.0,
+   152.4,
+   152.4
+  ],
+  "dynamic": false,
+  "meaning": "Vòi một tay gạt, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   305,
+   150
+  ],
+  "source_block": "Faucet - single handle front",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-FAUCET-1H-PLAN-305x215": {
+  "bbox_mm": [
+   -152.4,
+   -214.1,
+   152.4,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Vòi một tay gạt, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   305,
+   215
+  ],
+  "source_block": "Faucet - single handle top",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "KITCH-FAUCET-FRONT-305x165": {
+  "bbox_mm": [
+   -152.4,
+   0.0,
+   152.4,
+   165.1
+  ],
+  "dynamic": false,
+  "meaning": "Vòi bồn rửa bát, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   305,
+   165
+  ],
+  "source_block": "Faucet - kit sink front",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-FAUCET-PLAN-305x215": {
+  "bbox_mm": [
+   -152.4,
+   -214.1,
+   152.4,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Vòi bồn rửa bát, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   305,
+   215
+  ],
+  "source_block": "Faucet - kit sink top",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "KITCH-FRIDGE-FRONT-915x1625": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   914.4,
+   1625.6
+  ],
+  "dynamic": false,
+  "meaning": "Tủ lạnh 2 cánh 36 in, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   1625
+  ],
+  "source_block": "Refrigerator-2 door - 36 in front",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-FRIDGE-PLAN-915x735": {
+  "bbox_mm": [
+   0.0,
+   -736.6,
+   914.4,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Tủ lạnh 2 cánh 36 in, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   735
+  ],
+  "source_block": "Refrigerator-2 door - 36 in top",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "KITCH-HOOD-FRONT-760x150": {
+  "bbox_mm": [
+   0.0,
+   -152.4,
+   762.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Máy hút mùi 30 in, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   760,
+   150
+  ],
+  "source_block": "Range Hood - 30 in front",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-ICE-WATER-255x455": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   254.0,
+   457.2
+  ],
+  "dynamic": false,
+  "meaning": "Bộ lấy nước và đá ở cửa tủ lạnh",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   255,
+   455
+  ],
+  "source_block": "Ice and Water",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-LAYOUT-7X8FT-2690x2390": {
+  "bbox_mm": [
+   -127.0,
+   -127.0,
+   2565.4,
+   2260.6
+  ],
+  "dynamic": false,
+  "meaning": "Bố trí bếp hoàn chỉnh 7x8 ft: tủ, bồn rửa, bếp, tủ lạnh",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   2690,
+   2390
+  ],
+  "source_block": "Kitchen Layout - 7 x 8 ft",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "KITCH-MICROWAVE-610x455": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   609.6,
+   457.2
+  ],
+  "dynamic": false,
+  "meaning": "Lò vi sóng, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   610,
+   455
+  ],
+  "source_block": "Microwave",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-PHONE-JACK-75x125": {
+  "bbox_mm": [
+   -38.1,
+   0.0,
+   38.1,
+   127.0
+  ],
+  "dynamic": false,
+  "meaning": "Ổ cắm điện thoại",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   75,
+   125
+  ],
+  "source_block": "Phone Jack",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "symbol"
+ },
+ "KITCH-RANGE-FRONT-760x915": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   762.0,
+   914.4
+  ],
+  "dynamic": false,
+  "meaning": "Bếp có lò nướng 30 in, mặt trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   760,
+   915
+  ],
+  "source_block": "Range-Oven - 30 in front",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "KITCH-RANGE-PLAN-760x660": {
+  "bbox_mm": [
+   0.0,
+   -660.4,
+   762.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Bếp có lò nướng 30 in, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   760,
+   660
+  ],
+  "source_block": "Range-Oven - 30 in top",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "KITCH-SINK-DOUBLE-915x535": {
+  "bbox_mm": [
+   -457.2,
+   -533.4,
+   457.2,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Bồn rửa bát đôi 36 in, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   535
+  ],
+  "source_block": "Sink-double - 36 in top",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "KITCH-SINK-SINGLE-760x510": {
+  "bbox_mm": [
+   -381.0,
+   -508.0,
+   381.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Bồn rửa bát đơn 30 in, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   760,
+   510
+  ],
+  "source_block": "Sink-single - 30 in top",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "KITCH-SWITCH-DUAL-125x125": {
+  "bbox_mm": [
+   -63.5,
+   0.0,
+   63.5,
+   127.0
+  ],
+  "dynamic": false,
+  "meaning": "Công tắc đèn đôi",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   125,
+   125
+  ],
+  "source_block": "Light Switch - Dual",
+  "source_file": "DesignCenter/Kitchens.dwg",
+  "units": "inches",
+  "view": "symbol"
+ },
+ "PLANT-CLUMP-PLAN-5285x4720": {
+  "bbox_mm": [
+   -2745.8,
+   -1825.9,
+   2540.9,
+   2895.1
+  ],
+  "dynamic": false,
+  "meaning": "Cụm cây hoặc bụi, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   5285,
+   4720
+  ],
+  "source_block": "Clump of Trees or Bushes - plan",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "PLANT-INDOOR-RUBBER-950x765": {
+  "bbox_mm": [
+   -457.4,
+   -413.2,
+   492.4,
+   353.2
+  ],
+  "dynamic": false,
+  "meaning": "Cây trồng chậu trong nhà (cao su, trầu bà)",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   950,
+   765
+  ],
+  "source_block": "Plant - Rubber or Philodendron",
+  "source_file": "DesignCenter/Home - Space Planner.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "PLANT-PALM-ELEV-1930x5110": {
+  "bbox_mm": [
+   -843.5,
+   0.0,
+   1086.0,
+   5109.6
+  ],
+  "dynamic": false,
+  "meaning": "Cây cọ, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1930,
+   5110
+  ],
+  "source_block": "Tree - palm elevation",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "PLANT-SHRUB-ELEV-695x580": {
+  "bbox_mm": [
+   -601.0,
+   0.0,
+   92.5,
+   577.8
+  ],
+  "dynamic": false,
+  "meaning": "Bụi cây thấp, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   695,
+   580
+  ],
+  "source_block": "Shrub - elevation",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "PLANT-TREE-DECIDUOUS-2-ELEV-1930x4870": {
+  "bbox_mm": [
+   -1048.7,
+   0.0,
+   879.6,
+   4869.2
+  ],
+  "dynamic": false,
+  "meaning": "Cây rụng lá loại 2, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1930,
+   4870
+  ],
+  "source_block": "Tree - type 2 deciduous elevation",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "PLANT-TREE-DECIDUOUS-PLAN-3050x3050": {
+  "bbox_mm": [
+   -1524.0,
+   -1524.0,
+   1524.0,
+   1524.0
+  ],
+  "dynamic": false,
+  "meaning": "Cây rụng lá, nhìn từ trên xuống (tán tròn)",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   3050,
+   3050
+  ],
+  "source_block": "Tree - deciduous plan",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "PLANT-TREE-EVERGREEN-2-ELEV-2660x4875": {
+  "bbox_mm": [
+   -1426.8,
+   0.0,
+   1231.8,
+   4876.8
+  ],
+  "dynamic": false,
+  "meaning": "Cây thường xanh loại 2, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   2660,
+   4875
+  ],
+  "source_block": "Tree - type 2 evergreen elevation",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "PLANT-TREE-EVERGREEN-3-ELEV-3460x3640": {
+  "bbox_mm": [
+   -1742.0,
+   0.0,
+   1720.1,
+   3637.8
+  ],
+  "dynamic": false,
+  "meaning": "Cây thường xanh loại 3, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   3460,
+   3640
+  ],
+  "source_block": "Tree - type 3 evergreen elevation",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "PLANT-TREE-EVERGREEN-ELEV-3480x3615": {
+  "bbox_mm": [
+   -1781.7,
+   0.0,
+   1695.9,
+   3615.7
+  ],
+  "dynamic": false,
+  "meaning": "Cây thường xanh, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   3480,
+   3615
+  ],
+  "source_block": "Tree - evergreen elevation",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "PLANT-TREES-DYN-3680x6935": {
+  "bbox_mm": [
+   -1781.7,
+   -1825.9,
+   1899.1,
+   5109.6
+  ],
+  "dynamic": true,
+  "meaning": "Nhiều loại cây trong một block động (extents gộp mọi trạng thái)",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   3680,
+   6935
+  ],
+  "source_block": "Trees - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
+ "SANI-BATHTUB-1525x915": {
+  "bbox_mm": [
+   0.0,
+   -914.4,
+   1524.0,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Bồn tắm nằm 26x60 in, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   915
+  ],
+  "source_block": "Bath Tub - 26 x 60 in.",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SANI-FAUCET-BATH-FRONT-255x115": {
+  "bbox_mm": [
+   -127.0,
+   0.0,
+   127.0,
+   114.3
+  ],
+  "dynamic": false,
+  "meaning": "Vòi lavabo phòng tắm, nhìn từ phía trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   255,
+   115
+  ],
+  "source_block": "Faucet - Bathroom front",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "SANI-FAUCET-BATH-SIDE-150x115": {
+  "bbox_mm": [
+   -41.3,
+   0.0,
+   111.1,
+   114.3
+  ],
+  "dynamic": false,
+  "meaning": "Vòi lavabo phòng tắm, nhìn ngang",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   150,
+   115
+  ],
+  "source_block": "Faucet - Bathroom side",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "SANI-FAUCET-BATH-TOP-255x165": {
+  "bbox_mm": [
+   -127.0,
+   -127.0,
+   127.0,
+   38.1
+  ],
+  "dynamic": false,
+  "meaning": "Vòi lavabo phòng tắm, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   255,
+   165
+  ],
+  "source_block": "Faucet - Bathroom top",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SANI-SINK-OVAL-620x510": {
+  "bbox_mm": [
+   -310.8,
+   -254.6,
+   310.8,
+   254.6
+  ],
+  "dynamic": false,
+  "meaning": "Chậu lavabo oval, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   620,
+   510
+  ],
+  "source_block": "Sink - Oval top",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SANI-SINK-PEDESTAL-610x760": {
+  "bbox_mm": [
+   -304.8,
+   0.0,
+   304.8,
+   762.0
+  ],
+  "dynamic": false,
+  "meaning": "Lavabo chân trụ, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   610,
+   760
+  ],
+  "source_block": "Sink - Pedestal elevation",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "SANI-WC-DYN-1105x2360": {
+  "bbox_mm": [
+   -266.7,
+   -838.2,
+   838.2,
+   1524.0
+  ],
+  "dynamic": true,
+  "meaning": "Bồn cầu động; chọn góc nhìn bằng trạng thái hiển thị (extents gộp mọi trạng thái)",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   1105,
+   2360
+  ],
+  "source_block": "Toilet - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
+ "SANI-WC-FRONT-535x610": {
+  "bbox_mm": [
+   -266.7,
+   0.0,
+   266.7,
+   609.6
+  ],
+  "dynamic": false,
+  "meaning": "Bồn cầu, nhìn từ phía trước",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   535,
+   610
+  ],
+  "source_block": "Toilet - front",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "SANI-WC-PLAN-535x840": {
+  "bbox_mm": [
+   -266.7,
+   -838.2,
+   266.7,
+   0.0
+  ],
+  "dynamic": false,
+  "meaning": "Bồn cầu, nhìn từ trên xuống; điểm chèn ở mép sau giữa (áp tường)",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   535,
+   840
+  ],
+  "source_block": "Toilet - top",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SANI-WC-SIDE-840x610": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   838.2,
+   609.6
+  ],
+  "dynamic": false,
+  "meaning": "Bồn cầu, nhìn ngang",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   840,
+   610
+  ],
+  "source_block": "Toilet - side",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "SITE-BENCH-ELEV-495x800": {
+  "bbox_mm": [
+   -152.4,
+   0.0,
+   342.9,
+   800.1
+  ],
+  "dynamic": false,
+  "meaning": "Ghế băng công viên, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   495,
+   800
+  ],
+  "source_block": "Park Bench - elevation",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "SITE-CAR-SEDAN-SIDE-4420x1255": {
+  "bbox_mm": [
+   -4419.6,
+   0.0,
+   0.7,
+   1253.4
+  ],
+  "dynamic": false,
+  "meaning": "Xe sedan, nhìn ngang",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   4420,
+   1255
+  ],
+  "source_block": "Car - sedan  side",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "SITE-HOT-TUB-1755x1755": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   1755.6,
+   1755.6
+  ],
+  "dynamic": false,
+  "meaning": "Bồn sục nước nóng ngoài trời",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1755,
+   1755
+  ],
+  "source_block": "Hot Tub",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SITE-LAMP-ELEV-1370x3050": {
+  "bbox_mm": [
+   -628.6,
+   0.0,
+   742.9,
+   3048.0
+  ],
+  "dynamic": false,
+  "meaning": "Đèn ngoài trời, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1370,
+   3050
+  ],
+  "source_block": "Lamp - outdoor elevation",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "SITE-PICNIC-TABLE-PLAN-1525x1830": {
+  "bbox_mm": [
+   0.0,
+   -114.3,
+   1524.0,
+   1714.5
+  ],
+  "dynamic": false,
+  "meaning": "Bàn ghế ngoài trời, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   1525,
+   1830
+  ],
+  "source_block": "Picnic Table - plan",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SITE-POOL-10160x6230": {
+  "bbox_mm": [
+   -2487.2,
+   -1106.0,
+   7671.7,
+   5125.9
+  ],
+  "dynamic": false,
+  "meaning": "Hồ bơi, nhìn từ trên xuống",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   10160,
+   6230
+  ],
+  "source_block": "Swimming Pool",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SITE-SPRINKLER-90-195x200": {
+  "bbox_mm": [
+   -35.8,
+   -36.6,
+   160.9,
+   160.9
+  ],
+  "dynamic": false,
+  "meaning": "Đầu phun tưới quay 90 độ",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   195,
+   200
+  ],
+  "source_block": "Sprinkler Head - 90 degrees",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SITE-STEPPING-STONE-HEX-510x510": {
+  "bbox_mm": [
+   -278.5,
+   -252.9,
+   230.1,
+   255.7
+  ],
+  "dynamic": false,
+  "meaning": "Đá lát lối đi hình lục giác",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   510,
+   510
+  ],
+  "source_block": "Stepping Stone - hexagonal",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "plan"
+ },
+ "SITE-VEHICLES-DYN-6040x2900": {
+  "bbox_mm": [
+   -1085.2,
+   -1096.0,
+   4956.6,
+   1806.3
+  ],
+  "dynamic": true,
+  "meaning": "Nhiều loại xe trong một block động (extents gộp mọi trạng thái)",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   6040,
+   2900
+  ],
+  "source_block": "Vehicles - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
+ "STRUC-CHANNEL-110x400": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   110.0,
+   400.0
+  ],
+  "dynamic": true,
+  "meaning": "Thép chữ C (máng), mặt cắt ngang",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   110,
+   400
+  ],
+  "source_block": "Channel - Metric",
+  "source_file": "Dynamic Blocks/Structural - Metric.dwg",
+  "units": "millimeters",
+  "view": "elevation"
+ },
+ "STRUC-ELEVATION-SYMBOL-4x4": {
+  "bbox_mm": [
+   -2.0,
+   0.0,
+   2.0,
+   4.0
+  ],
+  "dynamic": true,
+  "meaning": "Ký hiệu cao độ kết cấu",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   4,
+   4
+  ],
+  "source_block": "Elevation Symbol - Metric",
+  "source_file": "Dynamic Blocks/Structural - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "STRUC-I-BEAM-55x100": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   55.0,
+   100.0
+  ],
+  "dynamic": true,
+  "meaning": "Dầm thép chữ I, mặt cắt ngang",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   55,
+   100
+  ],
+  "source_block": "I Beam - Metric",
+  "source_file": "Dynamic Blocks/Structural - Metric.dwg",
+  "units": "millimeters",
+  "view": "elevation"
+ },
+ "STRUC-MOMENT-CONNECTION-3x3": {
+  "bbox_mm": [
+   280.6,
+   1205.3,
+   283.6,
+   1208.3
+  ],
+  "dynamic": true,
+  "meaning": "Ký hiệu liên kết chịu mô men",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   3,
+   3
+  ],
+  "source_block": "Moment Connection - Metric",
+  "source_file": "Dynamic Blocks/Structural - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "STRUC-SPLICE-5x3": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   5.0,
+   3.0
+  ],
+  "dynamic": true,
+  "meaning": "Ký hiệu mối nối dầm",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   5,
+   3
+  ],
+  "source_block": "Splice - Metric",
+  "source_file": "Dynamic Blocks/Structural - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "STRUC-STEP-SYMBOL-16x7": {
+  "bbox_mm": [
+   -8.0,
+   -3.0,
+   8.0,
+   4.0
+  ],
+  "dynamic": true,
+  "meaning": "Ký hiệu bậc cao độ trên bản vẽ kết cấu",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   16,
+   7
+  ],
+  "source_block": "Step Symbol - Metric",
+  "source_file": "Dynamic Blocks/Structural - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "STRUC-WF-BEAM-105x105": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   103.0,
+   106.0
+  ],
+  "dynamic": true,
+  "meaning": "Dầm thép cánh rộng WF, mặt cắt ngang",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   105,
+   105
+  ],
+  "source_block": "WF Beam - Metric",
+  "source_file": "Dynamic Blocks/Structural - Metric.dwg",
+  "units": "millimeters",
+  "view": "elevation"
+ },
+ "SYMB-ARROWS-32x19": {
+  "bbox_mm": [
+   -31.8,
+   -9.5,
+   0.0,
+   9.5
+  ],
+  "dynamic": true,
+  "meaning": "Các kiểu mũi tên chỉ hướng",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   32,
+   19
+  ],
+  "source_block": "Arrows - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "SYMB-CALLOUT-BUBBLE-15x18": {
+  "bbox_mm": [
+   -6.3,
+   -9.0,
+   9.0,
+   9.0
+  ],
+  "dynamic": true,
+  "meaning": "Bong bóng chú thích tham chiếu chi tiết",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   15,
+   18
+  ],
+  "source_block": "Callout Bubble - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "SYMB-DETAIL-GRID-10x10": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   10.0,
+   10.0
+  ],
+  "dynamic": true,
+  "meaning": "Lưới bố cục các chi tiết trên khổ giấy",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   10,
+   10
+  ],
+  "source_block": "Detail Layout Grid - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "SYMB-DRAWING-TITLE-65x13": {
+  "bbox_mm": [
+   8.7,
+   -19.4,
+   71.4,
+   -6.7
+  ],
+  "dynamic": true,
+  "meaning": "Tiêu đề hình vẽ (tên và tỉ lệ)",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   65,
+   13
+  ],
+  "source_block": "Drawing Title - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "SYMB-ELEVATION-19x75": {
+  "bbox_mm": [
+   -7.9,
+   -11.2,
+   11.2,
+   65.2
+  ],
+  "dynamic": true,
+  "meaning": "Ký hiệu cao độ (mốc +/- m)",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   19,
+   75
+  ],
+  "source_block": "Elevation - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "SYMB-GRAPHIC-SCALE-2x1": {
+  "bbox_mm": [
+   -0.0,
+   0.0,
+   2.4,
+   0.4
+  ],
+  "dynamic": true,
+  "meaning": "Thước tỉ lệ đồ họa",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   2,
+   1
+  ],
+  "source_block": "Graphic Scale - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "SYMB-NORTH-ARROW-27x80": {
+  "bbox_mm": [
+   -13.3,
+   -40.0,
+   13.3,
+   40.0
+  ],
+  "dynamic": true,
+  "meaning": "Mũi tên hướng bắc",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   27,
+   80
+  ],
+  "source_block": "North Arrow - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "SYMB-NORTH-ARROW-LANDSCAPE-655x655": {
+  "bbox_mm": [
+   -327.6,
+   -651.0,
+   326.9,
+   3.6
+  ],
+  "dynamic": false,
+  "meaning": "Mũi tên hướng bắc (bản cảnh quan)",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   655,
+   655
+  ],
+  "source_block": "North Arrow",
+  "source_file": "DesignCenter/Landscaping.dwg",
+  "units": "inches",
+  "view": "symbol"
+ },
+ "SYMB-SECTION-CALLOUT-19x55": {
+  "bbox_mm": [
+   -7.9,
+   -11.2,
+   11.2,
+   46.0
+  ],
+  "dynamic": true,
+  "meaning": "Ký hiệu đường cắt mặt cắt",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   19,
+   55
+  ],
+  "source_block": "Section Callout - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "SYMB-TAG-38x13": {
+  "bbox_mm": [
+   -31.8,
+   -6.3,
+   6.3,
+   6.3
+  ],
+  "dynamic": true,
+  "meaning": "Nhãn đánh số hạng mục",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   38,
+   13
+  ],
+  "source_block": "Tag - Metric",
+  "source_file": "Dynamic Blocks/Annotation - Metric.dwg",
+  "units": "millimeters",
+  "view": "symbol"
+ },
+ "WNDW-ALUMINUM-DYN-ELEV-900x900": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   900.0,
+   900.0
+  ],
+  "dynamic": true,
+  "meaning": "Cửa sổ nhôm động, mặt đứng",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   900,
+   900
+  ],
+  "source_block": "Aluminum Window (Elevation) - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "elevation"
+ },
+ "WNDW-DYN-PLAN-900x100": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   900.0,
+   100.0
+  ],
+  "dynamic": true,
+  "meaning": "Cửa sổ động, mặt bằng",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   900,
+   100
+  ],
+  "source_block": "Window - Metric",
+  "source_file": "Dynamic Blocks/Architectural - Metric.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
+ "WNDW-HALFCIRCLE-ELEV-915x455": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   914.4,
+   457.2
+  ],
+  "dynamic": false,
+  "meaning": "Cửa sổ bán nguyệt rộng 36 in, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   455
+  ],
+  "source_block": "Window - Half-circle 36 in.",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "WNDW-WOOD-ELEV-915x915": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   914.4,
+   914.4
+  ],
+  "dynamic": false,
+  "meaning": "Cửa sổ khung gỗ 36x36 in, mặt đứng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   915
+  ],
+  "source_block": "Window - Wood Frame 36 x 36 in.",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "elevation"
+ },
+ "WNDW-WOOD-PLAN-915x150": {
+  "bbox_mm": [
+   0.0,
+   0.0,
+   914.4,
+   152.4
+  ],
+  "dynamic": false,
+  "meaning": "Cửa sổ khung gỗ rộng 36 in, mặt bằng",
+  "mm_per_unit": 25.4,
+  "size_mm": [
+   915,
+   150
+  ],
+  "source_block": "Window - Wood Frame 36 in. Wide plan",
+  "source_file": "DesignCenter/House Designer.dwg",
+  "units": "inches",
+  "view": "plan"
+ }
+}
