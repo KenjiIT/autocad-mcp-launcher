@@ -1,8 +1,3 @@
----
-name: autocad-identify-boundaries
-description: Nhận diện ranh khu đất và đường bao khối tòa nhà trong bản vẽ CAD bằng layer, màu, hình học, chữ và quan hệ không gian. Dùng khi cần phân biệt ranh đất với tường ngoài, mép sàn, mái hoặc chọn đúng khối nhà trước khi đo, chép hay vẽ tiếp.
----
-
 # Nhận diện ranh đất và khối tòa nhà
 
 Mục tiêu là đưa ra các đường bao có bằng chứng và xác định đúng phạm vi công việc. Skill hướng dẫn suy luận từ dữ liệu các tool đang cung cấp; không bổ sung tool phát hiện hình học vào MCP. Không gọi `drawing.detect_boundaries` trừ khi danh sách tool thực tế có chức năng đó.

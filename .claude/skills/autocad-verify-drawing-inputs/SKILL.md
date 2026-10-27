@@ -7,7 +7,7 @@ description: Kiểm tra hồ sơ, số liệu, phiên bản và bản vẽ nền
 
 Xác định liệu agent có đủ căn cứ để bắt đầu đúng phần việc được giao. Kiểm tra có chọn lọc theo loại bản vẽ và giai đoạn; không yêu cầu mọi tài liệu của toàn dự án cho một bản vẽ nhỏ. Kết quả là trạng thái sẵn sàng, danh sách căn cứ và các điểm cần quyết định. Skill này không tự xác nhận thiết kế tuân thủ quy định và không tạo thêm chức năng MCP.
 
-Khi làm qua AutoCAD, đọc [autocad-agent-coordinator](../autocad-agent-coordinator/SKILL.md) để chọn backend và dùng đúng tool. Trước khi dựng bản vẽ mới, tiếp tục với [autocad-start-construction-drawing](../autocad-start-construction-drawing/SKILL.md). Nếu cần khoanh ranh khu đất/khối nhà, dùng [autocad-identify-boundaries](../autocad-identify-boundaries/SKILL.md). Nếu yêu cầu thuộc một giai đoạn thiết kế cụ thể, dùng [construction-design-stages](../construction-design-stages/SKILL.md).
+Khi làm qua AutoCAD, đọc [autocad-agent-coordinator](../autocad-agent-coordinator/SKILL.md) để chọn backend và dùng đúng tool. Trước khi dựng bản vẽ mới, tiếp tục với [autocad-start-construction-drawing](../autocad-start-construction-drawing/SKILL.md). Nếu cần khoanh ranh khu đất/khối nhà, dùng [autocad-identify-and-measure](../autocad-identify-and-measure/references/boundaries.md). Nếu yêu cầu thuộc một giai đoạn thiết kế cụ thể, dùng [construction-design-stages](../construction-design-stages/SKILL.md).
 
 ## 1. Chốt chính xác phần việc
 

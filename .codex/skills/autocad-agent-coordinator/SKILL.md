@@ -9,7 +9,7 @@ Dùng quy trình này cho công việc AutoCAD thực hiện qua ứng dụng k�
 
 ## Nhận diện ranh đất và khối nhà
 
-Khi cần xác định ranh khu đất, chọn khối tòa nhà, phân biệt tường ngoài/mép sàn/mái hoặc khoanh phạm vi trước khi đo, chép hay vẽ tiếp, đọc và áp dụng [autocad-identify-boundaries](../autocad-identify-boundaries/SKILL.md) nếu skill có trong môi trường agent.
+Khi cần xác định ranh khu đất, chọn khối tòa nhà, phân biệt tường ngoài/mép sàn/mái hoặc khoanh phạm vi trước khi đo, chép hay vẽ tiếp, đọc và áp dụng [autocad-identify-and-measure](../autocad-identify-and-measure/references/boundaries.md) nếu skill có trong môi trường agent.
 
 Ưu tiên tìm ranh đất rồi lấy toàn bộ đối tượng bên trong làm tập ứng viên; giữ riêng đối tượng chạm/cắt ranh, sau đó lọc hoặc nhờ người dùng xác nhận nhóm thuộc tòa nhà. Nếu chưa tìm được ranh, hỏi màu, layer, vị trí hoặc đối tượng mẫu. Tập ứng viên trong ranh có thể chứa sân, đường và ghi chú; chưa coi tất cả là đường bao nhà đã xác minh. Kiểm tra đúng DWG và phạm vi trước khi tái dùng kết quả nhận diện.
 
@@ -20,6 +20,10 @@ Nếu skill chưa được cài, áp dụng quy trình tóm tắt trên bằng c
 Trước khi tạo hoặc sửa bản vẽ theo hồ sơ đầu vào, đọc và áp dụng [autocad-verify-drawing-inputs](../autocad-verify-drawing-inputs/SKILL.md) để kiểm tra đúng phiên bản, đơn vị, định vị và các dữ liệu còn thiếu. Nếu có thông tin chặn, hỏi rõ trước phần phụ thuộc; nếu chỉ còn giả định cho phương án sơ bộ, nêu chúng cho người dùng.
 
 Khi người dùng muốn tạo mặt bằng hoặc bắt đầu dựng bản vẽ xây dựng 2D từ căn cứ thiết kế, đọc và áp dụng [autocad-start-construction-drawing](../autocad-start-construction-drawing/SKILL.md) nếu skill có trong môi trường agent. Skill này hướng dẫn kiểm tra đầu vào, đơn vị, layer, hệ trục, hình học, chữ/kích thước và tờ in trước khi kết luận hoàn thành. Nếu skill chưa được cài, giữ trình tự đó và dùng các tool MCP thực tế đang có.
+
+## Thư viện block (nội thất, cây cối, cửa, thiết bị)
+
+Khi cần tạo một vật thể thông dụng trên AutoCAD LT (nội thất, thiết bị vệ sinh và bếp, cửa, cửa sổ, cây, ngoại thất, ký hiệu bản vẽ, thép hình), đọc và áp dụng [autocad-block-library](../autocad-block-library/SKILL.md) trước khi vẽ tay: gọi `block` `operation="list"`, chọn mục trong `library`, tính điểm chèn từ `bbox_mm`, chèn bằng `operation="insert"` với `scale` bằng 1, rồi đọc lại `xscale` (phải bằng `scale` nhân `scale_factor` của mục). Chỉ vẽ tay khi thư viện và danh mục không có vật thể phù hợp. Skill này không có trong môi trường thì dùng `block` `list` và áp dụng các bước trên.
 
 ## Quy trình
 

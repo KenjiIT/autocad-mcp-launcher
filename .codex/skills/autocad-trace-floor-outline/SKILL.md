@@ -5,7 +5,7 @@ description: Dựng đường bao một tầng (viền sàn/tường ngoài) khi
 
 # Dựng đường bao tầng từ hình học tường rời
 
-Bổ sung cho [autocad-identify-boundaries](../autocad-identify-boundaries/SKILL.md) (tìm ranh đất, chọn đúng khối/tầng, xếp mức chắc chắn) và [autocad-agent-coordinator](../autocad-agent-coordinator/SKILL.md) (kết nối MCP). Dùng skill này khi đã chọn đúng tầng nhưng **không có polyline/hatch nào là viền tầng**, mà chỉ có nhiều đoạn tường, kính, cửa sổ rời nhau. Kết quả là đường bao **suy ra từ hình học**, không phải đối tượng có sẵn; luôn ghi rõ như vậy.
+Bổ sung cho [autocad-identify-and-measure](../autocad-identify-and-measure/references/boundaries.md) (tìm ranh đất, chọn đúng khối/tầng, xếp mức chắc chắn) và [autocad-agent-coordinator](../autocad-agent-coordinator/SKILL.md) (kết nối MCP). Dùng skill này khi đã chọn đúng tầng nhưng **không có polyline/hatch nào là viền tầng**, mà chỉ có nhiều đoạn tường, kính, cửa sổ rời nhau. Kết quả là đường bao **suy ra từ hình học**, không phải đối tượng có sẵn; luôn ghi rõ như vậy.
 
 ## Quy tắc bắt buộc
 
