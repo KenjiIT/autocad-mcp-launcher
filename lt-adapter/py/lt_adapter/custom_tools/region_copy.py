@@ -220,6 +220,11 @@ def register(mcp) -> None:
     ) -> Any:
         """Preview or copy a rectangular Model Space region between open DWGs.
 
+        Supported on AutoCAD LT (runs through the region-copy-lt dispatcher
+        command) and on full AutoCAD (COM). source_path and target_path must
+        be saved .dwg files that exist on disk; unsaved drawings are rejected.
+        Not available on the ezdxf backend.
+
         The source DWG must be active; the target DWG must be open in the same
         AutoCAD instance. Use operation=preview first. Then pass its exact
         source_handles as expected_handles to operation=copy, together with
@@ -254,7 +259,7 @@ def register(mcp) -> None:
 
         backend = await get_backend()
         if not isinstance(backend, FileIPCBackend):
-            return tool_error("Copy between DWGs requires the AutoCAD backend",
+            return tool_error("Copy between DWGs requires the AutoCAD or AutoCAD LT backend (not ezdxf)",
                               code="E_BACKEND_UNSUPPORTED")
         guard = None
         if operation == "copy":

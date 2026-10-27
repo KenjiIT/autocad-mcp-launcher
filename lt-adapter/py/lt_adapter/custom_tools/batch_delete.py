@@ -104,6 +104,9 @@ def register(mcp) -> None:
     ) -> Any:
         """Delete up to 500 explicit entity handles in the active DWG.
 
+        Supported on AutoCAD LT (entity-delete-batch dispatcher command) and
+        on full AutoCAD (COM). Not available on the ezdxf backend.
+
         All handles are checked before deletion starts. Deletion cannot be
         rolled back; if AutoCAD rejects a deletion, the response lists objects
         already deleted and the remaining failure details.

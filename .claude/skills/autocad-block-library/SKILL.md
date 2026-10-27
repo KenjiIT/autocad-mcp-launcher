@@ -21,7 +21,7 @@ Thư viện là thư mục `blocks/` của dự án (hoặc thư mục trong bi�
 5. **Kiểm sau khi chèn:** đọc lại bằng `entity` `get`. `xscale` phải bằng `scale` × `scale_factor` của mục thư viện. Tệp inch chèn vào bản vẽ mm có `scale_factor` 25.4, nên `xscale` 25.4 là đúng, AutoCAD tự quy đổi đơn vị. Nếu `scale_factor` là `null` (tệp không biết đơn vị) hoặc `xscale` khác dự kiến thì đo lại khung bao của đối tượng; sai kích thước thì xóa đối tượng vừa chèn và báo người dùng.
 6. **Layer và màu:** đối tượng `INSERT` mang layer hiện hành. Chọn layer nội thất/thiết bị đang có trong bản vẽ và theo quy ước màu của `autocad-agent-coordinator`. Hình bên trong 101 trong 105 block nằm hết trên layer `0`, nên block theo layer của đối tượng `INSERT`. Bốn block động (`CIVIL-PARKING-STALL`, `DOOR-DYN-ELEV`, `ELEC-LIGHT-RECESSED-DYN`, `STRUC-CHANNEL`) có thêm layer nội bộ `*ADSK_CONSTRAINTS` của ràng buộc động; bỏ qua. Màu của từng nét bên trong (ByLayer hay cố định) chưa được kiểm.
 
-Không có block phù hợp: nếu danh mục có mà chưa tách thành tệp, báo người dùng và đề nghị tách (mục *Dựng lại thư viện*). Nếu danh mục cũng không có, vẽ bằng công cụ thường hoặc hỏi người dùng. Không tự bịa tên block.
+Không có block phù hợp: nếu danh mục có mà chưa tách thành tệp, báo người dùng và đề nghị tách (mục *Dựng lại thư viện*). Nếu danh mục cũng không có, áp dụng quy tắc hỏi trước của `autocad-agent-coordinator`: hỏi người dùng cung cấp kích thước hoặc đồng ý để agent tự vẽ theo giả định nêu rõ; chỉ vẽ tay khi đã có kích thước hoặc được đồng ý. Không tự bịa tên block.
 
 ## Các nhóm trong thư viện
 

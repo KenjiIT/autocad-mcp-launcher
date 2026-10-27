@@ -7,6 +7,25 @@ description: Điều phối công việc AutoCAD qua hai MCP autocad_beiming và
 
 Dùng quy trình này cho công việc AutoCAD thực hiện qua ứng dụng kết nối MCP của dự án. Skill hướng dẫn agent; các công cụ MCP mới thực hiện thao tác CAD. Không nói rằng việc nạp skill đã mở AutoCAD hoặc kết nối MCP.
 
+## Quy tắc đầu tiên: yêu cầu mơ hồ thì hỏi trước khi làm
+
+Ngay khi nhận yêu cầu, trước mọi thao tác sửa bản vẽ, kiểm tra yêu cầu đã đủ để làm chưa. Yêu cầu **mơ hồ** khi một trong các điều sau đúng:
+
+- thiếu số liệu quyết định hình vẽ (kích thước, vị trí, cao độ, tiết diện, số lượng) mà bản vẽ đang mở và tài liệu người dùng đưa cũng không cho biết;
+- chưa rõ đối tượng, bản vẽ đích, tầng hoặc khu vực;
+- có hơn một cách hiểu hợp lý và chúng cho hình vẽ khác nhau.
+
+Khi mơ hồ, **dừng và hỏi người dùng một lần**, đưa đúng hai lựa chọn:
+
+1. **Người dùng cung cấp thêm số liệu:** nêu cụ thể cần số nào (liệt kê ngắn, nhóm trong một lượt, không hỏi lại điều đã có).
+2. **Agent tự vẽ theo giả định:** nêu luôn giả định sẽ dùng (giá trị, nguồn hoặc lý do) để người dùng đồng ý hoặc sửa.
+
+Chờ người dùng chọn rồi mới vẽ. Không tự chọn một trong hai và không tự đặt số liệu "hợp lý" khi chưa được phép. Nếu người dùng chọn để agent tự vẽ, ghi mọi giả định vào danh sách `CẦN XÁC NHẬN` ở báo cáo cuối. Phần việc độc lập đã đủ căn cứ và thao tác chỉ đọc vẫn làm được trong lúc chờ.
+
+Các skill khác (`autocad-verify-drawing-inputs`, `autocad-structural-floor-plan`, `autocad-redraw-from-reference`, `autocad-block-library`) quy định thêm điểm chặn riêng cho loại bản vẽ của chúng; quy tắc này luôn áp dụng trước.
+
+Không cần hỏi lại, agent tự quyết: layer và màu theo quy ước bản vẽ, chiều cao chữ, thứ tự dựng, chọn block theo tên thư viện khi mô tả khớp rõ một mục.
+
 ## Nhận diện ranh đất và khối nhà
 
 Khi cần xác định ranh khu đất, chọn khối tòa nhà, phân biệt tường ngoài/mép sàn/mái hoặc khoanh phạm vi trước khi đo, chép hay vẽ tiếp, đọc và áp dụng [autocad-identify-and-measure](../autocad-identify-and-measure/references/boundaries.md) nếu skill có trong môi trường agent.
@@ -56,6 +75,13 @@ Với DWG lớn, bắt đầu bằng một lần audit Model Space với `includ
 | 11 | Hồng nhạt `#FF7F7F` | Hatch cột `S-COLS-PATT`; layer hatch tường `A-FLOR-WALL-PATT` cũng khai báo màu này. |
 
 ACI là mã màu cần truyền cho AutoCAD khi công cụ nhận ACI; HEX/RGB chỉ để nhận biết màu. ACI 1 và ACI 10 cùng đỏ trên màn hình nhưng là hai chỉ số khác nhau, có thể in khác nhau theo CTB. ACI 7 đổi cách hiển thị theo nền AutoCAD. Đường trục hình học dùng ACI 8; vòng tròn và chữ/số nhãn trục dùng ACI 3. Với chi tiết cửa có cả ACI 2 và 8, đọc layer và đối tượng cùng loại trong bản vẽ trước khi chọn. Trước khi xuất/in, kiểm tra CTB/STB và bản xem trước; màu hiển thị không quyết định bề rộng nét in.
+
+## Công cụ nào dùng được trên AutoCAD LT
+
+- Trước khi kết luận một công cụ không dùng được trên LT, gọi thao tác chỉ đọc của nó (preview, list, info) và đọc mã lỗi trả về. Chỉ kết luận theo lỗi đã quan sát được, không theo suy đoán.
+- Khi cần đọc mã nguồn để biết hành vi trên LT, xem `lt-adapter/` trước (`contract.json`, `py/lt_adapter/`, `lisp/mcp_dispatch_lt.lsp`). Không suy ra từ `autocad-beiming-mcp-custom/`: đó là mã gốc cho AutoCAD đầy đủ, adapter thay thế nhiều phần của nó khi chạy trên LT.
+- `copy_region_between_dwgs` và `delete_batching` đã được thay bằng bản LT và dùng được trên LT. `copy_region_between_dwgs` cần hai file DWG đã lưu, cả hai đang mở trong cùng một phiên LT, bản nguồn là bản vẽ đang hoạt động.
+- Không hỗ trợ trên LT (trả `E_NOT_SUPPORTED_ON_LT`): `drawing` các thao tác `activate`, `create`, `close`, `copy_dwg`, `save`, `save_as_dxf`, `plot_pdf`, `audit`, `render_preview`; `recover`; `zoom_extents`; `entity` các thao tác `trim`, `extend`, `join`; `create_dimension_*`; `solid_*`; `product_*`. Nguồn danh sách: `_UNSUPPORTED` trong `lt-adapter/py/lt_adapter/lt_file_ipc.py`; đối chiếu lại khi nghi ngờ.
 
 ## Giới hạn
 

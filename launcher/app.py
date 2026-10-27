@@ -16,6 +16,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 import knowledge
+from logfile import RotatingLog, start_logged
 from tray import TrayIcon
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -532,12 +533,9 @@ class App(tk.Tk):
                 self.gateway = AdoptedGateway(pid)
                 self.events.put(("status", "Gateway đã chạy sẵn trên cổng 8764; app dùng lại nó."))
                 return
-            self.log = (LOG_DIR / "gateway.log").open("a", encoding="utf-8", buffering=1)
+            self.log = RotatingLog(LOG_DIR / "gateway.log")
             command = [str(python_in(REPOS["puran"])), str(ROOT / "launcher" / "gateway.py")]
-            self.gateway = subprocess.Popen(
-                command,
-                cwd=ROOT, stdin=subprocess.DEVNULL, stdout=self.log, stderr=subprocess.STDOUT,
-                creationflags=subprocess.CREATE_NO_WINDOW)
+            self.gateway = start_logged(command, self.log, cwd=ROOT)
             for _ in range(100):
                 if self.gateway.poll() is not None:
                     raise RuntimeError("Gateway thoát khi khởi động; xem launcher/logs/gateway.log")

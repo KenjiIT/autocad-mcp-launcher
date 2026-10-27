@@ -19,6 +19,7 @@ from starlette.routing import Route
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "launcher"))
 import acad_pid
+from logfile import RotatingLog, start_logged
 from cad_adapter import find_lt_window, prove_connection, prove_offline
 SERVERS = {
     "puran": ("autocad_puran", ROOT / "puran-water-autocad-mcp", 8875),
@@ -147,7 +148,7 @@ class Switchboard:
                 raise RuntimeError(f"Thiếu môi trường Python: {python}. Mở app để cài thư viện.")
             if listening(port):
                 raise RuntimeError(f"Cổng nội bộ {port} đã được sử dụng")
-            self.log = (LOG_DIR / f"{name}.log").open("a", encoding="utf-8", buffering=1)
+            self.log = RotatingLog(LOG_DIR / f"{name}.log")
             env = os.environ.copy()
             env["AUTOCAD_MCP_BACKEND"] = "ezdxf" if self.mode == "ezdxf" else "file_ipc"
             env["AUTOCAD_MCP_AUTOSTART"] = "false"
@@ -162,11 +163,9 @@ class Switchboard:
                 env["AUTOCAD_MCP_READ_TIMEOUT"] = "600"
                 env["AUTOCAD_MCP_IPC_TIMEOUT"] = "300"
                 env["AUTOCAD_MCP_DOCUMENT_TIMEOUT"] = "120"
-            self.process = subprocess.Popen(
+            self.process = start_logged(
                 [str(python), str(ROOT / "launcher" / "serve.py"), str(repo), str(port)],
-                cwd=repo, env=env, stdin=subprocess.DEVNULL,
-                stdout=self.log, stderr=subprocess.STDOUT,
-                creationflags=subprocess.CREATE_NO_WINDOW)
+                self.log, cwd=repo, env=env)
             try:
                 for _ in range(150):
                     if self.process.poll() is not None:
