@@ -9,7 +9,7 @@ OUTPUT = ROOT / "dist" / "autocad-mcp-launcher-complete.zip"
 PACKAGE_NAME = "autocad-mcp-launcher"
 SKILL_ARCHIVES = (
     "autocad-agent-coordinator",
-    "autocad-identify-boundaries",
+    "autocad-identify-and-measure",
     "autocad-start-construction-drawing",
     "autocad-verify-drawing-inputs",
 )
@@ -21,11 +21,12 @@ INCLUDE = (
     "start.ps1",
     "launcher",
     "lt-adapter",
+    "blocks",
     "scripts",
     ".codex",
     ".claude",
     "dist/autocad-agent-coordinator.zip",
-    "dist/autocad-identify-boundaries.zip",
+    "dist/autocad-identify-and-measure.zip",
     "dist/autocad-start-construction-drawing.zip",
     "dist/autocad-verify-drawing-inputs.zip",
     "puran-water-autocad-mcp",
@@ -56,11 +57,13 @@ def main():
             raise RuntimeError(f"Missing {repo} source; initialize Git submodules first")
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     for skill_name in SKILL_ARCHIVES:
-        skill_path = ROOT / ".codex" / "skills" / skill_name / "SKILL.md"
-        if not skill_path.is_file():
-            raise FileNotFoundError(f"Missing skill: {skill_path}")
+        skill_dir = ROOT / ".codex" / "skills" / skill_name
+        if not (skill_dir / "SKILL.md").is_file():
+            raise FileNotFoundError(f"Missing skill: {skill_dir / 'SKILL.md'}")
         with ZipFile(ROOT / "dist" / f"{skill_name}.zip", "w", compression=ZIP_DEFLATED) as skill_archive:
-            skill_archive.write(skill_path, f"{skill_name}/SKILL.md")
+            for file in sorted(skill_dir.rglob("*")):
+                if file.is_file() and "__pycache__" not in file.parts:
+                    skill_archive.write(file, f"{skill_name}/{file.relative_to(skill_dir).as_posix()}")
     with ZipFile(OUTPUT, "w", compression=ZIP_DEFLATED) as archive:
         for path in files_to_package():
             archive.write(path, f"{PACKAGE_NAME}/{path.relative_to(ROOT).as_posix()}")

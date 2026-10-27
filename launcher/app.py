@@ -11,9 +11,11 @@ import time
 import tkinter as tk
 import urllib.request
 import winreg
+import zipfile
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
+import knowledge
 from tray import TrayIcon
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -90,6 +92,55 @@ def listening(port):
         return False
 
 
+def block_library_dir():
+    """Folder block.insert reads library files from; keep in step with lt_file_ipc."""
+    configured = os.environ.get("AUTOCAD_MCP_BLOCK_LIBRARY", "").strip()
+    return Path(configured) if configured else ROOT / "blocks"
+
+
+def listener_pid(port):
+    """PID that listens on the loopback ``port``, or None."""
+    try:
+        output = subprocess.run(["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True,
+                                timeout=10, creationflags=subprocess.CREATE_NO_WINDOW).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    for line in output.splitlines():
+        fields = line.split()
+        if len(fields) >= 5 and fields[3] == "LISTENING" and fields[1] == f"127.0.0.1:{port}":
+            try:
+                return int(fields[4])
+            except ValueError:
+                return None
+    return None
+
+
+def is_launcher_gateway(port=8764):
+    """True when the listener on ``port`` answers /status like this launcher's gateway."""
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/status", timeout=2) as response:
+            state = json.load(response)
+    except (OSError, ValueError):
+        return False
+    return isinstance(state, dict) and {"mode", "queued_requests"} <= state.keys()
+
+
+class AdoptedGateway:
+    """A gateway left running by an earlier launcher; the app reuses and later stops it."""
+
+    def __init__(self, pid, port=8764):
+        self.pid = pid
+        self.port = port
+
+    def poll(self):
+        return None if listening(self.port) else 0
+
+    def wait(self, timeout=None):
+        deadline = time.time() + (timeout if timeout is not None else 5)
+        while listening(self.port) and time.time() < deadline:
+            time.sleep(0.1)
+
+
 def kill_tree(process):
     if process and process.poll() is None:
         subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
@@ -155,9 +206,10 @@ class App(tk.Tk):
         pages = ttk.Notebook(self)
         pages.pack(fill="both", expand=True, padx=12, pady=12)
         main = ttk.Frame(pages, padding=18)
-        settings = ttk.Frame(pages, padding=24)
+        settings_page = ttk.Frame(pages)
+        settings = self.scrollable(settings_page)
         pages.add(main, text="Điều khiển")
-        pages.add(settings, text="Cài đặt")
+        pages.add(settings_page, text="Cài đặt")
         self.build_settings(settings)
         ttk.Label(main, text="AutoCAD MCP", font=("Segoe UI", 20, "bold")).pack(anchor="w")
         ttk.Label(main, text=f"Phiên bản {app_version()}", foreground="#65736f").pack(anchor="w", pady=(0, 5))
@@ -188,6 +240,28 @@ class App(tk.Tk):
                                   bg="#ffffff", fg="#1b2926", relief="flat", padx=12, pady=12)
         self.config_box.pack(fill="both", expand=True)
 
+    def scrollable(self, page):
+        """Return a padded frame inside ``page`` that scrolls when it grows taller than the window."""
+        canvas = tk.Canvas(page, highlightthickness=0, borderwidth=0)
+        bar = ttk.Scrollbar(page, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=bar.set)
+        bar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        inner = ttk.Frame(canvas, padding=24)
+        window = canvas.create_window((0, 0), window=inner, anchor="nw")
+        inner.bind("<Configure>", lambda _: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda event: canvas.itemconfigure(window, width=event.width))
+
+        def wheel(event):
+            if isinstance(event.widget, tk.Listbox):
+                return
+            if inner.winfo_reqheight() > canvas.winfo_height():
+                canvas.yview_scroll(-1 if event.delta > 0 else 1, "units")
+
+        canvas.bind("<Enter>", lambda _: canvas.bind_all("<MouseWheel>", wheel))
+        canvas.bind("<Leave>", lambda _: canvas.unbind_all("<MouseWheel>"))
+        return inner
+
     def build_settings(self, frame):
         ttk.Label(frame, text="Cài đặt", font=("Segoe UI", 18, "bold")).pack(anchor="w")
         ttk.Label(frame, text="Tùy chỉnh cách AutoCAD MCP Launcher hoạt động trên máy này.",
@@ -206,7 +280,36 @@ class App(tk.Tk):
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", padx=(24, 0), pady=(6, 12))
         self.settings_status = ttk.Label(frame, text="")
         self.settings_status.pack(anchor="w", padx=(24, 0))
-        ttk.Separator(frame).pack(fill="x", pady=18)
+        ttk.Separator(frame).pack(fill="x", pady=12)
+        ttk.Label(frame, text="Tri thức AutoCAD", font=("Segoe UI", 13, "bold")).pack(anchor="w")
+        ttk.Label(frame,
+                  text="Tải các trang tri thức công khai (cách đọc mặt bằng kết cấu, kiến trúc) về máy. Chỉ tải về, không tải lên gì; tệp trùng tên sẽ được thay bằng bản mới.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
+        self.knowledge_dir_var = tk.StringVar(value=self.knowledge_dir())
+        knowledge_row = ttk.Frame(frame)
+        knowledge_row.pack(fill="x")
+        ttk.Entry(knowledge_row, textvariable=self.knowledge_dir_var, state="readonly").pack(
+            side="left", fill="x", expand=True)
+        ttk.Button(knowledge_row, text="Đổi thư mục…", command=self.choose_knowledge_dir).pack(side="left", padx=(6, 0))
+        self.knowledge_btn = ttk.Button(knowledge_row, text="Tải tri thức", command=self.download_knowledge)
+        self.knowledge_btn.pack(side="left", padx=(6, 0))
+        self.knowledge_status = ttk.Label(frame, text="")
+        self.knowledge_status.pack(anchor="w", pady=(6, 0))
+        ttk.Separator(frame).pack(fill="x", pady=12)
+        ttk.Label(frame, text="Thư viện block", font=("Segoe UI", 13, "bold")).pack(anchor="w")
+        ttk.Label(frame,
+                  text="Nơi lưu các block dựng sẵn (nội thất, cây cối, thiết bị vệ sinh) dạng .dwg hoặc .dxf. Agent chèn chúng bằng tên file; đơn vị mỗi file phải là mm. Quy ước đặt tên có trong README.md của thư mục.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
+        library_row = ttk.Frame(frame)
+        library_row.pack(fill="x")
+        self.block_library_var = tk.StringVar(value=str(block_library_dir()))
+        ttk.Entry(library_row, textvariable=self.block_library_var, state="readonly").pack(
+            side="left", fill="x", expand=True)
+        ttk.Button(library_row, text="Mở thư mục thư viện", command=self.open_block_library).pack(
+            side="left", padx=(6, 0))
+        self.block_library_status = ttk.Label(frame, text=self.block_library_summary())
+        self.block_library_status.pack(anchor="w", pady=(6, 0))
+        ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Cài skill cho agent", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
                   text="Chọn agent và các skill AutoCAD muốn cài hoặc cập nhật. Skill được chép vào thư mục dùng chung của tài khoản Windows.",
@@ -307,6 +410,63 @@ class App(tk.Tk):
             self.autostart_mcp_var.set(not enabled)
             self.settings_status.configure(text=f"Không lưu được cài đặt: {exc}")
 
+    @staticmethod
+    def knowledge_dir():
+        saved = load_settings().get("knowledge_dir")
+        return saved if isinstance(saved, str) and saved else str(Path.home() / "autocad-knowledge")
+
+    @staticmethod
+    def block_library_summary():
+        folder = block_library_dir()
+        try:
+            count = sum(1 for path in folder.iterdir() if path.suffix.lower() in (".dwg", ".dxf"))
+        except OSError:
+            return "Thư mục chưa có; sẽ được tạo khi bạn mở."
+        return f"Hiện có {count} tệp block (.dwg/.dxf)."
+
+    def open_block_library(self):
+        folder = block_library_dir()
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            os.startfile(str(folder))
+        except OSError as exc:
+            self.block_library_status.configure(text=f"Không mở được thư mục: {exc}", foreground="#a12622")
+            return
+        self.block_library_status.configure(text=self.block_library_summary(), foreground="#225c53")
+
+    def choose_knowledge_dir(self):
+        chosen = filedialog.askdirectory(initialdir=self.knowledge_dir_var.get(), parent=self,
+                                         title="Chọn thư mục lưu tri thức")
+        if not chosen:
+            return
+        chosen = str(Path(chosen))
+        try:
+            save_setting("knowledge_dir", chosen)
+        except OSError as exc:
+            self.knowledge_status.configure(text=f"Không lưu được thư mục: {exc}", foreground="#a12622")
+            return
+        self.knowledge_dir_var.set(chosen)
+
+    def download_knowledge(self):
+        destination = self.knowledge_dir_var.get()
+        self.knowledge_btn.configure(state="disabled")
+        self.knowledge_status.configure(text="Đang tải…", foreground="#225c53")
+
+        def worker():
+            try:
+                written = knowledge.download_knowledge(destination)
+            except (OSError, ValueError, zipfile.BadZipFile) as exc:
+                message, color = f"Không tải được tri thức: {exc}", "#a12622"
+            else:
+                message, color = f"Đã tải {len(written)} trang vào {destination}.", "#225c53"
+            self.after(0, lambda: self.finish_knowledge_download(message, color))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def finish_knowledge_download(self, message, color):
+        self.knowledge_btn.configure(state="normal")
+        self.knowledge_status.configure(text=message, foreground=color)
+
     def refresh_config(self):
         hints = {
             "OpenAI Codex": "Gộp hai mục vào %USERPROFILE%\\.codex\\config.toml rồi mở lại Codex.",
@@ -366,7 +526,12 @@ class App(tk.Tk):
             if self.closing:
                 return
             if listening(8764):
-                raise RuntimeError("Cổng 8764 đã được chương trình khác sử dụng")
+                pid = listener_pid(8764) if is_launcher_gateway() else None
+                if not pid:
+                    raise RuntimeError("Cổng 8764 đã được chương trình khác sử dụng")
+                self.gateway = AdoptedGateway(pid)
+                self.events.put(("status", "Gateway đã chạy sẵn trên cổng 8764; app dùng lại nó."))
+                return
             self.log = (LOG_DIR / "gateway.log").open("a", encoding="utf-8", buffering=1)
             command = [str(python_in(REPOS["puran"])), str(ROOT / "launcher" / "gateway.py")]
             self.gateway = subprocess.Popen(
