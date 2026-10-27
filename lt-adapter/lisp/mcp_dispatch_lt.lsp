@@ -82,6 +82,9 @@
       ((= cmd-name "region-copy-lt") (mcp-cmd-region-copy-lt params-json))
       ((= cmd-name "create-hatch-lt") (mcp-cmd-create-hatch-lt params-json))
       ((= cmd-name "block-define") (mcp-cmd-block-define-lt params-json))
+      ((= cmd-name "block-insert-lt") (mcp-cmd-block-insert-lt params-json))
+      ((= cmd-name "block-catalog-lt") (mcp-cmd-block-catalog-lt params-json))
+      ((= cmd-name "block-export-lt") (mcp-cmd-block-export-lt params-json))
       (t (mcp-dispatch-command-upstream cmd-name params-json))
     )
   )
@@ -757,6 +760,120 @@
   )
 )
 
+(defun mcp-block-extents (header / ent count bounds lo hi minx miny maxx maxy)
+  "List (entity-count min-x min-y max-x max-y) for the entities of one block definition."
+  (setq ent (if header (entnext header)) count 0)
+  (while (and ent (/= (cdr (assoc 0 (entget ent))) "ENDBLK"))
+    (setq count (1+ count) bounds (mcp-region-entity-bounds ent))
+    (if bounds
+      (progn
+        (setq lo (car bounds) hi (cadr bounds))
+        (if (or (not minx) (< (car lo) minx)) (setq minx (car lo)))
+        (if (or (not miny) (< (cadr lo) miny)) (setq miny (cadr lo)))
+        (if (or (not maxx) (> (car hi) maxx)) (setq maxx (car hi)))
+        (if (or (not maxy) (> (cadr hi) maxy)) (setq maxy (cadr hi)))
+      )
+    )
+    (setq ent (entnext ent))
+  )
+  (list count minx miny maxx maxy)
+)
+
+(defun mcp-cmd-block-catalog-lt (params / start limit index done record name flags header description
+                                  info output next)
+  "Describe named blocks (description, entity count, extents), one page of LIMIT blocks from START."
+  (setq start (fix (cond ((mcp-json-get-number params "start")) (0)))
+        limit (fix (cond ((mcp-json-get-number params "limit")) (40)))
+        index 0 done 0 output "" next nil
+        record (tblnext "BLOCK" T))
+  (while record
+    (setq name (cdr (assoc 2 record)) flags (cdr (assoc 70 record)))
+    ;; Skip anonymous blocks (*U..), xrefs and their dependents.
+    (if (and (/= (substr name 1 1) "*") (zerop (logand flags 29)))
+      (progn
+        (cond
+          ((< index start))
+          ((>= done limit) (if (not next) (setq next index)))
+          (T
+           (setq header (tblobjname "BLOCK" name)
+                 description (if header (cdr (assoc 4 (entget header))))
+                 info (vl-catch-all-apply 'mcp-block-extents (list header)))
+           (if (> done 0) (setq output (strcat output ",")))
+           (setq done (1+ done)
+                 output (strcat output "{\"name\":\"" (mcp-escape-string name)
+                                "\",\"description\":\"" (mcp-escape-string (if description description "")) "\""))
+           (if (vl-catch-all-error-p info)
+             (setq output (strcat output ",\"error\":\"" (mcp-escape-string (vl-catch-all-error-message info)) "\"}"))
+             (setq output (strcat output ",\"entities\":" (itoa (car info))
+                                  (if (cadr info)
+                                    (strcat ",\"min\":[" (rtos (cadr info) 2 3) "," (rtos (caddr info) 2 3)
+                                            "],\"max\":[" (rtos (cadddr info) 2 3) "," (rtos (nth 4 info) 2 3) "]")
+                                    "")
+                                  "}")))
+          )
+        )
+        (setq index (1+ index))
+      )
+    )
+    (setq record (tblnext "BLOCK"))
+  )
+  (cons T (strcat "{\"total\":" (itoa index) ",\"next\":" (if next (itoa next) "null")
+                  ",\"blocks\":[" output "]}"))
+)
+
+(defun mcp-cmd-block-export-lt (params / name path)
+  "Write one block definition of the active drawing to a new DWG file (-WBLOCK)."
+  (setq name (mcp-json-get-string params "name")
+        path (mcp-json-get-string params "target_path"))
+  (cond
+    ((or (not name) (= name "") (not path) (= path ""))
+     (cons nil "E_PARAMETER_REJECTED|Block name and target_path are required"))
+    ((not (tblsearch "BLOCK" name))
+     (cons nil (strcat "E_PARAMETER_REJECTED|Block '" (mcp-escape-string name) "' is not in the active drawing")))
+    ((findfile path)
+     (cons nil "E_PARAMETER_REJECTED|Target file already exists"))
+    (T
+     (command "_.-WBLOCK" path name)
+     (if (findfile path)
+       (cons T (strcat "{\"block\":\"" (mcp-escape-string name) "\",\"file\":\"" (mcp-escape-string path) "\"}"))
+       (cons nil "E_SYSTEM_CALL_FAILED|The block file was not written")))
+  )
+)
+
+(defun mcp-cmd-block-insert-lt (params / name path x y scale rotation in-drawing old-attreq before ent)
+  "Insert a block from the drawing, or from a library file when the drawing lacks it."
+  (setq name (mcp-json-get-string params "name")
+        path (mcp-json-get-string params "library_path")
+        x (mcp-json-get-number params "x")
+        y (mcp-json-get-number params "y")
+        scale (mcp-json-get-number params "scale")
+        rotation (mcp-json-get-number params "rotation"))
+  (if (not scale) (setq scale 1.0))
+  (if (not rotation) (setq rotation 0.0))
+  (setq in-drawing (and name (tblsearch "BLOCK" name)))
+  (cond
+    ((or (not name) (= name "") (not x) (not y))
+     (cons nil "E_PARAMETER_REJECTED|Block name, x and y are required"))
+    ((<= scale 0.0)
+     (cons nil "E_PARAMETER_REJECTED|Block scale must be greater than zero"))
+    ((and (not in-drawing) (not (and path (/= path "") (findfile path))))
+     (cons nil (strcat "E_PARAMETER_REJECTED|Block '" (mcp-escape-string name)
+                       "' is not in the drawing or the block library")))
+    (T
+     ;; ATTREQ 0 keeps attributed blocks from stopping at an attribute prompt.
+     (setq old-attreq (getvar "ATTREQ") before (entlast))
+     (setvar "ATTREQ" 0)
+     (command "_.-INSERT" (if in-drawing name path) (list x y 0.0) scale scale rotation)
+     (setvar "ATTREQ" old-attreq)
+     (setq ent (entlast))
+     (if (and ent (not (equal ent before)) (= (cdr (assoc 0 (entget ent))) "INSERT"))
+       (cons T (strcat "{\"entity_type\":\"INSERT\",\"handle\":\"" (cdr (assoc 5 (entget ent)))
+                       "\",\"block\":\"" (mcp-escape-string name) "\","
+                       "\"source\":\"" (if in-drawing "drawing" "library") "\"}"))
+       (cons nil "E_SYSTEM_CALL_FAILED|Block insert did not create an entity")))
+  )
+)
+
 (defun mcp-region-entity-bounds (ent / object minimum maximum result)
   (vl-load-com)
   (setq object (vl-catch-all-apply 'vlax-ename->vla-object (list ent)))
@@ -799,6 +916,30 @@
   (cons T (strcat "{\"entities\":[" output "]}"))
 )
 
+;; "r,g,b" -> (r g b); Python has already validated the three 0-255 parts.
+(defun mcp-rgb-list (text / pos parts)
+  (while (setq pos (vl-string-search "," text))
+    (setq parts (cons (atoi (substr text 1 pos)) parts)
+          text (substr text (+ pos 2))))
+  (reverse (cons (atoi text) parts))
+)
+
+;; True colour is a separate AcCmColor object; put-Color only takes ACI.
+(defun mcp-layer-set-true-color (layer text / rgb tc)
+  (setq rgb (mcp-rgb-list text)
+        tc (vla-get-TrueColor layer))
+  (vla-SetRGB tc (car rgb) (cadr rgb) (caddr rgb))
+  (vla-put-TrueColor layer tc)
+)
+
+(defun mcp-layer-true-color-json (layer / tc)
+  (setq tc (vla-get-TrueColor layer))
+  ;; 194 = acColorMethodByRGB; the enum symbol is not guaranteed on LT.
+  (if (= (vla-get-ColorMethod tc) 194)
+    (strcat "\"" (itoa (vla-get-Red tc)) "," (itoa (vla-get-Green tc)) "," (itoa (vla-get-Blue tc)) "\"")
+    "null")
+)
+
 ;; LT's entmod rejects a layer record taken from tblsearch (returns nil), so the
 ;; upstream layer-set-properties would report success and change nothing.  Set
 ;; the properties through the layer's ActiveX object and read them back.
@@ -826,11 +967,15 @@
          (if (and weight (not (member weight '(-3 -2 -1 0 5 9 13 15 18 20 25 30 35 40 50 53 60 70 80 90 100 106 120 140 158 200 211))))
            (cons nil (strcat "E_PARAMETER_REJECTED|Unsupported lineweight: " lineweight))
            (progn
-             (if color (vla-put-Color layer (mcp-color-index color)))
+             (if color
+               (if (vl-string-search "," color)
+                 (mcp-layer-set-true-color layer color)
+                 (vla-put-Color layer (mcp-color-index color))))
              (if linetype (vla-put-Linetype layer linetype))
              (if weight (vla-put-Lineweight layer weight))
              (cons T (strcat "{\"name\":\"" (mcp-escape-string name)
                              "\",\"color\":" (itoa (vla-get-Color layer))
+                             ",\"true_color\":" (mcp-layer-true-color-json layer)
                              ",\"linetype\":\"" (mcp-escape-string (vla-get-Linetype layer))
                              "\",\"lineweight\":" (itoa (vla-get-Lineweight layer)) "}"))))))))
   )

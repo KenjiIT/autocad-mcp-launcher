@@ -195,7 +195,28 @@ class LtFileIPCBackend(FileIPCBackend):
         if version != __version__:
             return CommandResult(ok=False, error=f"LT dispatcher ping/version failed: {ping.error or version}", error_code="E_DISPATCHER_NOT_LOADED")
         self._dispatcher_version = version
+        self._dispatcher_key = self._window_key()
         return ping
+
+    def _window_key(self) -> tuple:
+        """Identify the LT window and drawing the dispatcher was loaded into.
+
+        AutoLISP definitions are per drawing, so a different title (or window)
+        means the dispatcher must be loaded again.
+        """
+        title = ""
+        try:
+            import win32gui
+            title = win32gui.GetWindowText(self._hwnd)
+        except Exception:
+            pass
+        return (self._hwnd, self._acad_process_id, title)
+
+    async def _ensure_dispatcher_unlocked(self) -> CommandResult:
+        """Load the dispatcher only when the window or drawing changed."""
+        if getattr(self, "_dispatcher_key", None) == self._window_key():
+            return CommandResult(ok=True)
+        return await self._load_dispatcher_unlocked()
 
     async def _dispatch_unlocked(self, command: str, params: dict) -> CommandResult:
         """Run the upstream IPC protocol, decoding LT's cp1252 Unicode escapes."""
@@ -278,7 +299,7 @@ class LtFileIPCBackend(FileIPCBackend):
             if find_lt_window() != (self._hwnd, self._acad_process_id):
                 return CommandResult(ok=False, error="LT instance changed; call system.ensure_ready",
                                      error_code="E_SESSION_GENERATION_MISMATCH")
-            ready = await self._load_dispatcher_unlocked()
+            ready = await self._ensure_dispatcher_unlocked()
             return await self._context_unlocked() if ready.ok else ready
 
     async def _dispatch(self, command: str, params: dict) -> CommandResult:
@@ -286,12 +307,19 @@ class LtFileIPCBackend(FileIPCBackend):
             selected = find_lt_window()
             if selected is None or selected != (self._hwnd, self._acad_process_id):
                 return CommandResult(ok=False, error="LT instance changed; call system.ensure_ready", error_code="E_SESSION_GENERATION_MISMATCH")
-            ready = await self._load_dispatcher_unlocked()
+            ready = await self._ensure_dispatcher_unlocked()
             if not ready.ok:
                 return ready
             context = await self._context_unlocked()
             if not context.ok:
-                return context
+                # A read-only probe, so it is safe to reload once and retry.
+                self._dispatcher_key = None
+                ready = await self._load_dispatcher_unlocked()
+                if not ready.ok:
+                    return ready
+                context = await self._context_unlocked()
+                if not context.ok:
+                    return context
             return await self._dispatch_unlocked(command, {
                 **params, "_expected_document_path": context.payload["active_path"]
             })
@@ -325,13 +353,149 @@ class LtFileIPCBackend(FileIPCBackend):
                 result.payload["semantics"] = dict(semantics)
         return result
 
+    _LIBRARY_BLOCK_NAME = re.compile(r"[A-Za-z0-9_-]{1,80}")
+    _INSUNITS_NAMES = {0: "unitless", 1: "inches", 2: "feet", 4: "millimeters",
+                       5: "centimeters", 6: "meters"}
+    _INSUNITS_MM = {1: 25.4, 2: 304.8, 4: 1.0, 5: 10.0, 6: 1000.0}
+
+    @staticmethod
+    def _block_library_folder() -> Path:
+        configured = os.environ.get("AUTOCAD_MCP_BLOCK_LIBRARY", "").strip()
+        return Path(configured) if configured else Path(__file__).resolve().parents[3] / "blocks"
+
+    @staticmethod
+    def _dxf_insunits(path: Path) -> int | None:
+        """Read $INSUNITS from the header of an ASCII DXF; None for DWG or binary files."""
+        try:
+            with open(path, "rb") as handle:
+                head = handle.read(65536).decode("ascii", errors="ignore")
+        except OSError:
+            return None
+        lines = [line.strip() for line in head.splitlines()]
+        for index, line in enumerate(lines[:-3]):
+            if line == "$INSUNITS" and lines[index + 1] == "70":
+                try:
+                    return int(lines[index + 2])
+                except ValueError:
+                    return None
+        return None
+
+    @classmethod
+    def _block_library_path(cls, name) -> str | None:
+        """Return the library file for ``name`` (``<name>.dwg`` or ``.dxf``), if any.
+
+        The folder comes from AUTOCAD_MCP_BLOCK_LIBRARY, else ``blocks`` at the
+        repository root.  Names are limited to letters, digits, ``_`` and ``-``,
+        so a name can never leave the folder.
+        """
+        if not isinstance(name, str) or not cls._LIBRARY_BLOCK_NAME.fullmatch(name):
+            return None
+        folder = cls._block_library_folder()
+        for extension in (".dwg", ".dxf"):
+            candidate = folder / f"{name}{extension}"
+            if candidate.is_file():
+                return candidate.resolve().as_posix()
+        return None
+
+    def _block_library_entries(self, drawing_units: int | None) -> list[dict]:
+        folder = self._block_library_folder()
+        try:
+            index = json.loads((folder / "index.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            index = {}
+        drawing_mm = self._INSUNITS_MM.get(drawing_units)
+        entries: dict[str, dict] = {}
+        try:
+            files = sorted(folder.iterdir()) if folder.is_dir() else []
+        except OSError:
+            files = []
+        for path in files:
+            extension = path.suffix.lower()
+            if extension not in (".dwg", ".dxf") or not self._LIBRARY_BLOCK_NAME.fullmatch(path.stem):
+                continue
+            if path.stem in entries and extension == ".dxf":
+                continue  # insert prefers the .dwg of the same name
+            known = index.get(path.stem) if isinstance(index.get(path.stem), dict) else {}
+            if known.get("mm_per_unit"):
+                units, file_mm = known.get("units"), float(known["mm_per_unit"])
+            else:
+                code = self._dxf_insunits(path) if extension == ".dxf" else None
+                units = self._INSUNITS_NAMES.get(code, code) if code is not None else None
+                file_mm = self._INSUNITS_MM.get(code)
+            entry = {
+                "name": path.stem, "file": path.name, "units": units,
+                # AutoCAD multiplies the inserted size by this factor on its own.
+                "scale_factor": round(file_mm / drawing_mm, 6) if file_mm and drawing_mm else None,
+                "units_match": None if not file_mm or not drawing_mm else file_mm == drawing_mm,
+            }
+            for field in ("meaning", "view", "size_mm", "bbox_mm", "dynamic"):
+                if field in known:
+                    entry[field] = known[field]
+            if known.get("source_file"):
+                entry["source"] = f"{known['source_file']} :: {known.get('source_block', '')}"
+            entries[path.stem] = entry
+        return list(entries.values())
+
+    async def block_list(self) -> CommandResult:
+        """List the drawing's blocks plus the library files that block.insert can load."""
+        result = await super().block_list()
+        if not result.ok or not isinstance(result.payload, dict):
+            return result
+        variables = await self.drawing_get_variables(["INSUNITS"])
+        drawing_units = None
+        if variables.ok and isinstance(variables.payload, dict):
+            try:
+                drawing_units = int(variables.payload.get("INSUNITS"))
+            except (TypeError, ValueError):
+                drawing_units = None
+        result.payload["library"] = self._block_library_entries(drawing_units)
+        result.payload["library_folder"] = str(self._block_library_folder())
+        result.payload["drawing_units"] = (
+            self._INSUNITS_NAMES.get(drawing_units, drawing_units) if drawing_units is not None else None)
+        return result
+
+    async def block_export(self, name: str, library_name: str) -> CommandResult:
+        """Write block ``name`` of the active drawing to ``<library>/<library_name>.dwg`` (maintenance use)."""
+        if not isinstance(library_name, str) or not self._LIBRARY_BLOCK_NAME.fullmatch(library_name):
+            return CommandResult(ok=False, error="Library names use letters, digits, _ and - only",
+                                 error_code="E_PARAMETER_REJECTED", recoverable=False)
+        folder = self._block_library_folder()
+        folder.mkdir(parents=True, exist_ok=True)
+        return await self._dispatch("block-export-lt", {
+            "name": name, "target_path": (folder / f"{library_name}.dwg").resolve().as_posix(),
+        })
+
+    async def block_catalog(self, start: int = 0, limit: int = 40) -> CommandResult:
+        """Describe the active drawing's named blocks, one page at a time (maintenance use)."""
+        return await self._dispatch("block-catalog-lt", {"start": int(start), "limit": int(limit)})
+
+    async def block_insert(self, name, x, y, scale=1.0, rotation=0.0, block_id=None) -> CommandResult:
+        """Insert a block already in the drawing, or load it from the block library."""
+        return await self._dispatch("block-insert-lt", {
+            "name": name, "x": x, "y": y, "scale": scale, "rotation": rotation,
+            "library_path": self._block_library_path(name),
+        })
+
     _LAYER_COLORS = frozenset({"red", "yellow", "green", "cyan", "blue", "magenta", "white"})
+
+    @staticmethod
+    def _true_color(text: str) -> str | None:
+        """Return "r,g,b" for an "R,G,B" or "#RRGGBB" colour, else None."""
+        if re.fullmatch(r"#[0-9a-f]{6}", text):
+            return ",".join(str(int(text[i:i + 2], 16)) for i in (1, 3, 5))
+        parts = [part.strip() for part in text.split(",")]
+        if len(parts) == 3 and all(part.isdigit() and int(part) <= 255 for part in parts):
+            return ",".join(str(int(part)) for part in parts)
+        return None
 
     async def layer_set_properties(self, name, color=None, linetype=None, lineweight=None) -> CommandResult:
         """Set layer properties through the layer's ActiveX object; upstream uses COM and a LISP entmod LT rejects."""
         if color is not None:
             text = str(color).strip().lower()
-            if not ((text.isdigit() and 0 < int(text) < 256) or text in self._LAYER_COLORS):
+            rgb = self._true_color(text)
+            if rgb:
+                color = rgb
+            elif not ((text.isdigit() and 0 < int(text) < 256) or text in self._LAYER_COLORS):
                 return CommandResult(ok=False, error=f"Unsupported layer colour: {color}",
                                      error_code="E_PARAMETER_REJECTED")
         check = await self.layer_exists(str(name))
@@ -346,7 +510,9 @@ class LtFileIPCBackend(FileIPCBackend):
         })
 
     async def create_hatch(self, entity_id, pattern="ANSI31", angle=0.0, scale=1.0, layer=None) -> CommandResult:
-        if not re.fullmatch(r"[0-9A-Fa-f]+", str(entity_id)):
+        # Callers pad all-digit handles (" 400") so MCP clients keep them strings.
+        entity_id = str(entity_id).strip().upper()
+        if not re.fullmatch(r"[0-9A-F]+", entity_id):
             return CommandResult(ok=False, error="LT hatch requires an explicit boundary handle",
                                  error_code="E_PARAMETER_REJECTED")
         if not isinstance(pattern, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", pattern):
@@ -362,7 +528,7 @@ class LtFileIPCBackend(FileIPCBackend):
             if not check.ok or not isinstance(check.payload, dict) or not check.payload.get("exists"):
                 return CommandResult(ok=False, error=f"Hatch layer does not exist: {layer}", error_code="E_LAYER_NOT_FOUND")
         return await self._dispatch("create-hatch-lt", {
-            "entity_id": str(entity_id), "pattern": pattern,
+            "entity_id": entity_id, "pattern": pattern,
             "angle": numeric_angle, "scale": numeric_scale, "layer": layer,
         })
 
@@ -380,6 +546,7 @@ class LtFileIPCBackend(FileIPCBackend):
         """
         if not result.ok or not isinstance(result.payload, dict):
             return result
+        entity_id = str(entity_id).strip().upper()
         handle = str(result.payload.get("handle") or "")
         requested = {
             "type": "HATCH", "layer": str(layer or "0"),

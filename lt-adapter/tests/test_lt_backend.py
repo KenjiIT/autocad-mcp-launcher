@@ -27,6 +27,65 @@ async def test_lt_hatch_requires_explicit_handle():
 
 
 @pytest.mark.asyncio
+async def test_lt_hatch_accepts_padded_numeric_handle():
+    backend = LtFileIPCBackend()
+    calls = []
+
+    async def dispatch(command, params):
+        calls.append((command, params))
+        return CommandResult(ok=True, payload={"handle": "B1"})
+
+    backend._dispatch = dispatch
+    try:
+        result = await backend.create_hatch(" 400", "SOLID")
+        assert result.ok is True
+        assert calls == [("create-hatch-lt", {
+            "entity_id": "400", "pattern": "SOLID", "angle": 0.0, "scale": 1.0, "layer": None,
+        })]
+    finally:
+        await backend.shutdown()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("colour, sent", [
+    ("255, 250, 205", "255,250,205"),
+    ("#FFFACD", "255,250,205"),
+    (51, "51"),
+])
+async def test_layer_colour_accepts_true_color(colour, sent):
+    backend = LtFileIPCBackend()
+    calls = []
+
+    async def dispatch(command, params):
+        calls.append((command, params))
+        if command == "layer-exists-lt":
+            return CommandResult(ok=True, payload={"exists": True})
+        return CommandResult(ok=True, payload={"name": "H-CAM"})
+
+    backend._dispatch = dispatch
+    try:
+        result = await backend.layer_set_properties("H-CAM", colour)
+        assert result.ok is True
+        assert calls[-1] == ("layer-set-properties", {
+            "name": "H-CAM", "color": sent, "linetype": None, "lineweight": None,
+        })
+    finally:
+        await backend.shutdown()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("colour", ["256,0,0", "1,2", "#FFF", "orange"])
+async def test_layer_colour_rejects_bad_true_color(colour):
+    backend = LtFileIPCBackend()
+    try:
+        result = await backend.layer_set_properties("H-CAM", colour)
+        assert result.ok is False
+        assert result.error_code == "E_PARAMETER_REJECTED"
+    finally:
+        await backend.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_entity_creation_and_readback_skip_python_com():
     backend = LtFileIPCBackend()
     calls = []
@@ -216,3 +275,121 @@ async def test_lt_hatch_verification_erases_mismatch_through_ipc():
         assert calls == ["probe-hatch", "probe-area", "entity-erase"]
     finally:
         await backend.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_lt_dispatcher_loads_once_per_window_and_title(monkeypatch):
+    backend = LtFileIPCBackend()
+    loads = []
+    title = ["Drawing1.dwg"]
+
+    async def load():
+        loads.append(title[0])
+        backend._dispatcher_key = backend._window_key()
+        return CommandResult(ok=True)
+
+    backend._load_dispatcher_unlocked = load
+    monkeypatch.setattr(backend, "_window_key", lambda: ("hwnd", 1, title[0]))
+    try:
+        for _ in range(3):
+            assert (await backend._ensure_dispatcher_unlocked()).ok
+        assert loads == ["Drawing1.dwg"]
+        title[0] = "Other.dwg"
+        assert (await backend._ensure_dispatcher_unlocked()).ok
+        assert loads == ["Drawing1.dwg", "Other.dwg"]
+    finally:
+        await backend.shutdown()
+
+
+def test_block_library_path_stays_inside_the_library(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOCAD_MCP_BLOCK_LIBRARY", str(tmp_path))
+    (tmp_path / "FURN-BED.dxf").write_text("0")
+    (tmp_path / "FURN-BED.dwg").write_text("0")
+    (tmp_path / "PLANT-TREE.dxf").write_text("0")
+    find = LtFileIPCBackend._block_library_path
+    assert find("FURN-BED") == (tmp_path / "FURN-BED.dwg").resolve().as_posix()
+    assert find("PLANT-TREE").endswith("PLANT-TREE.dxf")
+    assert find("MISSING") is None
+    for hostile in (r"..\FURN-BED","../FURN-BED", "a/b", "C:/x", "", "x" * 81, None, 7):
+        assert find(hostile) is None
+
+
+@pytest.mark.asyncio
+async def test_lt_block_insert_sends_library_path_to_the_dispatcher(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOCAD_MCP_BLOCK_LIBRARY", str(tmp_path))
+    (tmp_path / "FURN-BED.dxf").write_text("0")
+    backend = LtFileIPCBackend()
+    calls = []
+
+    async def dispatch(command, params):
+        calls.append((command, params))
+        return CommandResult(ok=True, payload={"handle": "2E0"})
+
+    backend._dispatch = dispatch
+    try:
+        await backend.block_insert("FURN-BED", 10, 20, 2.0, 90.0)
+        await backend.block_insert("NOT-IN-LIBRARY", 0, 0)
+    finally:
+        await backend.shutdown()
+    assert calls[0][0] == "block-insert-lt"
+    assert calls[0][1]["library_path"].endswith("FURN-BED.dxf")
+    assert (calls[0][1]["scale"], calls[0][1]["rotation"]) == (2.0, 90.0)
+    assert calls[1][1]["library_path"] is None
+
+
+def _dxf_with_units(path, units):
+    path.write_text(f"0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n{units}\n0\nENDSEC\n0\nEOF\n")
+
+
+@pytest.mark.asyncio
+async def test_lt_block_list_adds_library_with_units(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOCAD_MCP_BLOCK_LIBRARY", str(tmp_path))
+    _dxf_with_units(tmp_path / "FURN-MM.dxf", 4)
+    _dxf_with_units(tmp_path / "FURN-M.dxf", 6)
+    (tmp_path / "PLANT-TREE.dwg").write_bytes(b"AC1032")
+    (tmp_path / "PLANT-TREE.dxf").write_text("0\nEOF\n")
+    (tmp_path / "bad name.dxf").write_text("0\nEOF\n")
+    (tmp_path / "notes.txt").write_text("x")
+    backend = LtFileIPCBackend()
+
+    async def dispatch(command, params):
+        if command == "block-list":
+            return CommandResult(ok=True, payload={"blocks": ["A"]})
+        return CommandResult(ok=True, payload={"INSUNITS": 4})
+
+    backend._dispatch = dispatch
+    try:
+        result = await backend.block_list()
+    finally:
+        await backend.shutdown()
+    assert result.payload["blocks"] == ["A"]
+    assert result.payload["drawing_units"] == "millimeters"
+    library = {entry["name"]: entry for entry in result.payload["library"]}
+    assert set(library) == {"FURN-MM", "FURN-M", "PLANT-TREE"}
+    assert library["FURN-MM"]["units_match"] is True
+    assert library["FURN-M"]["units"] == "meters" and library["FURN-M"]["units_match"] is False
+    assert library["PLANT-TREE"]["file"] == "PLANT-TREE.dwg" and library["PLANT-TREE"]["units"] is None
+    assert library["PLANT-TREE"]["units_match"] is None
+
+
+@pytest.mark.asyncio
+async def test_lt_block_list_uses_library_index(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOCAD_MCP_BLOCK_LIBRARY", str(tmp_path))
+    (tmp_path / "SANI-WC-PLAN-535x840.dwg").write_bytes(b"AC1021")
+    (tmp_path / "FURN-OWN-1000x500.dwg").write_bytes(b"AC1021")
+    (tmp_path / "index.json").write_text(
+        '{"SANI-WC-PLAN-535x840": {"source_file": "DesignCenter/House Designer.dwg",'
+        ' "source_block": "Toilet - top", "view": "plan", "meaning": "Bon cau", "units": "inches",'
+        ' "mm_per_unit": 25.4, "size_mm": [535, 840], "bbox_mm": [-267, -840, 267, 0], "dynamic": false}}',
+        encoding="utf-8")
+    backend = LtFileIPCBackend()
+    try:
+        entries = {e["name"]: e for e in backend._block_library_entries(4)}
+    finally:
+        await backend.shutdown()
+    wc = entries["SANI-WC-PLAN-535x840"]
+    assert wc["scale_factor"] == 25.4 and wc["units_match"] is False
+    assert wc["view"] == "plan" and wc["size_mm"] == [535, 840] and wc["bbox_mm"][3] == 0
+    assert wc["source"] == "DesignCenter/House Designer.dwg :: Toilet - top"
+    assert entries["FURN-OWN-1000x500"]["scale_factor"] is None
+    assert "meaning" not in entries["FURN-OWN-1000x500"]
