@@ -1,6 +1,6 @@
 ---
 name: construction-design-stages
-description: Lập hoặc rà soát hồ sơ thiết kế xây dựng qua thiết kế cơ sở, thiết kế kỹ thuật và thiết kế bản vẽ thi công; xác định tài liệu làm căn cứ và đầu vào còn thiếu ở từng bước.
+description: Lập hoặc rà soát hồ sơ thiết kế xây dựng qua thiết kế cơ sở, thiết kế kỹ thuật và thiết kế bản vẽ thi công; xác định tài liệu làm căn cứ và đầu vào còn thiếu ở từng bước. Dùng khi người dùng nói 'thiết kế cơ sở', 'thiết kế kỹ thuật', 'TKCS', 'TKKT', 'BVTC', hoặc cần biết hồ sơ ở bước nào cần gì.
 ---
 
 # Các bước thiết kế xây dựng

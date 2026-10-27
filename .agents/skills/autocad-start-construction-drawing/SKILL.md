@@ -1,6 +1,6 @@
 ---
 name: autocad-start-construction-drawing
-description: Chuẩn bị và bắt đầu vẽ bản vẽ xây dựng 2D trong AutoCAD: kiểm tra dữ liệu đầu vào, đơn vị, layer, hệ trục, tường/cửa, chữ kích thước, Layout và in. Dùng khi tạo mặt bằng xây dựng mới hoặc dựng lại bản vẽ từ hồ sơ/căn cứ thiết kế; không dùng cho yêu cầu chỉ đọc hoặc chỉ nhận diện ranh giới.
+description: Chuẩn bị và bắt đầu vẽ bản vẽ xây dựng 2D trong AutoCAD - kiểm tra dữ liệu đầu vào, đơn vị, layer, hệ trục, tường/cửa, chữ kích thước, Layout và in. Dùng khi người dùng nói 'vẽ mặt bằng', 'vẽ layout', 'bố trí mặt bằng', 'bắt đầu bản vẽ mới', 'dựng mặt bằng kiến trúc' hoặc dựng bản vẽ từ hồ sơ thiết kế; không dùng cho yêu cầu chỉ đọc hoặc chỉ nhận diện ranh giới.
 ---
 
 # Bắt đầu bản vẽ xây dựng 2D

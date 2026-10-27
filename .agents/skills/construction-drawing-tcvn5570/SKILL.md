@@ -1,6 +1,6 @@
 ---
 name: construction-drawing-tcvn5570
-description: Áp dụng TCVN 5570:2012 khi lập, sửa hoặc rà soát ký hiệu đường trục và đường nét trên bản vẽ thiết kế xây dựng; kiểm tra loại nét, bề rộng, nhãn trục và bản in.
+description: Áp dụng TCVN 5570:2012 khi lập, sửa hoặc rà soát ký hiệu đường trục và đường nét trên bản vẽ thiết kế xây dựng; kiểm tra loại nét, bề rộng nét, nhãn trục và bản in. Dùng khi người dùng nói 'nét vẽ', 'đường trục', 'TCVN 5570', 'kiểu đường', 'bề rộng nét', 'in bản vẽ'.
 ---
 
 # Ký hiệu đường trục và đường nét theo TCVN 5570:2012

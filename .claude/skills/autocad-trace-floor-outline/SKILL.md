@@ -1,6 +1,6 @@
 ---
 name: autocad-trace-floor-outline
-description: Dựng đường bao một tầng (viền sàn/tường ngoài) khi bản vẽ không có sẵn một vòng kín, bằng cách truy biên từ các đoạn tường/kính rời trong bản sao DXF, bám vào hệ trục, đo sai lệch và diện tích rồi vẽ vào bản vẽ mới. Dùng khi cần xem tổng thể mặt bằng, làm nền cho bản vẽ kết cấu hoặc kiểm tra hình bao sàn; không dùng để xác định ranh khu đất.
+description: Dựng đường bao một tầng (viền sàn/tường ngoài) khi bản vẽ không có sẵn vòng kín, bằng cách truy biên từ các đoạn tường/kính rời trong bản sao DXF, bám trục, đo sai lệch và diện tích. Dùng khi người dùng nói 'viền sàn', 'đường bao tầng', 'tường rời chưa khép kín', 'truy biên', hoặc cần nền cho mặt bằng kết cấu; không dùng để xác định ranh khu đất.
 ---
 
 # Dựng đường bao tầng từ hình học tường rời

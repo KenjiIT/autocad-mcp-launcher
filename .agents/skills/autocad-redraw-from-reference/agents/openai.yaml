@@ -1,0 +1,3 @@
+interface:
+  display_name: "Vẽ lại từ bản tham chiếu"
+  short_description: "Xác nhận loại bản vẽ rồi vẽ lại từ PDF/DWG theo mốc duyệt"

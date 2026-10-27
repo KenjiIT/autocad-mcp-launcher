@@ -393,3 +393,54 @@ async def test_lt_block_list_uses_library_index(tmp_path, monkeypatch):
     assert wc["source"] == "DesignCenter/House Designer.dwg :: Toilet - top"
     assert entries["FURN-OWN-1000x500"]["scale_factor"] is None
     assert "meaning" not in entries["FURN-OWN-1000x500"]
+
+
+@pytest.mark.asyncio
+async def test_lt_drawing_activate_switches_and_rebinds(monkeypatch):
+    import lt_adapter.lt_file_ipc as module
+
+    backend = LtFileIPCBackend()
+    backend._hwnd, backend._acad_process_id = 1, 2
+    monkeypatch.setattr(module, "find_lt_window", lambda: (1, 2))
+    calls = []
+    active = ["C:/d/a.dwg"]
+
+    async def ensure():
+        return CommandResult(ok=True)
+
+    async def dispatch(command, params):
+        calls.append(command)
+        if command == "probe-documents":
+            return CommandResult(ok=True, payload={"documents": [
+                {"path": p, "name": p.rsplit("/", 1)[1], "active": p == active[0]}
+                for p in ("C:/d/a.dwg", "C:/d/b.dwg")]})
+        if command == "document-activate-lt":
+            active[0] = params["path"]
+            return CommandResult(ok=True, payload={})
+        raise AssertionError(command)
+
+    async def load():
+        calls.append("load")
+        return CommandResult(ok=True)
+
+    async def context():
+        return CommandResult(ok=True, payload={"active_path": active[0], "doc_id": "acad-x"})
+
+    backend._ensure_dispatcher_unlocked = ensure
+    backend._dispatch_unlocked = dispatch
+    backend._load_dispatcher_unlocked = load
+    backend._context_unlocked = context
+    monkeypatch.setattr(backend, "_wait_for_autocad_idle", lambda timeout=0: True)
+    try:
+        result = await backend.drawing_activate("C:/d/b.dwg", 0)
+        assert result.ok and active[0] == "C:/d/b.dwg"
+        assert calls == ["probe-documents", "document-activate-lt", "load"]
+
+        missing = await backend.drawing_activate("C:/d/none.dwg", 0)
+        assert missing.error_code == "E_PARAMETER_REJECTED"
+        assert [item["name"] for item in missing.payload["open_documents"]] == ["a.dwg", "b.dwg"]
+
+        assert (await backend.drawing_activate(None, 0)).error_code == "E_PARAMETER_REJECTED"
+        assert (await backend.drawing_activate("C:/d/a.dwg", None)).error_code == "E_PARAMETER_REJECTED"
+    finally:
+        await backend.shutdown()

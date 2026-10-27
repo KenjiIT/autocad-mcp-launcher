@@ -1,6 +1,6 @@
 ---
 name: autocad-identify-and-measure
-description: Nhận diện trong bản vẽ AutoCAD và đo khi được yêu cầu. Gồm hai việc cùng một nền: (1) ranh khu đất và đường bao khối tòa nhà, phân biệt ranh đất với tường ngoài, mép sàn, mái; (2) vật thể cụ thể như cột, tường, dầm, cửa, kể cả phần bị che khuất, và kích thước của chúng. Dùng trước khi đo, chép, vẽ tiếp hoặc sửa.
+description: Nhận diện trong bản vẽ AutoCAD và đo khi được yêu cầu - (1) ranh khu đất, đường bao khối nhà, phân biệt ranh đất với tường ngoài, mép sàn, mái; (2) cột, tường, dầm, cửa cụ thể, kể cả phần bị che, và kích thước, khoảng cách, diện tích. Dùng khi người dùng hỏi 'ranh đất ở đâu', 'đâu là tòa nhà', 'đo', 'kích thước', 'diện tích', và BẮT BUỘC trước khi vẽ layout, chép hay vẽ tiếp từ một mặt bằng có sẵn.
 ---
 
 # Nhận diện và đo trong bản vẽ AutoCAD

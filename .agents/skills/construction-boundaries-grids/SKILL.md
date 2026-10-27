@@ -1,6 +1,6 @@
 ---
 name: construction-boundaries-grids
-description: Phối hợp chỉ giới đường đỏ, chỉ giới xây dựng, khoảng lùi và hệ trục định vị khi lập hoặc rà soát tổng mặt bằng, mặt bằng tầng và các khối cao tầng/thấp tầng của cùng dự án.
+description: Phối hợp chỉ giới đường đỏ, chỉ giới xây dựng, khoảng lùi và hệ trục định vị khi lập hoặc rà soát tổng mặt bằng, mặt bằng tầng và các khối cao tầng/thấp tầng của cùng dự án. Dùng khi người dùng nói 'chỉ giới', 'khoảng lùi', 'đường đỏ', 'hệ trục', 'tổng mặt bằng', 'vẽ layout', 'vị trí khối nhà trong khu đất'.
 ---
 
 # Chỉ giới và hệ trục chung của hồ sơ xây dựng

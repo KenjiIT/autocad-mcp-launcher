@@ -1,13 +1,48 @@
 ---
 name: autocad-agent-coordinator
-description: Điều phối công việc AutoCAD qua hai MCP autocad_beiming và autocad_puran của dự án. Dùng khi agent cần kiểm tra, tạo, sửa hoặc xuất bản vẽ CAD; thông báo cách làm trước khi sửa và kiểm tra kết quả sau khi thao tác.
+description: Điểm vào BẮT BUỘC cho mọi việc AutoCAD qua MCP autocad_beiming và autocad_puran - vẽ, sửa, đọc, đo, kiểm tra, chép, xuất bản vẽ CAD, vẽ layout, mặt bằng, tổng mặt bằng, ranh đất. Nạp trước khi gọi bất kỳ tool CAD nào. Chứa bảng chọn skill chuyên biệt theo lời người dùng, quy tắc xác nhận khu đất bằng ảnh trước khi lập kế hoạch layout, quy tắc hỏi lại khi yêu cầu mơ hồ, và quy ước màu, giới hạn của AutoCAD LT.
 ---
 
 # Điều phối agent làm việc với AutoCAD
 
-Dùng quy trình này cho công việc AutoCAD thực hiện qua ứng dụng kết nối MCP của dự án. Skill hướng dẫn agent; các công cụ MCP mới thực hiện thao tác CAD. Không nói rằng việc nạp skill đã mở AutoCAD hoặc kết nối MCP.
+Đây là điểm vào của mọi công việc AutoCAD thực hiện qua ứng dụng kết nối MCP của dự án: nạp skill này trước khi gọi bất kỳ tool CAD nào. Skill hướng dẫn agent; các công cụ MCP mới thực hiện thao tác CAD. Không nói rằng việc nạp skill đã mở AutoCAD hoặc kết nối MCP.
 
-## Quy tắc đầu tiên: yêu cầu mơ hồ thì hỏi trước khi làm
+## Chọn skill theo yêu cầu (đọc trước khi gọi tool CAD)
+
+Skill chỉ có tác dụng khi được nạp. Ngay sau khi nhận yêu cầu AutoCAD, đối chiếu bảng dưới, **nạp bằng công cụ Skill mọi skill khớp** rồi mới thao tác; không làm theo trí nhớ. Skill không có trong danh sách của môi trường thì đọc thẳng tệp `skills/<tên>/SKILL.md` (thư mục `.claude`, `.codex` hoặc `.agents` của dự án hoặc của tài khoản). Yêu cầu khớp nhiều hàng thì nạp các skill theo thứ tự từ trên xuống.
+
+| Người dùng nói hoặc tình huống | Nạp skill |
+|---|---|
+| "vẽ layout", "bố trí mặt bằng", "tổng mặt bằng", "phương án", kèm mặt bằng hoặc bản vẽ nền | Quy tắc 1 bên dưới, rồi `autocad-identify-and-measure` (đọc `references/boundaries.md`), `construction-boundaries-grids`, `autocad-verify-drawing-inputs`, `autocad-start-construction-drawing` |
+| "ranh đất", "khu đất", "đâu là tòa nhà", "đường bao", "chỉ giới", "khoảng lùi" | `autocad-identify-and-measure`, `construction-boundaries-grids` |
+| "đo", "kích thước", "diện tích", "khoảng cách", "cột/tường/dầm/cửa này", "phần bị che" | `autocad-identify-and-measure` |
+| "vẽ lại", "dựng lại", "vẽ theo bản này/PDF này" (có bản tham chiếu) | `autocad-redraw-from-reference` |
+| "tạo giống", "thêm một ... như ...", "làm tương tự", "lặp lại", "chép sang", "copy sang bản vẽ khác" | `autocad-copy-similar-objects` |
+| nội thất, giường, bàn ghế, tủ, toilet/bồn cầu, bếp, cửa đi, cửa sổ, cây, xe, ký hiệu, "chèn block", "dùng block có sẵn" | `autocad-block-library` |
+| "mặt bằng kết cấu", "bố trí dầm sàn cột", "mặt bằng dầm", "vẽ dầm/cột tầng ..." | `autocad-structural-floor-plan`, `autocad-structural-drawing` |
+| bản vẽ móng, mặt cắt, chi tiết kết cấu, thuyết minh bản vẽ kết cấu | `autocad-structural-drawing` |
+| "viền sàn", "đường bao tầng", "tường rời chưa khép kín", "truy biên" | `autocad-trace-floor-outline` |
+| "kiểm tra hồ sơ/số liệu/phiên bản trước khi vẽ", "đã đủ căn cứ chưa", bản vẽ nền không rõ phiên bản | `autocad-verify-drawing-inputs` |
+| bắt đầu bản vẽ xây dựng mới, layer, đơn vị, hệ trục, Layout, in | `autocad-start-construction-drawing` |
+| "nét vẽ", "đường trục", "TCVN 5570", kiểu và bề rộng nét | `construction-drawing-tcvn5570` |
+| thiết kế cơ sở, thiết kế kỹ thuật, bản vẽ thi công, chưa rõ đang ở bước nào | `construction-document-router`, rồi `construction-design-stages` |
+| bản vẽ phát hành, cập nhật theo hiện trường, thay đổi khi thi công | `construction-drawing-records` |
+
+Sau khi nạp, nói ngắn cho người dùng đã nạp skill nào và vì sao (một dòng trong thông báo cách làm).
+
+## Quy tắc 1: vẽ layout từ mặt bằng thì xác nhận khu đất bằng ảnh trước khi lập kế hoạch
+
+Áp dụng khi người dùng yêu cầu vẽ layout, bố trí mặt bằng, tổng mặt bằng hoặc phương án và đưa mặt bằng làm căn cứ (bản vẽ đang mở, tệp DWG/DXF, PDF hoặc ảnh). **Chưa được lập kế hoạch, chưa được đặt số liệu và chưa được vẽ cho đến khi người dùng xác nhận khu đất.**
+
+1. **Xác định khu đất (chỉ đọc).** Xác nhận đúng bản vẽ đang hoạt động (chuyển bằng `drawing` `activate` nếu cần). Làm theo [autocad-identify-and-measure](../autocad-identify-and-measure/references/boundaries.md): tìm ranh bằng layer, màu, đường kín, tên layer như `A-SITE-PROP`; lấy tập đối tượng trong ranh; ghi đơn vị, số góc, chu vi, diện tích và mức chắc chắn (cao, vừa, thấp). Không lấy ranh từ khung bao (bounding box).
+2. **Chụp lại.** Phóng vào khu đất kèm lề bằng `view` `operation="zoom_window"` (`x1`, `y1`, `x2`, `y2`), rồi `view` `operation="get_screenshot"` (`data.include_image=true`). Ảnh lưu ở `payload.screenshot.path`; đọc ảnh đó để kiểm tra có thấy ranh rõ không và đưa đường dẫn đầy đủ cho người dùng. Nếu chụp lỗi (`Screenshot capture failed`), nói rõ và thay bằng bảng số (tọa độ các góc, diện tích, layer, handle) rồi nhờ người dùng nhìn vào tab AutoCAD. Phóng thay đổi khung nhìn, không đổi bản vẽ; nói trước.
+3. **Hỏi xác nhận một lần**, kèm ảnh và bảng số, đúng ba lựa chọn: **Đúng**, **Sai** (người dùng chỉ ranh bằng layer, màu, đối tượng mẫu hoặc vẽ khoanh), **Đúng một phần** (nói phần nào sai). Nêu ranh nào nghi là ranh đất nhưng chưa chắc, ranh nào là đường bao nhà, và khối nhà nào đã bị loại.
+4. **Chờ trả lời.** Chỉ khi người dùng xác nhận *Đúng* mới qua bước lập kế hoạch (thông báo cách làm theo mục "Quy trình", rồi các skill dựng hình ở bảng trên). Trả lời *Sai* hoặc *Đúng một phần* thì quay lại bước 1 với chỉ dẫn mới và chụp lại. Việc chỉ đọc khác vẫn làm được trong lúc chờ.
+5. **Ghi lại ranh đã xác nhận** (handle hoặc tọa độ các góc, diện tích, đơn vị, bản vẽ) trong kế hoạch và báo cáo cuối. Cùng bản vẽ trong cùng phiên đã xác nhận rồi thì không hỏi lại; bản vẽ khác, ranh bị sửa, hoặc người dùng đổi yêu cầu về phạm vi đất thì xác nhận lại.
+
+Quy tắc này bổ sung cho Quy tắc 2, không thay thế: sau khi khu đất được xác nhận, yêu cầu vẫn mơ hồ ở chỗ khác thì hỏi theo Quy tắc 2.
+
+## Quy tắc 2: yêu cầu mơ hồ thì hỏi trước khi làm
 
 Ngay khi nhận yêu cầu, trước mọi thao tác sửa bản vẽ, kiểm tra yêu cầu đã đủ để làm chưa. Yêu cầu **mơ hồ** khi một trong các điều sau đúng:
 
@@ -22,7 +57,7 @@ Khi mơ hồ, **dừng và hỏi người dùng một lần**, đưa đúng hai 
 
 Chờ người dùng chọn rồi mới vẽ. Không tự chọn một trong hai và không tự đặt số liệu "hợp lý" khi chưa được phép. Nếu người dùng chọn để agent tự vẽ, ghi mọi giả định vào danh sách `CẦN XÁC NHẬN` ở báo cáo cuối. Phần việc độc lập đã đủ căn cứ và thao tác chỉ đọc vẫn làm được trong lúc chờ.
 
-Các skill khác (`autocad-verify-drawing-inputs`, `autocad-structural-floor-plan`, `autocad-redraw-from-reference`, `autocad-block-library`) quy định thêm điểm chặn riêng cho loại bản vẽ của chúng; quy tắc này luôn áp dụng trước.
+Các skill khác (`autocad-verify-drawing-inputs`, `autocad-structural-floor-plan`, `autocad-redraw-from-reference`, `autocad-block-library`) quy định thêm điểm chặn riêng cho loại bản vẽ của chúng; Quy tắc 1 và Quy tắc 2 luôn áp dụng trước.
 
 Không cần hỏi lại, agent tự quyết: layer và màu theo quy ước bản vẽ, chiều cao chữ, thứ tự dựng, chọn block theo tên thư viện khi mô tả khớp rõ một mục.
 
@@ -80,8 +115,9 @@ ACI là mã màu cần truyền cho AutoCAD khi công cụ nhận ACI; HEX/RGB c
 
 - Trước khi kết luận một công cụ không dùng được trên LT, gọi thao tác chỉ đọc của nó (preview, list, info) và đọc mã lỗi trả về. Chỉ kết luận theo lỗi đã quan sát được, không theo suy đoán.
 - Khi cần đọc mã nguồn để biết hành vi trên LT, xem `lt-adapter/` trước (`contract.json`, `py/lt_adapter/`, `lisp/mcp_dispatch_lt.lsp`). Không suy ra từ `autocad-beiming-mcp-custom/`: đó là mã gốc cho AutoCAD đầy đủ, adapter thay thế nhiều phần của nó khi chạy trên LT.
-- `copy_region_between_dwgs` và `delete_batching` đã được thay bằng bản LT và dùng được trên LT. `copy_region_between_dwgs` cần hai file DWG đã lưu, cả hai đang mở trong cùng một phiên LT, bản nguồn là bản vẽ đang hoạt động.
-- Không hỗ trợ trên LT (trả `E_NOT_SUPPORTED_ON_LT`): `drawing` các thao tác `activate`, `create`, `close`, `copy_dwg`, `save`, `save_as_dxf`, `plot_pdf`, `audit`, `render_preview`; `recover`; `zoom_extents`; `entity` các thao tác `trim`, `extend`, `join`; `create_dimension_*`; `solid_*`; `product_*`. Nguồn danh sách: `_UNSUPPORTED` trong `lt-adapter/py/lt_adapter/lt_file_ipc.py`; đối chiếu lại khi nghi ngờ.
+- `copy_region_between_dwgs` và `delete_batching` đã được thay bằng bản LT và dùng được trên LT. `copy_region_between_dwgs` cần hai file DWG đã lưu, cả hai đang mở trong cùng một phiên LT, bản nguồn phải là bản vẽ đang hoạt động; chuyển bằng `drawing` `activate` (xem dưới), không cần nhờ người dùng bấm tab.
+- `drawing` `activate` dùng được trên LT cho bản vẽ **đã mở sẵn** trong phiên: truyền `doc_id` (hoặc đường dẫn đầy đủ của file) và `expected_revision`. Nếu `doc_id` không thuộc bản vẽ nào đang mở, lỗi trả về kèm `open_documents` (đường dẫn, tên, bản nào đang hoạt động). Sau khi chuyển, đọc lại `drawing` `context` vì `doc_id`, `revision` và `lease_token` thuộc bản vẽ mới. LT không mở được file hay đóng bản vẽ; file chưa mở thì nhờ người dùng mở.
+- Không hỗ trợ trên LT (trả `E_NOT_SUPPORTED_ON_LT`): `drawing` các thao tác `create`, `close`, `copy_dwg`, `save`, `save_as_dxf`, `plot_pdf`, `audit`, `render_preview`; `recover`; `zoom_extents`; `entity` các thao tác `trim`, `extend`, `join`; `create_dimension_*`; `solid_*`; `product_*`. Nguồn danh sách: `_UNSUPPORTED` trong `lt-adapter/py/lt_adapter/lt_file_ipc.py`; đối chiếu lại khi nghi ngờ.
 
 ## Giới hạn
 

@@ -1,6 +1,6 @@
 ---
 name: construction-document-router
-description: Xác định yêu cầu hồ sơ xây dựng thuộc giai đoạn và bước nào, kiểm tra đầu vào còn thiếu, rồi chuyển sang skill thiết kế hoặc thi công. Dùng khi người dùng đưa nhiệm vụ, bản vẽ, mô hình hoặc thay đổi hiện trường mà chưa nói rõ bước công việc.
+description: Xác định yêu cầu hồ sơ xây dựng thuộc giai đoạn và bước nào (thiết kế, thi công, hoàn công), kiểm tra đầu vào còn thiếu, rồi chuyển sang skill thiết kế hoặc thi công. Dùng khi người dùng đưa nhiệm vụ, bản vẽ, mô hình hoặc thay đổi hiện trường mà chưa nói rõ đang ở bước nào.
 ---
 
 # Xác định giai đoạn hồ sơ xây dựng

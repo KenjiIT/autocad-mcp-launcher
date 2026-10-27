@@ -71,7 +71,7 @@ class LtFileIPCBackend(FileIPCBackend):
     """Keep Beiming's tool surface but bind the dispatcher through LT AutoLISP."""
 
     _UNSUPPORTED = frozenset({
-        "drawing_activate", "drawing_create", "drawing_close", "drawing_copy_dwg",
+        "drawing_create", "drawing_close", "drawing_copy_dwg",
         "drawing_save_as_dxf", "drawing_render_preview", "recover", "show_window",
         "apply_presentation_style", "prepare_recording_view",
         "product_render_view", "solid_create_box", "solid_create_cylinder", "solid_extrude",
@@ -146,6 +146,12 @@ class LtFileIPCBackend(FileIPCBackend):
         hwnd, pid = selected
         self._hwnd, self._acad_process_id = hwnd, pid
         self._command_hwnd = self._find_command_line_hwnd()
+        try:
+            from autocad_mcp.screenshot import Win32ScreenshotProvider
+
+            self._screenshot_provider = Win32ScreenshotProvider(hwnd)  # view.get_screenshot
+        except Exception:
+            self._screenshot_provider = None
         self._ipc_dir.mkdir(parents=True, exist_ok=True)
         self._session.bind_worker(process_id=pid, hwnd=hwnd, owned=False, generation=pid)
         self._session.process_state = ProcessState.READY
@@ -301,6 +307,75 @@ class LtFileIPCBackend(FileIPCBackend):
                                      error_code="E_SESSION_GENERATION_MISMATCH")
             ready = await self._ensure_dispatcher_unlocked()
             return await self._context_unlocked() if ready.ok else ready
+
+    async def drawing_activate(
+        self,
+        doc_id: str | None,
+        expected_revision: int | None = None,
+        lease_token: str | None = None,
+        worker_generation: int | None = None,
+    ) -> CommandResult:
+        """Switch LT to another drawing that is already open, then rebind the dispatcher.
+
+        ``doc_id`` is the id reported by ``drawing.context`` for that drawing, or
+        its full path (a drawing the session has not seen yet has no id).  LT
+        cannot open or close drawings from here; only drawings already open in
+        this session qualify.
+        """
+        normalized, revision, validation = self._validate_activation_request(doc_id, expected_revision)
+        if validation is not None:
+            return validation
+        known = self._session.documents_by_id.get(normalized)
+        if known is not None and int(known.revision) != revision:
+            return CommandResult(
+                ok=False, error="The drawing changed since its context was read",
+                error_code="E_DOCUMENT_REVISION_MISMATCH", recoverable=False,
+                recommended_action="read_document_context_and_retry",
+                payload={"expected_revision": revision, "actual_revision": int(known.revision)})
+        wanted = os.path.normcase(os.path.normpath(known.path if known is not None else normalized))
+        async with self._lock:
+            if find_lt_window() != (self._hwnd, self._acad_process_id):
+                return CommandResult(ok=False, error="LT instance changed; call system.ensure_ready",
+                                     error_code="E_SESSION_GENERATION_MISMATCH")
+            ready = await self._ensure_dispatcher_unlocked()
+            if not ready.ok:
+                return ready
+            listing = await self._dispatch_unlocked("probe-documents", {})
+            if not listing.ok or not isinstance(listing.payload, dict):
+                return listing
+            documents = listing.payload.get("documents", [])
+            match = next((item for item in documents
+                          if os.path.normcase(os.path.normpath(item["path"])) == wanted), None)
+            if match is None:
+                return CommandResult(
+                    ok=False, error="doc_id is not a drawing open in this AutoCAD LT session",
+                    error_code="E_PARAMETER_REJECTED", recoverable=False,
+                    recommended_action="use_a_doc_id_from_open_documents",
+                    payload={"open_documents": [
+                        {"doc_id": self._session.doc_ids_by_key.get(os.path.normcase(item["path"])),
+                         "path": item["path"], "name": item["name"], "active": item["active"]}
+                        for item in documents]})
+            if not match["active"]:
+                result = await self._dispatch_unlocked("document-activate-lt", {"path": match["path"]})
+                if not result.ok:
+                    return result
+                self._wait_for_autocad_idle(timeout=5.0)
+            # The dispatcher lives per drawing: load it into the drawing that is now active.
+            self._dispatcher_key = None
+            ready = await self._load_dispatcher_unlocked()
+            if not ready.ok:
+                return ready
+            context = await self._context_unlocked()
+            if not context.ok:
+                return context
+            active = os.path.normcase(os.path.normpath(str(context.payload.get("active_path") or "")))
+            if active and active != wanted:
+                return CommandResult(
+                    ok=False, error="LT did not switch to the requested drawing",
+                    error_code="E_DOCUMENT_ID_MISMATCH", recoverable=False,
+                    recommended_action="ask_user_to_click_the_drawing_tab",
+                    payload={"requested": match["path"], "active": context.payload.get("active_path")})
+            return context
 
     async def _dispatch(self, command: str, params: dict) -> CommandResult:
         async with self._lock:

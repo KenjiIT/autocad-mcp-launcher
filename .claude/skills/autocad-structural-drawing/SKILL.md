@@ -1,6 +1,6 @@
 ---
 name: autocad-structural-drawing
-description: Lập mới hoặc triển khai bản vẽ kết cấu AutoCAD từ nhiệm vụ và hồ sơ thiết kế; hướng dẫn kiểm tra đầu vào, xác định nội dung bản vẽ, trình tự dựng hình, ghi chú, phối hợp và kiểm soát trước bàn giao. Dùng cho bản vẽ móng, cột, dầm, sàn, kết cấu đứng, mặt cắt và chi tiết kết cấu.
+description: Lập mới hoặc triển khai bản vẽ kết cấu AutoCAD từ nhiệm vụ và hồ sơ thiết kế - kiểm tra đầu vào, nội dung bản vẽ, trình tự dựng hình, ghi chú, phối hợp, kiểm soát trước bàn giao. Dùng khi người dùng nói 'bản vẽ kết cấu', móng, cột, dầm, sàn, kết cấu đứng, mặt cắt, chi tiết kết cấu. Với mặt bằng dầm-sàn-cột một tầng, dùng thêm `autocad-structural-floor-plan`.
 ---
 
 # Lập bản vẽ kết cấu AutoCAD

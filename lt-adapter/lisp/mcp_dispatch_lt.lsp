@@ -69,6 +69,7 @@
       ((= cmd-name "probe-layer") (mcp-cmd-probe-layer params-json))
       ((= cmd-name "probe-block") (mcp-cmd-probe-block params-json))
       ((= cmd-name "probe-documents") (mcp-cmd-probe-documents))
+      ((= cmd-name "document-activate-lt") (mcp-cmd-document-activate-lt params-json))
       ((= cmd-name "layer-exists-lt") (mcp-cmd-layer-exists-lt params-json))
       ((= cmd-name "drawing-set-variables-lt") (mcp-cmd-drawing-set-variables-lt params-json))
       ((= cmd-name "entity-set-layer-lt") (mcp-cmd-entity-set-layer-lt params-json))
@@ -113,6 +114,22 @@
                         (if (= (vla-get-Name item) (vla-get-Name active)) "true" "false") "}"))
     (setq count (1+ count)))
   (cons T (strcat "{\"documents\":[" output "]}"))
+)
+
+(defun mcp-cmd-document-activate-lt (params / path app docs target item)
+  "Make an already-open drawing the active one (experimental; the dispatcher is rebound afterwards)."
+  (vl-load-com)
+  (setq path (mcp-json-get-string params "path")
+        app (vlax-get-acad-object) docs (vla-get-Documents app) target nil)
+  (vlax-for item docs
+    (if (mcp-lt-same-path-p path (vla-get-FullName item))
+      (setq target item)))
+  (cond
+    ((not target) (cons nil "E_PARAMETER_REJECTED|Drawing is not open in this LT session"))
+    (t
+     (vla-put-ActiveDocument app target)
+     (cons T (strcat "{\"requested\":\"" (mcp-escape-string (vla-get-FullName target)) "\"}")))
+  )
 )
 
 (defun mcp-probe-count-add (key counts / found)
@@ -1049,8 +1066,7 @@
         save-target (mcp-json-get-string params "save_target")
         allow-mismatch (mcp-json-get-string params "allow_unit_mismatch"))
   (cond
-    ((/= (strcase (vl-string-translate "\\" "/" source-path))
-         (strcase (vl-string-translate "\\" "/" (mcp-current-document-path))))
+    ((not (mcp-lt-same-path-p source-path (mcp-current-document-path)))
      (cons nil "E_SOURCE_DOCUMENT_MISMATCH|Active drawing is not source_path"))
     (t
      (progn
@@ -1075,8 +1091,7 @@
                      docs (vla-get-Documents (vlax-get-acad-object))
                      target nil)
                (vlax-for item docs
-                 (if (= (strcase (vl-string-translate "\\" "/" (vla-get-FullName item)))
-                        (strcase (vl-string-translate "\\" "/" target-path)))
+                 (if (mcp-lt-same-path-p target-path (vla-get-FullName item))
                    (setq target item)))
                (if (not target)
                  (cons nil "E_PARAMETER_REJECTED|Open target_path in the same LT instance first")

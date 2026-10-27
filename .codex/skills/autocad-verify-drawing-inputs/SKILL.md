@@ -1,6 +1,6 @@
 ---
 name: autocad-verify-drawing-inputs
-description: Kiểm tra hồ sơ, số liệu, phiên bản và bản vẽ nền đã đủ căn cứ trước khi agent tạo hoặc sửa bản vẽ xây dựng CAD hay chưa. Dùng trước khi dựng mới, triển khai từ hồ sơ thiết kế hoặc sửa theo tài liệu đầu vào; không dùng thay cho thẩm định thiết kế.
+description: Kiểm tra hồ sơ, số liệu, phiên bản và bản vẽ nền đã đủ căn cứ trước khi tạo hoặc sửa bản vẽ xây dựng CAD hay chưa. Dùng ngay trước khi dựng mới, vẽ layout, triển khai từ hồ sơ thiết kế hoặc sửa theo tài liệu, và khi người dùng hỏi 'đủ số liệu chưa', 'bản này là phiên bản nào', 'có thiếu hồ sơ gì không'; không thay thẩm định thiết kế.
 ---
 
 # Kiểm tra đầu vào trước khi vẽ

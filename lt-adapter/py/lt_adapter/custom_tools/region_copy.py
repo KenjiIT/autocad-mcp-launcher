@@ -225,7 +225,8 @@ def register(mcp) -> None:
         be saved .dwg files that exist on disk; unsaved drawings are rejected.
         Not available on the ezdxf backend.
 
-        The source DWG must be active; the target DWG must be open in the same
+        The source DWG must be active (on LT use drawing.activate to switch to
+        a drawing that is already open); the target DWG must be open in the same
         AutoCAD instance. Use operation=preview first. Then pass its exact
         source_handles as expected_handles to operation=copy, together with
         the current source document context and a unique idempotency_key.

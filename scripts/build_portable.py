@@ -7,12 +7,9 @@ from zipfile import ZIP_DEFLATED, ZipFile
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "dist" / "autocad-mcp-launcher-complete.zip"
 PACKAGE_NAME = "autocad-mcp-launcher"
-SKILL_ARCHIVES = (
-    "autocad-agent-coordinator",
-    "autocad-identify-and-measure",
-    "autocad-start-construction-drawing",
-    "autocad-verify-drawing-inputs",
-)
+SKILL_ARCHIVES = tuple(sorted(
+    path.name for path in (ROOT / ".codex" / "skills").iterdir() if (path / "SKILL.md").is_file()
+))
 INCLUDE = (
     "VERSION",
     "README.md",
@@ -25,10 +22,7 @@ INCLUDE = (
     "scripts",
     ".codex",
     ".claude",
-    "dist/autocad-agent-coordinator.zip",
-    "dist/autocad-identify-and-measure.zip",
-    "dist/autocad-start-construction-drawing.zip",
-    "dist/autocad-verify-drawing-inputs.zip",
+    *(f"dist/{name}.zip" for name in SKILL_ARCHIVES),
     "puran-water-autocad-mcp",
     "autocad-beiming-mcp-custom",
 )

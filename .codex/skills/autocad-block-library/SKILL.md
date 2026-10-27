@@ -1,6 +1,6 @@
 ---
 name: autocad-block-library
-description: Tra và chèn block dựng sẵn (nội thất, thiết bị vệ sinh, thiết bị bếp, cửa, cửa sổ, cây cối, ngoại thất, ký hiệu bản vẽ, thép hình) vào bản vẽ AutoCAD LT thay vì vẽ tay; kèm danh mục toàn bộ 432 block của các bản vẽ mẫu đi kèm AutoCAD LT. Dùng khi cần tạo một vật thể thông dụng trong bản vẽ xây dựng.
+description: Tra và chèn block dựng sẵn thay vì vẽ tay - nội thất (giường, bàn, ghế, tủ, sofa), thiết bị vệ sinh (toilet, bồn cầu, lavabo), thiết bị bếp, cửa đi, cửa sổ, cây cối, xe, ngoại thất, ký hiệu bản vẽ, thép hình; kèm danh mục 432 block của bản vẽ mẫu AutoCAD LT. Dùng khi người dùng cần bố trí hoặc thêm một vật thể thông dụng, hoặc nói 'chèn block', 'dùng block có sẵn'. Gọi trước khi định vẽ tay một vật thể.
 ---
 
 # Thư viện block AutoCAD

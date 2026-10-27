@@ -1,6 +1,6 @@
 ---
 name: construction-drawing-records
-description: Quản lý bản vẽ trong giai đoạn thi công, gồm sử dụng hồ sơ được phát hành và cập nhật theo hiện trường; xác định bản vẽ nguồn, chứng cứ hiện trường hoặc phê duyệt thay đổi còn thiếu.
+description: Quản lý bản vẽ trong giai đoạn thi công - dùng bản vẽ đã phát hành, cập nhật theo hiện trường, xác định bản vẽ nguồn, chứng cứ hiện trường hoặc phê duyệt thay đổi còn thiếu. Dùng khi người dùng nói 'sai khác hiện trường', 'cập nhật bản vẽ thi công', 'bản vẽ phát hành', 'chỉ thị thay đổi', 'chi tiết triển khai của nhà thầu'.
 ---
 
 # Bản vẽ trong giai đoạn thi công
