@@ -17,10 +17,12 @@ from tkinter import filedialog, messagebox, ttk
 
 import knowledge
 from logfile import RotatingLog, start_logged
+from skillzip import build_skill_zips
 from tray import TrayIcon
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS_SOURCE = ROOT / ".codex" / "skills"
+CLAUDE_DESKTOP = "Claude Desktop (tải zip lên)"
 LOG_DIR = ROOT / "launcher" / "logs"
 SETTINGS_FILE = ROOT / "launcher" / "state" / "settings.json"
 REPOS = {
@@ -319,6 +321,7 @@ class App(tk.Tk):
         self.skill_agents = {
             "OpenAI Codex": Path.home() / ".codex" / "skills",
             "Claude Code": Path.home() / ".claude" / "skills",
+            CLAUDE_DESKTOP: Path.home() / "AutoCAD-MCP-Skills-Claude-Desktop",
         }
         ttk.Combobox(frame, textvariable=self.skill_agent, state="readonly", width=24,
                      values=tuple(self.skill_agents)).pack(anchor="w", pady=(0, 8))
@@ -369,6 +372,9 @@ class App(tk.Tk):
             return
         target_root = self.skill_agents[self.skill_agent.get()]
         source_root = SKILLS_SOURCE
+        if self.skill_agent.get() == CLAUDE_DESKTOP:
+            self.package_skills_for_claude_desktop(selected, target_root)
+            return
         missing = self.missing_skills()
         if missing:
             self.skill_status.configure(
@@ -388,6 +394,19 @@ class App(tk.Tk):
                 foreground="#225c53")
         except OSError as exc:
             self.skill_status.configure(text=f"Không cài được skill: {exc}", foreground="#a12622")
+
+    def package_skills_for_claude_desktop(self, selected, target_dir):
+        """Claude Desktop keeps its own skill store and only accepts uploaded zips."""
+        try:
+            build_skill_zips(SKILLS_SOURCE, selected, target_dir)
+            os.startfile(str(target_dir))
+        except OSError as exc:
+            self.skill_status.configure(text=f"Không tạo được file zip: {exc}", foreground="#a12622")
+            return
+        self.skill_status.configure(
+            text=f"Đã tạo {len(selected)} file zip tại {target_dir}. Trong Claude Desktop: Customize, Skills, "
+                 "tải từng file lên (xem HUONG-DAN.txt).",
+            foreground="#225c53")
 
     def save_startup_setting(self):
         enabled = self.startup_var.get()

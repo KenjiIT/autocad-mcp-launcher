@@ -20,12 +20,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "launcher"))
 import acad_pid
 from logfile import RotatingLog, start_logged
+import skillserve
 from cad_adapter import find_lt_window, prove_connection, prove_offline
 SERVERS = {
     "puran": ("autocad_puran", ROOT / "puran-water-autocad-mcp", 8875),
     "beiming": ("autocad_beiming", ROOT / "autocad-beiming-mcp-custom", 8876),
 }
 LOG_DIR = ROOT / "launcher" / "logs"
+SKILLS_ROOT = ROOT / ".claude" / "skills"
 HOP_HEADERS = {"connection", "transfer-encoding", "content-length", "host", "keep-alive"}
 TOOL_CACHE = {}
 BACKEND_TOOL = {
@@ -44,6 +46,37 @@ BACKEND_TOOL = {
         "required": ["mode"],
     },
 }
+SKILLS_TOOL = {
+    "name": "skills",
+    "description": (
+        "Đọc bộ skill (quy trình, quy tắc) của dự án AutoCAD. BẮT BUỘC gọi trước khi gọi tool CAD: "
+        "operation=get, name=autocad-agent-coordinator, rồi làm theo. operation=list liệt kê skill; "
+        "operation=get với path đọc tệp tham chiếu của skill."
+    ),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "operation": {"type": "string", "enum": ["list", "get"]},
+            "name": {"type": "string", "description": "Tên skill, ví dụ autocad-agent-coordinator."},
+            "path": {"type": "string", "description": "Tệp tham chiếu trong skill, ví dụ references/catalog.md."},
+        },
+        "required": ["operation"],
+    },
+    "annotations": {"readOnlyHint": True},
+}
+
+
+def skills_call(arguments):
+    """Run the read-only `skills` tool; returns (payload, is_error)."""
+    operation = arguments.get("operation")
+    try:
+        if operation == "list":
+            return {"ok": True, "skills": skillserve.list_skills(SKILLS_ROOT)}, False
+        if operation == "get":
+            return {"ok": True, **skillserve.read_skill(SKILLS_ROOT, arguments.get("name"), arguments.get("path"))}, False
+    except (ValueError, OSError) as exc:
+        return {"ok": False, "error": str(exc)}, True
+    return {"ok": False, "error": "operation phải là list hoặc get"}, True
 
 
 def listening(port):
@@ -302,7 +335,7 @@ async def tool_schema(key):
         creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode:
         raise RuntimeError(f"Không đọc được danh sách công cụ {key}: {result.stderr[-500:]}")
-    TOOL_CACHE[key] = [*json.loads(result.stdout), BACKEND_TOOL]
+    TOOL_CACHE[key] = [*json.loads(result.stdout), BACKEND_TOOL, SKILLS_TOOL]
     return TOOL_CACHE[key]
 
 
@@ -335,8 +368,9 @@ async def mcp_route(request: Request):
         requested = message.get("params", {}).get("protocolVersion", "2025-03-26")
         return rpc_result(request_id, {
             "protocolVersion": requested,
-            "capabilities": {"tools": {"listChanged": False}},
+            "capabilities": {"tools": {"listChanged": False}, "prompts": {"listChanged": False}},
             "serverInfo": {"name": SERVERS[key][0], "version": "1.0.0"},
+            "instructions": skillserve.INSTRUCTIONS,
         })
     if method == "notifications/initialized":
         return Response(status_code=202)
@@ -348,7 +382,18 @@ async def mcp_route(request: Request):
         except Exception as exc:
             return JSONResponse({"error": str(exc)}, status_code=503)
     if method == "prompts/list":
-        return rpc_result(request_id, {"prompts": []})
+        return rpc_result(request_id, {"prompts": [
+            {"name": item["name"], "description": item["description"]}
+            for item in skillserve.list_skills(SKILLS_ROOT)]})
+    if method == "prompts/get":
+        name = (message.get("params") or {}).get("name")
+        try:
+            skill = skillserve.read_skill(SKILLS_ROOT, name)
+        except (ValueError, OSError) as exc:
+            return JSONResponse({"jsonrpc": "2.0", "id": request_id,
+                                 "error": {"code": -32602, "message": str(exc)}})
+        return rpc_result(request_id, {"description": name, "messages": [
+            {"role": "user", "content": {"type": "text", "text": skill["content"]}}]})
     if method == "resources/list":
         return rpc_result(request_id, {"resources": []})
     if method != "tools/call":
@@ -357,6 +402,9 @@ async def mcp_route(request: Request):
              "error": {"code": -32601, "message": f"Unsupported method: {method}"}},
             status_code=200)
     params = message.get("params") or {}
+    if params.get("name") == "skills":
+        payload, is_error = skills_call(params.get("arguments") or {})
+        return rpc_tool_result(request_id, payload, is_error)
     if params.get("name") == "launcher_set_backend":
         arguments = params.get("arguments") or {}
         try:
@@ -397,6 +445,8 @@ async def queued_mcp_route(request: Request):
         return await mcp_route(request)
     key = request.path_params["key"]
     tool_name = (message.get("params") or {}).get("name", "")
+    if tool_name == "skills":  # read-only files; never wait behind a CAD request
+        return await mcp_route(request)
     async with board.request_slot(key, tool_name):
         return await mcp_route(request)
 

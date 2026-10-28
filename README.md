@@ -96,7 +96,7 @@ Mở lại phiên Claude Code. Skill đã nằm tại `.claude/skills/autocad-ag
 
 Mở hoặc tạo `%APPDATA%\Claude\claude_desktop_config.json`. Trong app chọn **Claude Desktop** và sao chép JSON được tạo theo đường dẫn trên **máy của bạn**. Gộp hai mục vào `mcpServers` hiện có, giữ nguyên các MCP khác. Thoát hẳn Claude Desktop, kể cả biểu tượng khay hệ thống, rồi mở lại. Trong Chat, bấm **+ → Connectors** để kiểm tra hai server và tool.
 
-Để thêm skill vào Claude Chat: vào **Customize → Skills**, tải `dist/autocad-agent-coordinator.zip` lên và bật skill. Nếu muốn agent kiểm tra đầu vào trước khi vẽ, bắt đầu bản vẽ xây dựng hoặc nhận diện ranh đất/khối nhà, tải thêm `dist/autocad-verify-drawing-inputs.zip`, `dist/autocad-start-construction-drawing.zip` và `dist/autocad-identify-and-measure.zip`. Việc tải skill không thay thế bước thêm MCP ở trên.
+Để thêm skill vào Claude Chat: Claude Desktop có kho skill riêng và chỉ nhận skill tải lên dạng zip, không đọc `~\.claude\skills`. Cách nhanh: mở app, tab **Cài đặt**, mục **Cài skill cho agent**, chọn **Claude Desktop (tải zip lên)**, chọn skill (bắt đầu bằng `autocad-agent-coordinator`) rồi bấm cài. App tạo các file zip trong `%USERPROFILE%\AutoCAD-MCP-Skills-Claude-Desktop` và mở thư mục đó. Trong Claude Desktop vào **Customize → Skills**, tải từng zip lên và bật. Có thể lấy sẵn các zip ở thư mục `dist/` (một file cho mỗi skill). Khi skill được cập nhật, tải lại zip tương ứng. Ngoài ra gateway có tool `skills` (chỉ đọc) và gửi lời nhắc khi kết nối: agent có thể tự đọc skill qua MCP mà không cần tải zip; mỗi skill cũng hiện thành một prompt trong menu của Claude Desktop. Việc tải skill không thay thế bước thêm MCP ở trên.
 
 ### Cursor
 

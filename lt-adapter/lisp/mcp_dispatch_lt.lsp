@@ -70,6 +70,7 @@
       ((= cmd-name "probe-block") (mcp-cmd-probe-block params-json))
       ((= cmd-name "probe-documents") (mcp-cmd-probe-documents))
       ((= cmd-name "document-activate-lt") (mcp-cmd-document-activate-lt params-json))
+      ((= cmd-name "drawing-open") (mcp-cmd-drawing-open-lt params-json))
       ((= cmd-name "layer-exists-lt") (mcp-cmd-layer-exists-lt params-json))
       ((= cmd-name "drawing-set-variables-lt") (mcp-cmd-drawing-set-variables-lt params-json))
       ((= cmd-name "entity-set-layer-lt") (mcp-cmd-entity-set-layer-lt params-json))
@@ -130,6 +131,43 @@
      (vla-put-ActiveDocument app target)
      (cons T (strcat "{\"requested\":\"" (mcp-escape-string (vla-get-FullName target)) "\"}")))
   )
+)
+
+(defun mcp-lt-find-open-document (path / found item)
+  (vlax-for item (vla-get-Documents (vlax-get-acad-object))
+    (if (mcp-lt-same-path-p path (vla-get-FullName item))
+      (setq found item)))
+  found
+)
+
+(defun mcp-cmd-drawing-open-lt (params / raw path result doc)
+  "Open a DWG through the Documents collection; upstream OPEN got the undecoded \\uXXXX path and always reported success."
+  (vl-load-com)
+  (setq raw (mcp-json-get-string params "path"))
+  (cond
+    ((not raw) (cons nil "E_PARAMETER_REJECTED|Path required"))
+    ((setq doc (mcp-lt-find-open-document raw))
+     (vla-put-ActiveDocument (vlax-get-acad-object) doc)
+     (cons T (strcat "{\"opened\":\"" (mcp-escape-string (vla-get-FullName doc)) "\",\"already_open\":true}")))
+    (t
+     (setq path (cond ((findfile (mcp-lt-decode-json-u raw nil)) (mcp-lt-decode-json-u raw nil))
+                      ((findfile (mcp-lt-decode-json-u raw T)) (mcp-lt-decode-json-u raw T))))
+     (if (not path)
+       (cons nil "E_PARAMETER_REJECTED|DWG file not found")
+       (progn
+         (setq result (vl-catch-all-apply 'vla-Open
+                        (list (vla-get-Documents (vlax-get-acad-object)) path :vlax-false)))
+         (cond
+           ((vl-catch-all-error-p result)
+            (cons nil (strcat "E_SYSTEM_CALL_FAILED|LT could not open the drawing: "
+                              (vl-catch-all-error-message result))))
+           ((not (setq doc (mcp-lt-find-open-document raw)))
+            (cons nil "E_POSTCONDITION_MISMATCH|Open returned but the drawing is not in the document list"))
+           (t
+            ;; Documents.Open leaves the previous drawing active; make the new one active as upstream OPEN did.
+            (vla-put-ActiveDocument (vlax-get-acad-object) doc)
+            (cons T (strcat "{\"opened\":\"" (mcp-escape-string (vla-get-FullName doc))
+                            "\",\"already_open\":false}"))))))))
 )
 
 (defun mcp-probe-count-add (key counts / found)
