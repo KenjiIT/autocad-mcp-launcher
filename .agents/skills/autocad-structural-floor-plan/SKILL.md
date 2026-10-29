@@ -56,6 +56,7 @@ Dùng template của dự án nếu có. Nếu không, bộ mặc định: `S-GR
 - Đường truyền tải: mỗi dầm (hoặc chuỗi dầm gối lên nhau) phải về tới ít nhất hai cột/vách/cột khuất. Liệt kê dầm chỉ gối lên dầm ở cả hai đầu và dầm dài hơn ~9 m không có gối trung gian; số này phải bằng 0 hoặc được người duyệt chấp nhận.
 - Số dầm nằm trong biên sàn. Nếu biên không khép kín, nói rõ chỉ kiểm bằng hình bao thay thế; không báo là đạt.
 - Cặp dầm chồng/trùng nhau và dầm đè lên cột: phải bằng 0.
+- Dầm đè lỗ mở: phải bằng 0. Kiểm tra với **mọi** layer thể hiện lỗ, gồm layer lỗ chính và các lỗ đánh dấu X chép từ kiến trúc (ví dụ `A-LO-THANG-MAY`), không chỉ một layer. Gặp chỗ đè, trước khi sửa phải đo lỗ (và dầm) so với bản nguồn (bản kết cấu tham chiếu hoặc bản kiến trúc), sau khi quy về cùng hệ tọa độ. Lỗ lệch bản nguồn thì sửa lỗ cho bằng bản nguồn; lỗ đúng thì mới sửa dầm. Ví dụ đã gặp: lỗ ở trục 15, dưới trục C trong bản nháp CR8-3 T3 rộng 1400 thay vì 1200 như S-405, lấn 200 mm vào dầm.
 - Số nhãn gắn được vào dầm trên tổng nhãn; nhãn chỉ gán theo khoảng cách thì ghi "gán tạm". Mã dầm không được lấy từ nhãn gần nhất nếu bảng `beams` đã có mã.
 - Kích thước là DIMENSION thật gắn điểm hình học; đo lại một vài giá trị. Chữ kích thước phải đọc được trong ảnh xem trước; nếu không, ghi `CẦN XÁC NHẬN`.
 - Ảnh xem trước phải thấy rõ cột và dầm ở tầm nhìn toàn mặt bằng. Nếu chỉ thấy lưới và chữ thì chưa hoàn thành.

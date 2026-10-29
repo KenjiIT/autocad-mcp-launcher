@@ -15,6 +15,7 @@ Skill chỉ có tác dụng khi được nạp. Ngay sau khi nhận yêu cầu A
 |---|---|
 | "vẽ layout", "bố trí mặt bằng", "tổng mặt bằng", "phương án", kèm mặt bằng hoặc bản vẽ nền | Quy tắc 1 bên dưới, rồi `autocad-identify-and-measure` (đọc `references/boundaries.md`), `construction-boundaries-grids`, `autocad-verify-drawing-inputs`, `autocad-start-construction-drawing` |
 | "ranh đất", "khu đất", "đâu là tòa nhà", "đường bao", "chỉ giới", "khoảng lùi" | `autocad-identify-and-measure`, `construction-boundaries-grids` |
+| "mặt bằng tổng thể", "MBTT", "tổng mặt bằng", "bảng chỉ tiêu", "cân bằng đất đai", "bản vị trí khu đất" | Quy tắc 1 bên dưới, `mat-bang-tong-the`, rồi `autocad-identify-and-measure`, `construction-boundaries-grids` |
 | "đo", "kích thước", "diện tích", "khoảng cách", "cột/tường/dầm/cửa này", "phần bị che" | `autocad-identify-and-measure` |
 | "vẽ lại", "dựng lại", "vẽ theo bản này/PDF này" (có bản tham chiếu) | `autocad-redraw-from-reference` |
 | "tạo giống", "thêm một ... như ...", "làm tương tự", "lặp lại", "chép sang", "copy sang bản vẽ khác" | `autocad-copy-similar-objects` |
@@ -36,7 +37,7 @@ Sau khi nạp, nói ngắn cho người dùng đã nạp skill nào và vì sao 
 
 1. **Xác định khu đất (chỉ đọc).** Xác nhận đúng bản vẽ đang hoạt động (chuyển bằng `drawing` `activate` nếu cần). Làm theo [autocad-identify-and-measure](../autocad-identify-and-measure/references/boundaries.md): tìm ranh bằng layer, màu, đường kín, tên layer như `A-SITE-PROP`; lấy tập đối tượng trong ranh; ghi đơn vị, số góc, chu vi, diện tích và mức chắc chắn (cao, vừa, thấp). Không lấy ranh từ khung bao (bounding box).
 2. **Chụp lại.** Phóng vào khu đất kèm lề bằng `view` `operation="zoom_window"` (`x1`, `y1`, `x2`, `y2`), rồi `view` `operation="get_screenshot"` (`data.include_image=true`). Ảnh lưu ở `payload.screenshot.path`; đọc ảnh đó để kiểm tra có thấy ranh rõ không và đưa đường dẫn đầy đủ cho người dùng. Nếu chụp lỗi (`Screenshot capture failed`), nói rõ và thay bằng bảng số (tọa độ các góc, diện tích, layer, handle) rồi nhờ người dùng nhìn vào tab AutoCAD. Phóng thay đổi khung nhìn, không đổi bản vẽ; nói trước.
-3. **Hỏi xác nhận một lần**, kèm ảnh và bảng số, đúng ba lựa chọn: **Đúng**, **Sai** (người dùng chỉ ranh bằng layer, màu, đối tượng mẫu hoặc vẽ khoanh), **Đúng một phần** (nói phần nào sai). Nêu ranh nào nghi là ranh đất nhưng chưa chắc, ranh nào là đường bao nhà, và khối nhà nào đã bị loại.
+3. **Hỏi xác nhận một lần**, kèm ảnh và bảng số, đúng ba lựa chọn: **Đúng**, **Sai** (người dùng chỉ ranh bằng layer, màu, đối tượng mẫu hoặc vẽ khoanh), **Đúng một phần** (nói phần nào sai). Nêu ranh nào nghi là ranh đất nhưng chưa chắc, ranh nào là đường bao nhà, và khối nhà nào đã bị loại. Hỏi bằng công cụ chọn (xem mục "Cách hỏi"), không liệt kê ba lựa chọn bằng văn bản.
 4. **Chờ trả lời.** Chỉ khi người dùng xác nhận *Đúng* mới qua bước lập kế hoạch (thông báo cách làm theo mục "Quy trình", rồi các skill dựng hình ở bảng trên). Trả lời *Sai* hoặc *Đúng một phần* thì quay lại bước 1 với chỉ dẫn mới và chụp lại. Việc chỉ đọc khác vẫn làm được trong lúc chờ.
 5. **Ghi lại ranh đã xác nhận** (handle hoặc tọa độ các góc, diện tích, đơn vị, bản vẽ) trong kế hoạch và báo cáo cuối. Cùng bản vẽ trong cùng phiên đã xác nhận rồi thì không hỏi lại; bản vẽ khác, ranh bị sửa, hoặc người dùng đổi yêu cầu về phạm vi đất thì xác nhận lại.
 
@@ -56,6 +57,14 @@ Khi mơ hồ, **dừng và hỏi người dùng một lần**, đưa đúng hai 
 2. **Agent tự vẽ theo giả định:** nêu luôn giả định sẽ dùng (giá trị, nguồn hoặc lý do) để người dùng đồng ý hoặc sửa.
 
 Chờ người dùng chọn rồi mới vẽ. Không tự chọn một trong hai và không tự đặt số liệu "hợp lý" khi chưa được phép. Nếu người dùng chọn để agent tự vẽ, ghi mọi giả định vào danh sách `CẦN XÁC NHẬN` ở báo cáo cuối. Phần việc độc lập đã đủ căn cứ và thao tác chỉ đọc vẫn làm được trong lúc chờ.
+
+## Cách hỏi: dùng công cụ chọn, không liệt kê lựa chọn bằng văn bản
+
+Mọi câu hỏi có vài lựa chọn rời rạc (xác nhận ranh đất đúng/sai, hai lựa chọn của Quy tắc 2, số tầng hầm, phương án khối, chọn bản vẽ đích) phải hỏi **ngay lần đầu** bằng công cụ hỏi có lựa chọn của môi trường (`AskUserQuestion` trong Claude Code), để người dùng bấm chọn. Không viết "Đúng / Sai / Đúng một phần" thành danh sách trong tin nhắn rồi chờ gõ trả lời.
+
+- Công cụ chỉ nhận chữ, không hiển thị ảnh: gửi ảnh, đường dẫn ảnh và bảng số trong tin nhắn ngay trước, rồi gọi công cụ trong cùng lượt.
+- Nhóm tối đa vài câu liên quan vào một lần gọi; mỗi câu 2–4 lựa chọn, ghi rõ hệ quả của từng lựa chọn. Người dùng luôn có thể nhập ý khác.
+- Chỉ hỏi bằng văn bản khi môi trường không có công cụ chọn (ví dụ một số máy khách khác), hoặc khi câu trả lời là số liệu tự do.
 
 Các skill khác (`autocad-verify-drawing-inputs`, `autocad-structural-floor-plan`, `autocad-redraw-from-reference`, `autocad-block-library`) quy định thêm điểm chặn riêng cho loại bản vẽ của chúng; Quy tắc 1 và Quy tắc 2 luôn áp dụng trước.
 

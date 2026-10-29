@@ -277,6 +277,89 @@ async def test_lt_hatch_verification_erases_mismatch_through_ipc():
         await backend.shutdown()
 
 
+def _fake_user32(monkeypatch, live_windows):
+    from types import SimpleNamespace
+
+    import lt_adapter.lt_file_ipc as module
+
+    user32 = SimpleNamespace(IsWindow=lambda hwnd: hwnd in live_windows)
+    monkeypatch.setattr(module, "ctypes", SimpleNamespace(windll=SimpleNamespace(user32=user32)))
+
+
+def test_lt_type_command_looks_the_command_window_up_again_when_stale(monkeypatch):
+    backend = LtFileIPCBackend()
+    backend._hwnd, backend._command_hwnd = 10, 11  # 11 no longer exists
+    _fake_user32(monkeypatch, {10, 12})
+    monkeypatch.setattr(backend, "_find_command_line_hwnd", lambda: 12)
+    posted = []
+    monkeypatch.setattr(backend, "_post_keys", lambda target, command: posted.append((target, command)) or True)
+
+    assert backend._type_command("(c:mcp-dispatch)") is True
+    assert posted == [(12, "(c:mcp-dispatch)")]
+    assert backend._command_hwnd == 12
+
+
+def test_lt_type_command_fails_fast_when_keys_cannot_be_posted(monkeypatch):
+    backend = LtFileIPCBackend()
+    backend._hwnd, backend._command_hwnd = 10, 11
+    _fake_user32(monkeypatch, {10, 11})
+    monkeypatch.setattr(backend, "_find_command_line_hwnd", lambda: 11)
+    attempts = []
+    monkeypatch.setattr(backend, "_post_keys", lambda target, command: attempts.append(target) and False)
+
+    assert backend._type_command("(c:mcp-dispatch)") is False
+    assert len(attempts) == 2  # one retry after looking the window up again
+
+
+def _loading_backend(monkeypatch, ping_results):
+    import lt_adapter.lt_file_ipc as module
+
+    backend = LtFileIPCBackend()
+    typed, pings = [], []
+    monkeypatch.setattr(backend, "_type_command", lambda expression: typed.append(expression) or True)
+    monkeypatch.setattr(backend, "_window_key", lambda: ("hwnd", 1, "t"))
+    monkeypatch.setattr(module.asyncio, "sleep", lambda _seconds: _noop())
+    results = iter(ping_results)
+
+    async def dispatch(command, params, timeout=None):
+        pings.append((command, timeout))
+        return next(results)
+
+    backend._dispatch_unlocked = dispatch
+    return backend, typed, pings
+
+
+async def _noop():
+    return None
+
+
+@pytest.mark.asyncio
+async def test_lt_dispatcher_load_retries_when_keys_were_dropped(monkeypatch):
+    from autocad_mcp import __version__
+
+    timeout = CommandResult(ok=False, error="Timeout", error_code="E_IPC_TIMEOUT")
+    answer = CommandResult(ok=True, payload={"dispatcher_version": __version__})
+    backend, typed, pings = _loading_backend(monkeypatch, [timeout, timeout, answer])
+    try:
+        assert (await backend._load_dispatcher_unlocked()).ok
+    finally:
+        await backend.shutdown()
+    assert len(pings) == 3 and all(p == ("ping", backend._LOAD_PING_TIMEOUT) for p in pings)
+    assert len(typed) == 6  # both dispatcher files are typed again on every attempt
+
+
+@pytest.mark.asyncio
+async def test_lt_dispatcher_load_gives_up_with_a_bounded_error(monkeypatch):
+    timeout = CommandResult(ok=False, error="Timeout", error_code="E_IPC_TIMEOUT")
+    backend, typed, pings = _loading_backend(monkeypatch, [timeout] * 10)
+    try:
+        result = await backend._load_dispatcher_unlocked()
+    finally:
+        await backend.shutdown()
+    assert not result.ok and result.error_code == "E_DISPATCHER_NOT_LOADED" and result.recoverable
+    assert len(pings) == backend._LOAD_ATTEMPTS
+
+
 @pytest.mark.asyncio
 async def test_lt_dispatcher_loads_once_per_window_and_title(monkeypatch):
     backend = LtFileIPCBackend()

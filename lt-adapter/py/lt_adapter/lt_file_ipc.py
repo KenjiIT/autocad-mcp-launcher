@@ -82,6 +82,9 @@ class LtFileIPCBackend(FileIPCBackend):
         "zoom_extents",
     })
 
+    _LOAD_ATTEMPTS = 4
+    _LOAD_PING_TIMEOUT = 8.0
+
     def __getattribute__(self, name):
         if name in type(self)._UNSUPPORTED:
             async def unavailable(*_args, **_kwargs):
@@ -129,6 +132,36 @@ class LtFileIPCBackend(FileIPCBackend):
         # The inherited COM CMDACTIVE probe is unavailable in LT.  The IPC
         # result file is written after the LISP command finishes instead.
         return bool(self._hwnd and ctypes.windll.user32.IsWindow(self._hwnd))
+
+    def _post_keys(self, target: int, command: str) -> bool:
+        post = ctypes.windll.user32.PostMessageW
+        sent = True
+        for _ in range(2):  # cancel a pending command, nested ones need two
+            sent &= bool(post(target, 0x0100, 0x1B, 0)) and bool(post(target, 0x0101, 0x1B, 0))
+        time.sleep(0.05)
+        for char in command:
+            sent &= bool(post(target, 0x0102, ord(char), 0))
+        sent &= bool(post(target, 0x0102, 0x0D, 0))
+        time.sleep(0.05)
+        return sent
+
+    def _type_command(self, command: str) -> bool:
+        """Post a command to LT and report whether the keys were really delivered.
+
+        The upstream version ignores PostMessage failures and keeps the window
+        found once at ensure_ready.  When that window goes stale the dispatcher
+        is never triggered and the caller waits out the whole IPC timeout, so
+        look the command window up again and retry once.
+        """
+        user32 = ctypes.windll.user32
+        for attempt in range(2):
+            target = self._command_hwnd
+            if attempt or not target or not user32.IsWindow(target):
+                target = self._find_command_line_hwnd() or self._hwnd
+                self._command_hwnd = target
+            if target and user32.IsWindow(target) and self._post_keys(target, command):
+                return True
+        return False
 
     @staticmethod
     def _should_auto_fit(command: str) -> bool:
@@ -192,11 +225,24 @@ class LtFileIPCBackend(FileIPCBackend):
         for path in (upstream_runtime, overlay_runtime):
             if not path.is_file():
                 return CommandResult(ok=False, error=f"Dispatcher file missing: {path}", error_code="E_DISPATCHER_NOT_FOUND")
-            expression = f'(load "{str(path.resolve()).replace(chr(92), "/")}")'
-            if not self._type_command(expression):
-                return CommandResult(ok=False, error=f"Could not load dispatcher file in LT: {path.name}", error_code="E_DISPATCHER_NOT_LOADED")
-            await asyncio.sleep(0.35)
-        ping = await self._dispatch_unlocked("ping", {})
+        # Right after a drawing is opened or activated LT may still be busy with it and
+        # drop the typed keys.  A ping is harmless, so retry the load with a short wait
+        # instead of waiting out the whole IPC timeout once.
+        for attempt in range(self._LOAD_ATTEMPTS):
+            for path in (upstream_runtime, overlay_runtime):
+                expression = f'(load "{str(path.resolve()).replace(chr(92), "/")}")'
+                if not self._type_command(expression):
+                    return CommandResult(ok=False, error=f"Could not load dispatcher file in LT: {path.name}", error_code="E_DISPATCHER_NOT_LOADED")
+                await asyncio.sleep(0.35)
+            ping = await self._dispatch_unlocked("ping", {}, timeout=self._LOAD_PING_TIMEOUT)
+            if ping.ok or ping.error_code != "E_IPC_TIMEOUT":
+                break
+            await asyncio.sleep(1.0)
+        else:
+            return CommandResult(
+                ok=False, error="LT did not answer after the dispatcher was loaded; the drawing may still be opening",
+                error_code="E_DISPATCHER_NOT_LOADED", recoverable=True,
+                recommended_action="wait_for_the_drawing_to_finish_opening_and_retry")
         version = ping.payload.get("dispatcher_version") if ping.ok and isinstance(ping.payload, dict) else None
         if version != __version__:
             return CommandResult(ok=False, error=f"LT dispatcher ping/version failed: {ping.error or version}", error_code="E_DISPATCHER_NOT_LOADED")
@@ -224,7 +270,7 @@ class LtFileIPCBackend(FileIPCBackend):
             return CommandResult(ok=True)
         return await self._load_dispatcher_unlocked()
 
-    async def _dispatch_unlocked(self, command: str, params: dict) -> CommandResult:
+    async def _dispatch_unlocked(self, command: str, params: dict, timeout: float | None = None) -> CommandResult:
         """Run the upstream IPC protocol, decoding LT's cp1252 Unicode escapes."""
         from autocad_mcp.backends import file_ipc as upstream
 
@@ -244,7 +290,7 @@ class LtFileIPCBackend(FileIPCBackend):
                     return self._autocad_crashed_result(crash, command)
                 return CommandResult(ok=False, error="LT command state remained blocked after cancellation",
                                      error_code="E_COMMAND_STATE_BLOCKED")
-            deadline = time.time() + upstream.TIMEOUT
+            deadline = time.time() + (timeout or upstream.TIMEOUT)
             while time.time() < deadline:
                 crash = upstream.detect_autocad_crash_state(self._hwnd, self._acad_process_id)
                 if crash.get("crashed"):
