@@ -542,6 +542,8 @@ async def drawing(
       open       — Open an existing drawing. data: {path}
       info       — Get drawing extents, entity count, layers, blocks.
       save       — Save current drawing. data: {path?} (saves to path if given, else QSAVE)
+                   On AutoCAD LT: data {path?, overwrite?}; path must be an absolute .dwg path the user chose;
+                   an existing file is replaced only with overwrite=true, set after the user agreed.
       save_as_dxf — Export as DXF. data: {path}
       plot_pdf   — Plot to PDF. data: {path}
       render_preview — Native deterministic preview. data: {path, paper?, orientation?, plot_style?}
@@ -710,6 +712,10 @@ async def drawing(
         result = await backend.drawing_activate(
             data["doc_id"], activation_revision, **activation_kwargs
         )
+    elif operation == "save" and backend.name == "file_ipc_lt":
+        # LT saves where the user chose: no workspace redirect. Without a path it saves in place;
+        # data.overwrite is set only after the user agreed to replace an existing file.
+        result = await backend.drawing_save(data.get("path"), overwrite=bool(data.get("overwrite")))
     elif operation == "save":
         category = "drawings" if backend.name == "file_ipc" else "dxf"
         extension = ".dwg" if backend.name == "file_ipc" else ".dxf"

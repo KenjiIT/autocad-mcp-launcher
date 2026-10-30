@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import ctypes
+import faulthandler
 import json
+import logging
 import math
+import ntpath
 import os
 import re
 import shutil
 import sys
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -35,7 +39,11 @@ _LT_ERROR_ACTIONS = {
     "E_BATCH_ROLLED_BACK": (True, "correct_batch_and_retry"),
     "E_POSTCONDITION_MISMATCH": (False, "stop_and_inspect_backend_state"),
     "E_SYSTEM_CALL_FAILED": (True, "inspect_operation_inputs_and_system_error"),
+    "E_FILE_EXISTS": (False, "ask_the_user_before_replacing_then_retry_with_overwrite"),
 }
+
+_STALLED = object()
+_log = logging.getLogger("lt_adapter")
 
 
 def _decode_lisp_error(message: str | None) -> tuple[str | None, str | None]:
@@ -76,7 +84,7 @@ class LtFileIPCBackend(FileIPCBackend):
         "apply_presentation_style", "prepare_recording_view",
         "product_render_view", "solid_create_box", "solid_create_cylinder", "solid_extrude",
         "solid_revolve", "solid_sweep", "solid_boolean", "product_create_feature",
-        "drawing_save", "drawing_plot_pdf", "drawing_audit", "entity_trim",
+        "drawing_plot_pdf", "drawing_audit", "entity_trim",
         "entity_extend", "entity_join", "create_dimension_linear",
         "create_dimension_aligned", "create_dimension_angular", "create_dimension_radius",
         "zoom_extents",
@@ -84,6 +92,14 @@ class LtFileIPCBackend(FileIPCBackend):
 
     _LOAD_ATTEMPTS = 4
     _LOAD_PING_TIMEOUT = 8.0
+    _TRIGGER_TIMEOUT = 20.0      # upstream waits up to 5 s + 2 s for idle, then types the trigger
+    _SLOW_STEP_SECONDS = 2.0
+    _QUICK_COMMANDS = frozenset({"document-context", "ping", "layer-exists-lt", "probe-layer",
+                                 "probe-documents", "probe-vars", "layer-list"})
+    _QUICK_TIMEOUT = 20.0        # answer cap for the quick reads above (heavy commands keep the long cap)
+    _RETRIGGER_AFTER = 6.0       # seconds without an answer before the trigger is typed once more
+    _STALL_DUMP_SECONDS = 25.0   # stack dump to C:/temp/lt_adapter_stall.log when a command outlives this
+    _SAVE_TIMEOUT = 90.0         # large drawings take a while to write
 
     def __getattribute__(self, name):
         if name in type(self)._UNSUPPORTED:
@@ -270,6 +286,19 @@ class LtFileIPCBackend(FileIPCBackend):
             return CommandResult(ok=True)
         return await self._load_dispatcher_unlocked()
 
+    async def _bounded_step(self, step: str, func, timeout: float):
+        """Run a blocking step in a worker thread; return ``_STALLED`` if it outlives ``timeout``."""
+        started = time.monotonic()
+        try:
+            value = await asyncio.wait_for(asyncio.to_thread(func), timeout)
+        except asyncio.TimeoutError:
+            _log.error("lt_step_stalled step=%s timeout=%.1fs", step, timeout)
+            return _STALLED
+        elapsed = time.monotonic() - started
+        if elapsed > self._SLOW_STEP_SECONDS:
+            _log.warning("lt_step_slow step=%s seconds=%.1f", step, elapsed)
+        return value
+
     async def _dispatch_unlocked(self, command: str, params: dict, timeout: float | None = None) -> CommandResult:
         """Run the upstream IPC protocol, decoding LT's cp1252 Unicode escapes."""
         from autocad_mcp.backends import file_ipc as upstream
@@ -278,23 +307,57 @@ class LtFileIPCBackend(FileIPCBackend):
         cmd_file = self._ipc_dir / f"autocad_mcp_cmd_{request_id}.json"
         result_file = self._ipc_dir / f"autocad_mcp_result_{request_id}.json"
         tmp_file = cmd_file.with_suffix(".tmp")
+        dump = self._arm_stall_dump(command, request_id)
         try:
             clean_params = {key: value for key, value in params.items() if value is not None}
             payload = {"request_id": request_id, "command": command,
                        "params": clean_params, "ts": time.time()}
             tmp_file.write_text(json.dumps(payload), encoding="utf-8")
             tmp_file.rename(cmd_file)
-            if not self._type_dispatch_trigger():
+            # The trigger is blocking (COM, window messages, waits); run it off the event loop under a
+            # hard cap so a stalled step returns an error instead of freezing every queued request.
+            triggered = await self._bounded_step(f"trigger:{command}", self._type_dispatch_trigger,
+                                                 self._TRIGGER_TIMEOUT)
+            if triggered is _STALLED:
+                return CommandResult(
+                    ok=False,
+                    error=f"AutoCAD LT did not accept the dispatcher trigger within {self._TRIGGER_TIMEOUT:.0f} s "
+                          f"(command={command}, request_id={request_id})",
+                    error_code="E_LT_TRIGGER_STALLED", recoverable=True,
+                    recommended_action="press_escape_in_autocad_then_retry")
+            if not triggered:
                 crash = upstream.detect_autocad_crash_state(self._hwnd, self._acad_process_id)
                 if crash.get("crashed"):
                     return self._autocad_crashed_result(crash, command)
                 return CommandResult(ok=False, error="LT command state remained blocked after cancellation",
                                      error_code="E_COMMAND_STATE_BLOCKED")
-            deadline = time.time() + (timeout or upstream.TIMEOUT)
+            # The launcher sets AUTOCAD_MCP_IPC_TIMEOUT=300 for heavy batches; a quick read that
+            # AutoCAD never picked up must not hold the queue that long.
+            quick = command in self._QUICK_COMMANDS
+            limit = timeout or (min(upstream.TIMEOUT, self._QUICK_TIMEOUT) if quick else upstream.TIMEOUT)
+            waiting_since = time.time()
+            deadline = waiting_since + limit
+            retriggered = False
+            last_help_check = 0.0
             while time.time() < deadline:
                 crash = upstream.detect_autocad_crash_state(self._hwnd, self._acad_process_id)
                 if crash.get("crashed"):
                     return self._autocad_crashed_result(crash, command)
+                if time.time() - last_help_check > 1.0:
+                    last_help_check = time.time()
+                    if self._close_stray_help() and quick and not retriggered and not result_file.exists():
+                        # Keys that land in the wrong place open AutoCAD's Help: the trigger was lost.
+                        retriggered = True
+                        _log.warning("lt_trigger_retyped_after_help command=%s request_id=%s", command, request_id)
+                        await self._bounded_step(f"retrigger:{command}", self._type_dispatch_trigger,
+                                                 self._TRIGGER_TIMEOUT)
+                if (quick and not retriggered and not result_file.exists()
+                        and time.time() - waiting_since > self._RETRIGGER_AFTER):
+                    # A quick read takes milliseconds, so no answer means the typed trigger was lost.
+                    retriggered = True
+                    _log.warning("lt_trigger_retyped command=%s request_id=%s", command, request_id)
+                    await self._bounded_step(f"retrigger:{command}", self._type_dispatch_trigger,
+                                             self._TRIGGER_TIMEOUT)
                 if result_file.exists():
                     try:
                         try:
@@ -326,11 +389,73 @@ class LtFileIPCBackend(FileIPCBackend):
                                  error=f"Timeout waiting for LT result (request_id={request_id})",
                                  error_code="E_IPC_TIMEOUT")
         finally:
+            self._disarm_stall_dump(dump)
             for file_path in (cmd_file, result_file, tmp_file):
                 try:
                     file_path.unlink(missing_ok=True)
                 except OSError:
                     pass
+
+    def _close_stray_help(self) -> int:
+        """Close a visible 'AutoCAD LT ... - Help' window of this AutoCAD process; return how many.
+
+        The adapter never asks for Help, so one on screen means typed keys reached the wrong
+        window (a 'p' is also the F1 virtual-key code). It would otherwise block the screen.
+        """
+        if sys.platform != "win32" or not self._acad_process_id:
+            return 0
+        try:
+            import win32con
+            import win32gui
+            import win32process
+        except Exception:
+            return 0
+        found: list[int] = []
+
+        def visit(hwnd, _):
+            try:
+                if (win32gui.IsWindowVisible(hwnd) and win32gui.GetWindowText(hwnd).endswith(" - Help")
+                        and win32process.GetWindowThreadProcessId(hwnd)[1] == self._acad_process_id):
+                    found.append(hwnd)
+            except Exception:
+                pass
+            return True
+
+        try:
+            win32gui.EnumWindows(visit, None)
+            for hwnd in found:
+                win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+        except Exception:
+            return 0
+        if found:
+            _log.warning("lt_help_window_closed count=%d", len(found))
+        return len(found)
+
+    def _arm_stall_dump(self, command: str, request_id: str):
+        """If one command outlives _STALL_DUMP_SECONDS, write every thread's stack to a file.
+
+        The timer only fires for a command that is still running, so the file stays empty in
+        normal use. It exists because a blocked COM or window call leaves the normal logs silent.
+        """
+        def dump() -> None:
+            try:
+                with open(self._ipc_dir / "lt_adapter_stall.log", "a", encoding="utf-8") as handle:
+                    handle.write(f"\n===== {time.strftime('%Y-%m-%d %H:%M:%S')} command={command} "
+                                 f"request_id={request_id} still running after {self._STALL_DUMP_SECONDS:.0f}s =====\n")
+                    handle.flush()
+                    faulthandler.dump_traceback(file=handle, all_threads=True)
+            except Exception:
+                pass
+
+        timer = threading.Timer(self._STALL_DUMP_SECONDS, dump)
+        timer.daemon = True
+        timer.start()
+        return timer
+
+    @staticmethod
+    def _disarm_stall_dump(timer) -> None:
+        if timer is not None:
+            timer.cancel()
 
     async def _context_unlocked(self) -> CommandResult:
         result = await self._dispatch_unlocked("document-context", {})
@@ -423,7 +548,32 @@ class LtFileIPCBackend(FileIPCBackend):
                     payload={"requested": match["path"], "active": context.payload.get("active_path")})
             return context
 
-    async def _dispatch(self, command: str, params: dict) -> CommandResult:
+    async def drawing_save(self, path: str | None = None, overwrite: bool = False) -> CommandResult:
+        """Save the active drawing in place, or save a copy under ``path`` (an absolute .dwg path).
+
+        Replacing an existing file needs ``overwrite=True``, which the caller sets only after
+        the user has said so. Success is reported only when the drawing has no unsaved changes.
+        """
+        params: dict = {"replace": "1" if overwrite else "0"}
+        if path:
+            text = str(path).strip()
+            if not ntpath.isabs(text) or not text.lower().endswith(".dwg"):
+                return CommandResult(ok=False, error="Save path must be an absolute path ending in .dwg",
+                                     error_code="E_PARAMETER_REJECTED", recoverable=False,
+                                     recommended_action="ask_the_user_for_a_full_dwg_path")
+            if not os.path.isdir(ntpath.dirname(text)):
+                return CommandResult(ok=False, error=f"Save folder does not exist: {ntpath.dirname(text)}",
+                                     error_code="E_PARAMETER_REJECTED", recoverable=False,
+                                     recommended_action="ask_the_user_for_an_existing_folder")
+            params["path"] = text.replace("\\", "/")
+        result = await self._dispatch("drawing-save-lt", params, timeout=self._SAVE_TIMEOUT)
+        if result.ok and isinstance(result.payload, dict) and result.payload.get("dbmod") not in (0, "0"):
+            return CommandResult(ok=False, error="LT reported the save but the drawing still has unsaved changes",
+                                 error_code="E_POSTCONDITION_MISMATCH", recoverable=False,
+                                 recommended_action="stop_and_inspect_backend_state", payload=result.payload)
+        return result
+
+    async def _dispatch(self, command: str, params: dict, timeout: float | None = None) -> CommandResult:
         async with self._lock:
             selected = find_lt_window()
             if selected is None or selected != (self._hwnd, self._acad_process_id):
@@ -443,7 +593,7 @@ class LtFileIPCBackend(FileIPCBackend):
                     return context
             return await self._dispatch_unlocked(command, {
                 **params, "_expected_document_path": context.payload["active_path"]
-            })
+            }, timeout=timeout)
 
     async def status(self) -> CommandResult:
         selected = find_lt_window()

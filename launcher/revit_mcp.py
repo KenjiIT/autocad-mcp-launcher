@@ -22,9 +22,18 @@ def find_npx():
     return shutil.which("npx.cmd") or shutil.which("npx")
 
 
+def local_server():
+    """Server installed in %LOCALAPPDATA%\revit-mcp-server (better-sqlite3 pinned to 12.x,
+    which has prebuilt binaries for Node 24; the npx copy builds 11.x from source and fails)."""
+    entry = (Path(os.environ.get("LOCALAPPDATA", "")) / "revit-mcp-server" / "node_modules"
+             / "mcp-server-for-revit" / "build" / "index.js")
+    node = shutil.which("node")
+    return f'"{node}" "{entry}"' if node and entry.is_file() else None
+
+
 def command(npx):
     return [npx, "-y", GATEWAY_PACKAGE,
-            "--stdio", f"cmd /c npx -y {SERVER_PACKAGE}",
+            "--stdio", local_server() or f"cmd /c npx -y {SERVER_PACKAGE}",
             "--outputTransport", "streamableHttp",
             "--host", "127.0.0.1", "--port", str(PORT)]
 

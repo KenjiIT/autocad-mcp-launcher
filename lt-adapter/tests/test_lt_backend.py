@@ -527,3 +527,151 @@ async def test_lt_drawing_activate_switches_and_rebinds(monkeypatch):
         assert (await backend.drawing_activate("C:/d/a.dwg", None)).error_code == "E_PARAMETER_REJECTED"
     finally:
         await backend.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_lt_save_in_place_and_to_a_path_goes_through_the_save_command(tmp_path):
+    backend = LtFileIPCBackend()
+    calls = []
+
+    async def dispatch(command, params, timeout=None):
+        calls.append((command, params, timeout))
+        return CommandResult(ok=True, payload={"saved_path": "x", "dbmod": 0})
+
+    backend._dispatch = dispatch
+    try:
+        assert (await backend.drawing_save()).ok
+        target = str(tmp_path / "ban ve.dwg")
+        assert (await backend.drawing_save(target, overwrite=True)).ok
+    finally:
+        await backend.shutdown()
+    assert calls[0][:2] == ("drawing-save-lt", {"replace": "0"})
+    assert calls[1][1]["path"] == target.replace("\\", "/") and calls[1][1]["replace"] == "1"
+    assert calls[1][2] == backend._SAVE_TIMEOUT
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("path", ["relative.dwg", "C:/no-such-folder-xyz/a.dwg", "C:/temp/a.dxf"])
+async def test_lt_save_rejects_unusable_paths_before_touching_autocad(path):
+    backend = LtFileIPCBackend()
+
+    async def dispatch(*_a, **_k):
+        raise AssertionError("must not reach AutoCAD")
+
+    backend._dispatch = dispatch
+    try:
+        result = await backend.drawing_save(path)
+    finally:
+        await backend.shutdown()
+    assert result.ok is False and result.error_code == "E_PARAMETER_REJECTED"
+
+
+@pytest.mark.asyncio
+async def test_lt_save_fails_when_unsaved_changes_remain():
+    backend = LtFileIPCBackend()
+
+    async def dispatch(*_a, **_k):
+        return CommandResult(ok=True, payload={"saved_path": "x", "dbmod": 8})
+
+    backend._dispatch = dispatch
+    try:
+        result = await backend.drawing_save()
+    finally:
+        await backend.shutdown()
+    assert result.ok is False and result.error_code == "E_POSTCONDITION_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_lt_stalled_trigger_returns_a_bounded_error_instead_of_hanging(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    backend = LtFileIPCBackend()
+    backend._ipc_dir = tmp_path
+    backend._TRIGGER_TIMEOUT = 0.3
+    release = threading.Event()
+
+    def stuck_trigger():
+        release.wait(5)
+        return True
+
+    backend._type_dispatch_trigger = stuck_trigger
+    try:
+        started = time.monotonic()
+        result = await backend._dispatch_unlocked("document-context", {})
+        elapsed = time.monotonic() - started
+    finally:
+        release.set()
+        await backend.shutdown()
+    assert result.ok is False and result.error_code == "E_LT_TRIGGER_STALLED"
+    assert elapsed < 2.0
+    assert list(tmp_path.glob("autocad_mcp_cmd_*")) == []   # the request file is cleaned up
+
+
+@pytest.mark.asyncio
+async def test_lt_quick_read_gives_up_early_and_retypes_the_trigger_once(tmp_path, monkeypatch):
+    import time
+
+    from autocad_mcp.backends import file_ipc as upstream
+
+    backend = LtFileIPCBackend()
+    backend._ipc_dir = tmp_path
+    backend._QUICK_TIMEOUT = 0.8
+    backend._RETRIGGER_AFTER = 0.2
+    triggers = []
+    backend._type_dispatch_trigger = lambda: triggers.append(1) or True
+    backend._cancel_active_command = lambda *a, **k: None
+    monkeypatch.setattr(upstream, "TIMEOUT", 300.0)           # what the launcher configures
+    monkeypatch.setattr(upstream, "detect_autocad_crash_state", lambda *a, **k: {})
+    try:
+        started = time.monotonic()
+        result = await backend._dispatch_unlocked("document-context", {})
+        elapsed = time.monotonic() - started
+    finally:
+        await backend.shutdown()
+    assert result.ok is False and result.error_code == "E_IPC_TIMEOUT"
+    assert elapsed < 5.0                      # not the 300 s the launcher allows for heavy batches
+    assert len(triggers) == 2                 # the first trigger plus exactly one retype
+
+
+@pytest.mark.asyncio
+async def test_lt_heavy_command_keeps_the_long_cap_and_is_not_retyped(tmp_path, monkeypatch):
+    from autocad_mcp.backends import file_ipc as upstream
+
+    backend = LtFileIPCBackend()
+    backend._ipc_dir = tmp_path
+    backend._RETRIGGER_AFTER = 0.1
+    triggers = []
+    backend._type_dispatch_trigger = lambda: triggers.append(1) or True
+    backend._cancel_active_command = lambda *a, **k: None
+    monkeypatch.setattr(upstream, "detect_autocad_crash_state", lambda *a, **k: {})
+    try:
+        result = await backend._dispatch_unlocked("create-polyline", {}, timeout=0.6)
+    finally:
+        await backend.shutdown()
+    assert result.error_code == "E_IPC_TIMEOUT" and len(triggers) == 1
+
+
+@pytest.mark.asyncio
+async def test_lt_help_popup_while_waiting_retypes_the_trigger_for_a_quick_read(tmp_path, monkeypatch):
+    import time
+
+    from autocad_mcp.backends import file_ipc as upstream
+
+    backend = LtFileIPCBackend()
+    backend._ipc_dir = tmp_path
+    backend._QUICK_TIMEOUT = 1.5
+    backend._RETRIGGER_AFTER = 60.0           # only the Help popup may cause the retype here
+    triggers = []
+    popups = iter([1])
+    backend._type_dispatch_trigger = lambda: triggers.append(1) or True
+    backend._cancel_active_command = lambda *a, **k: None
+    backend._close_stray_help = lambda: next(popups, 0)
+    monkeypatch.setattr(upstream, "detect_autocad_crash_state", lambda *a, **k: {})
+    try:
+        started = time.monotonic()
+        result = await backend._dispatch_unlocked("document-context", {})
+        elapsed = time.monotonic() - started
+    finally:
+        await backend.shutdown()
+    assert result.error_code == "E_IPC_TIMEOUT" and len(triggers) == 2 and elapsed < 4.0

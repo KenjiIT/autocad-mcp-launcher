@@ -7,13 +7,30 @@ revit_mcp = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(revit_mcp)
 
 
-def test_command_pins_packages_and_binds_loopback_only():
+def test_command_pins_packages_and_binds_loopback_only(monkeypatch):
+    monkeypatch.setattr(revit_mcp, "local_server", lambda: None)
     command = revit_mcp.command("npx.cmd")
     assert command[:3] == ["npx.cmd", "-y", revit_mcp.GATEWAY_PACKAGE]
     assert "@" in revit_mcp.GATEWAY_PACKAGE and "@" in revit_mcp.SERVER_PACKAGE
     assert command[command.index("--host") + 1] == "127.0.0.1"
     assert command[command.index("--port") + 1] == str(revit_mcp.PORT)
     assert revit_mcp.SERVER_PACKAGE in command[command.index("--stdio") + 1]
+
+
+def test_command_prefers_local_server_install(monkeypatch):
+    monkeypatch.setattr(revit_mcp, "local_server", lambda: '"node" "index.js"')
+    command = revit_mcp.command("npx.cmd")
+    assert command[command.index("--stdio") + 1] == '"node" "index.js"'
+
+
+def test_local_server_needs_installed_entry(tmp_path, monkeypatch):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    assert revit_mcp.local_server() is None
+    entry = tmp_path / "revit-mcp-server" / "node_modules" / "mcp-server-for-revit" / "build"
+    entry.mkdir(parents=True)
+    (entry / "index.js").write_text("x")
+    monkeypatch.setattr(revit_mcp.shutil, "which", lambda name: "node.exe")
+    assert revit_mcp.local_server() == f'"node.exe" "{entry / "index.js"}"'
 
 
 def test_revit_detection_reads_program_files_and_addins(tmp_path, monkeypatch):

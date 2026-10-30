@@ -35,7 +35,8 @@ BACKEND_TOOL = {
     "description": (
         "Chọn backend cho launcher. Mặc định là AutoCAD. Chỉ gọi mode=ezdxf sau khi "
         "đã hỏi người dùng và được đồng ý xuất DXF thay cho AutoCAD; DXF không phải DWG. "
-        "Gọi mode=autocad để quay lại AutoCAD. Lưu DXF trước khi đổi MCP hoặc backend."
+        "Gọi mode=autocad để quay lại AutoCAD. Lưu DXF trước khi đổi MCP hoặc backend. "
+        "Chỉ tạo DXF khi người dùng yêu cầu hoặc không có kết nối AutoCAD; AutoCAD đang kết nối thì không tự xuất DXF."
     ),
     "inputSchema": {
         "type": "object",

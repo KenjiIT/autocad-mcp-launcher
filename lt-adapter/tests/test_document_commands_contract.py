@@ -17,3 +17,13 @@ def test_document_commands_are_routed_by_the_dispatcher():
     assert '(= cmd-name "drawing-open") (mcp-cmd-drawing-open-lt params-json)' in text
     assert '(= cmd-name "document-activate-lt") (mcp-cmd-document-activate-lt params-json)' in text
     assert "vla-put-ActiveDocument" in _definition("mcp-cmd-document-activate-lt")
+
+
+def test_drawing_save_uses_activex_and_never_replaces_without_permission():
+    saver = _definition("mcp-cmd-drawing-save-lt")
+    assert "vla-SaveAs" in saver and "vla-Save" in saver and "(command" not in saver
+    assert "E_FILE_EXISTS" in saver and '(/= replace "1")' in saver
+    # Same-path check after SaveAs, and the dirty flag is reported back for verification.
+    assert "E_POSTCONDITION_MISMATCH" in saver
+    assert "DBMOD" in _definition("mcp-lt-save-result")
+    assert '(= cmd-name "drawing-save-lt") (mcp-cmd-drawing-save-lt params-json)' in LISP.read_text(encoding="utf-8")

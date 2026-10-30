@@ -32,6 +32,6 @@ Trước thao tác thay đổi đầu tiên, nói cho người dùng biết bả
 
 Đọc lại từ bản vẽ thực tế: đúng DWG/tầng/layer, số lượng đối tượng, tọa độ và kích thước chính, các vòng kín cần thiết, hướng mở cửa, kết quả chèn block, kích thước và chữ. Sau cùng kiểm tra các đối tượng thừa/trùng và xung đột layer; không chạy lệnh dọn dẹp làm thay đổi bản vẽ hàng loạt khi chưa xác định phạm vi ảnh hưởng. Ghi rõ phần đã kiểm tra, phần còn chưa đủ căn cứ và kết quả lưu/xuất thực sự quan sát được.
 
-Nếu AutoCAD không sẵn sàng, theo quy trình chuyển DXF và hỏi người dùng của `autocad-agent-coordinator`; không coi DXF là DWG. Nếu tool hiện tại không hỗ trợ một bước (ví dụ Layout, block, plot preview), làm phần được hỗ trợ, báo bước còn thiếu và không tuyên bố bản vẽ đã hoàn tất để in.
+Nếu AutoCAD không sẵn sàng, theo mục "Chỉ tạo file DXF" của `autocad-agent-coordinator` (hỏi người dùng trước); không coi DXF là DWG. Nếu tool hiện tại không hỗ trợ một bước (ví dụ Layout, block, plot preview), làm phần được hỗ trợ, báo bước còn thiếu và không tuyên bố bản vẽ đã hoàn tất để in.
 
 Nguồn quy trình tham khảo: [RDSIC, “AutoCAD xây dựng: 6 bước dựng bản vẽ đúng tỉ lệ, in chuẩn”](https://rdsic.edu.vn/hoc-thuat/autocad/huong-dan-su-dung-autocad-xay-dung-mot-cach-de-dang-va-hieu-qua-vi-cb.html). Dùng tài liệu dự án và quy định áp dụng của hồ sơ để chốt kích thước, layer, ký hiệu và tỷ lệ cụ thể.

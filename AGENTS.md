@@ -9,6 +9,7 @@ Mọi việc liên quan đến AutoCAD (vẽ, sửa, đọc, đo, kiểm tra, ch
 3. Yêu cầu mơ hồ hoặc thiếu số liệu: hỏi người dùng một lần, đưa hai lựa chọn "bạn cung cấp số liệu" hoặc "tôi tự vẽ theo giả định nêu rõ" (Quy tắc 2 của skill).
 4. Cần tạo nội thất, cây, cửa, thiết bị: tra thư viện block (`autocad-block-library`) trước khi vẽ tay.
 5. Câu hỏi có vài lựa chọn rời rạc (xác nhận ranh đất, số tầng hầm, phương án): gọi công cụ hỏi có lựa chọn (`AskUserQuestion`) ngay lần đầu, không liệt kê lựa chọn bằng văn bản (mục "Cách hỏi" của skill `autocad-agent-coordinator`).
+6. Chỉ tạo file DXF (`save_as_dxf`, backend `ezdxf`, bản sao DXF để phân tích) khi người dùng yêu cầu, hoặc khi không có kết nối AutoCAD. AutoCAD đang kết nối thì làm trực tiếp trên DWG đang mở; không tự xuất DXF (mục "Chỉ tạo file DXF" của skill `autocad-agent-coordinator`).
 
 Skill nằm trong `.claude/skills`, `.codex/skills` và `.agents/skills` (ba bản giống nhau). Không có công cụ Skill thì đọc thẳng tệp `SKILL.md` trong thư mục đó.
 

@@ -71,6 +71,7 @@
       ((= cmd-name "probe-documents") (mcp-cmd-probe-documents))
       ((= cmd-name "document-activate-lt") (mcp-cmd-document-activate-lt params-json))
       ((= cmd-name "drawing-open") (mcp-cmd-drawing-open-lt params-json))
+      ((= cmd-name "drawing-save-lt") (mcp-cmd-drawing-save-lt params-json))
       ((= cmd-name "layer-exists-lt") (mcp-cmd-layer-exists-lt params-json))
       ((= cmd-name "drawing-set-variables-lt") (mcp-cmd-drawing-set-variables-lt params-json))
       ((= cmd-name "entity-set-layer-lt") (mcp-cmd-entity-set-layer-lt params-json))
@@ -138,6 +139,40 @@
     (if (mcp-lt-same-path-p path (vla-get-FullName item))
       (setq found item)))
   found
+)
+
+(defun mcp-lt-save-result ()
+  (cons T (strcat "{\"saved_path\":\"" (mcp-escape-string (mcp-current-document-path))
+                  "\",\"dbmod\":" (itoa (getvar "DBMOD")) "}"))
+)
+
+(defun mcp-cmd-drawing-save-lt (params / raw replace path doc result)
+  "Save through ActiveX (no dialog, no command-line state): SaveAs to a path, or Save in place."
+  (vl-load-com)
+  (setq raw (mcp-json-get-string params "path")
+        replace (mcp-json-get-string params "replace")
+        doc (vla-get-ActiveDocument (vlax-get-acad-object)))
+  (cond
+    ((and raw (> (strlen raw) 0))
+     (setq path (mcp-lt-decode-json-u raw nil))
+     (cond
+       ((and (findfile path) (/= replace "1"))
+        (cons nil "E_FILE_EXISTS|The target file already exists; ask the user before replacing it"))
+       (t
+        (setq result (vl-catch-all-apply 'vla-SaveAs (list doc path)))
+        (cond
+          ((vl-catch-all-error-p result)
+           (cons nil (strcat "E_SYSTEM_CALL_FAILED|LT could not save: " (vl-catch-all-error-message result))))
+          ((not (mcp-lt-same-path-p raw (mcp-current-document-path)))
+           (cons nil "E_POSTCONDITION_MISMATCH|SaveAs returned but the active drawing is not the requested file"))
+          (t (mcp-lt-save-result))))))
+    ((= (getvar "DWGTITLED") 0)
+     (cons nil "E_PARAMETER_REJECTED|The drawing has no file name yet; provide a path"))
+    (t
+     (setq result (vl-catch-all-apply 'vla-Save (list doc)))
+     (if (vl-catch-all-error-p result)
+       (cons nil (strcat "E_SYSTEM_CALL_FAILED|LT could not save: " (vl-catch-all-error-message result)))
+       (mcp-lt-save-result))))
 )
 
 (defun mcp-cmd-drawing-open-lt (params / raw path result doc)

@@ -16,7 +16,7 @@ Bổ sung cho [autocad-identify-and-measure](../autocad-identify-and-measure/ref
 ## Quy trình
 
 1. **Chọn tầng và hệ tọa độ.** Nếu một DWG có nhiều mặt bằng đặt cạnh nhau (ví dụ tầng 3 và tầng 4–7), chọn một mặt bằng bằng hệ trục và tên tầng. Ghi phép dịch từ tọa độ nguồn sang tọa độ đích (`offset`), lấy từ hai trục đã biết, không ước lượng.
-2. **Xuất bản sao DXF** của bản vẽ nguồn bằng `drawing.save_as_dxf` (kèm `doc_id`, `expected_revision`, `lease_token`) vào thư mục tạm. Xác nhận `active_document_preserved` và revision không đổi. Phân tích bằng script, không đọc từng đối tượng qua MCP. `drawing.audit` trên DWG lớn trả kết quả quá dài và bị lưu ra file; đọc file đó bằng script nếu cần.
+2. **Xuất bản sao DXF** (chỉ khi người dùng yêu cầu, hoặc đã hỏi và được đồng ý, hoặc không có kết nối AutoCAD; xem mục "Chỉ tạo file DXF" của `autocad-agent-coordinator`) của bản vẽ nguồn bằng `drawing.save_as_dxf` (kèm `doc_id`, `expected_revision`, `lease_token`) vào thư mục tạm. Xác nhận `active_document_preserved` và revision không đổi. Phân tích bằng script, không đọc từng đối tượng qua MCP. `drawing.audit` trên DWG lớn trả kết quả quá dài và bị lưu ra file; đọc file đó bằng script nếu cần.
 3. **Chọn layer đưa vào truy biên.** Thống kê đối tượng theo layer trong cửa sổ của tầng. Lấy tường, kính, cửa sổ, đường viền sàn. Bỏ trục, kích thước, chữ, nội thất, hatch vật liệu, khung tên. Nếu có ranh đất trong vùng, áp dụng skill nhận diện ranh để loại ra. Ghi layer đã dùng và số đối tượng.
 4. **Truy biên** bằng [scripts/trace_outline.py](scripts/trace_outline.py) trong `.venv` của MCP (có `ezdxf`, `numpy`, `matplotlib`), chạy với `python -I`:
 

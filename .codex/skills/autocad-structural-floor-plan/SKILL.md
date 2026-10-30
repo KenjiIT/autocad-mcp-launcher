@@ -71,7 +71,7 @@ Dùng template của dự án nếu có. Nếu không, bộ mặc định: `S-GR
 - Chữ có dấu tiếng Việt: dùng MTEXT với `\fArial|…;` (style Standard dùng SHX làm mất dấu). Nhãn dầm ASCII không bị ảnh hưởng.
 - `render_preview` theo khổ ngang có thể ra ảnh xoay 90°; dùng `portrait` hoặc xoay ảnh. `plot_pdf` có thể đóng cửa sổ Microsoft Edge của người dùng; báo trước khi chạy.
 - `entity_id` dạng `0660` khi handle chỉ có số; thử thêm số 0 nếu bị từ chối.
-- Với bản sao nguồn: `save_as_dxf` giữ nguyên tài liệu đang mở; ưu tiên xuất DXF rồi đọc bằng `ezdxf` để thống kê, không đọc từng đối tượng qua MCP.
+- Với bản sao nguồn: `save_as_dxf` giữ nguyên tài liệu đang mở; xuất DXF rồi đọc bằng `ezdxf` để thống kê, không đọc từng đối tượng qua MCP. Chỉ xuất khi người dùng yêu cầu, hoặc đã hỏi và được đồng ý, hoặc không có kết nối AutoCAD (mục "Chỉ tạo file DXF" của `autocad-agent-coordinator`); nếu không, đọc qua MCP theo lô nhỏ.
 
 ## 8. Báo cáo bàn giao
 
