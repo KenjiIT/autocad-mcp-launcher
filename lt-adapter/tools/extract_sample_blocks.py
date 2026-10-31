@@ -54,9 +54,9 @@ def library_id(base_id: str, low: list, high: list) -> str:
     return f"{base_id}-{round_mm(high[0] - low[0])}x{round_mm(high[1] - low[1])}"
 
 
-async def open_and_wait(backend, path: Path) -> None:
+async def open_and_wait(backend, path: Path, timeout: float = 90) -> None:
     os.startfile(str(path))
-    deadline = time.time() + 90
+    deadline = time.time() + timeout
     while time.time() < deadline:
         await asyncio.sleep(2)
         ready = await backend.ensure_ready()

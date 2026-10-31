@@ -392,7 +392,7 @@ class App(tk.Tk):
         ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Thư viện block", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
-                  text="Nơi lưu các block dựng sẵn (nội thất, cây cối, thiết bị vệ sinh) dạng .dwg hoặc .dxf. Agent chèn chúng bằng tên file; đơn vị mỗi file phải là mm. Quy ước đặt tên có trong README.md của thư mục.",
+                  text="Nơi lưu các block dựng sẵn (nội thất, cây cối, thiết bị vệ sinh) dạng .dwg hoặc .dxf. Agent chèn chúng bằng tên file; đơn vị mỗi file phải là mm. Thư mục con có file index.json là một kho riêng (ví dụ dwgshare), agent tra theo loại và kích thước. Quy ước đặt tên có trong README.md của thư mục.",
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
         library_row = ttk.Frame(frame)
         library_row.pack(fill="x")
@@ -531,9 +531,18 @@ class App(tk.Tk):
         folder = block_library_dir()
         try:
             count = sum(1 for path in folder.iterdir() if path.suffix.lower() in (".dwg", ".dxf"))
+            stores = sorted(path for path in folder.iterdir()
+                            if path.is_dir() and not path.name.startswith(".") and (path / "index.json").is_file())
         except OSError:
             return "Thư mục chưa có; sẽ được tạo khi bạn mở."
-        return f"Hiện có {count} tệp block (.dwg/.dxf)."
+        text = f"Hiện có {count} tệp block (.dwg/.dxf)."
+        for store in stores:
+            try:
+                in_store = sum(1 for path in store.iterdir() if path.suffix.lower() in (".dwg", ".dxf"))
+            except OSError:
+                continue
+            text += f" Kho riêng \"{store.name}\": {in_store} tệp."
+        return text
 
     def open_block_library(self):
         folder = block_library_dir()
@@ -686,9 +695,17 @@ class App(tk.Tk):
                 update = find_update(UPDATE_REPO, app_version())
                 if update:
                     self.events.put(("update_available", update))
-            except Exception:
-                # Update checks are best-effort; offline use should stay quiet.
-                pass
+            except Exception as exc:
+                # Best-effort and quiet in the UI, but leave the reason in a log so a
+                # release without its package is not invisible.
+                try:
+                    from logfile import RotatingLog
+
+                    log = RotatingLog(LOG_DIR / "updater.log", max_bytes=256 * 1024, keep=1)
+                    log.banner(f"update check failed: {type(exc).__name__}: {exc}")
+                    log.close()
+                except Exception:
+                    pass
 
         threading.Thread(target=worker, daemon=True).start()
 

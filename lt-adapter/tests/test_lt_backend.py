@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from autocad_mcp.backends.base import CommandResult
@@ -476,6 +478,86 @@ async def test_lt_block_list_uses_library_index(tmp_path, monkeypatch):
     assert wc["source"] == "DesignCenter/House Designer.dwg :: Toilet - top"
     assert entries["FURN-OWN-1000x500"]["scale_factor"] is None
     assert "meaning" not in entries["FURN-OWN-1000x500"]
+
+
+def _make_store(root, name, rows):
+    """rows: (file id, category, width, depth). A store is a sub-folder with an index.json."""
+    store = root / name
+    store.mkdir()
+    index = {}
+    for file_id, category, width, depth in rows:
+        (store / f"{file_id}.dwg").write_bytes(b"AC1032")
+        index[file_id] = {"category": category, "units": "millimeters", "mm_per_unit": 1.0,
+                          "size_mm": [width, depth], "meaning": "x", "view": "unverified"}
+    (store / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    return store
+
+
+def test_block_library_path_finds_blocks_in_stores(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOCAD_MCP_BLOCK_LIBRARY", str(tmp_path))
+    (tmp_path / "FURN-OWN.dwg").write_bytes(b"AC1032")
+    store = _make_store(tmp_path, "mine", [("DS-SOFA-0001-2100x900", "SOFA", 2100, 900)])
+    (tmp_path / "plain").mkdir()
+    (tmp_path / "plain" / "NOT-A-STORE.dwg").write_bytes(b"AC1032")  # no index.json: not a store
+    find = LtFileIPCBackend._block_library_path
+    assert find("FURN-OWN") == (tmp_path / "FURN-OWN.dwg").resolve().as_posix()
+    assert find("DS-SOFA-0001-2100x900") == (store / "DS-SOFA-0001-2100x900.dwg").resolve().as_posix()
+    assert find("NOT-A-STORE") is None
+
+
+@pytest.mark.asyncio
+async def test_lt_block_list_summarises_stores_and_filters_one(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOCAD_MCP_BLOCK_LIBRARY", str(tmp_path))
+    (tmp_path / "FURN-OWN-1000x500.dwg").write_bytes(b"AC1032")
+    _make_store(tmp_path, "mine", [
+        ("DS-SOFA-0001-2100x900", "SOFA", 2100, 900),
+        ("DS-SOFA-0002-1000x900", "SOFA", 1000, 900),
+        ("DS-TABLE-0003-1200x600", "TABLE", 1200, 600),
+    ])
+    backend = LtFileIPCBackend()
+
+    async def dispatch(command, params):
+        if command == "block-list":
+            return CommandResult(ok=True, payload={"blocks": ["A"]})
+        return CommandResult(ok=True, payload={"INSUNITS": 4})
+
+    backend._dispatch = dispatch
+    try:
+        summary = await backend.block_list()
+        sofas = await backend.block_list({"kho": "mine", "category": "sofa", "min_width": 1800})
+        unknown = await backend.block_list({"kho": "nope"})
+    finally:
+        await backend.shutdown()
+    assert [e["name"] for e in summary.payload["library"]] == ["FURN-OWN-1000x500"]
+    assert summary.payload["stores"] == [{"kho": "mine", "count": 3, "categories": {"SOFA": 2, "TABLE": 1}}]
+    store = sofas.payload["store"]
+    assert store["matching"] == 1 and store["entries"][0]["name"] == "DS-SOFA-0001-2100x900"
+    assert store["entries"][0]["category"] == "SOFA"
+    assert "library" not in sofas.payload and "blocks" not in sofas.payload
+    assert unknown.payload["store"]["error"] and unknown.payload["store"]["stores"] == ["mine"]
+
+
+@pytest.mark.asyncio
+async def test_lt_block_export_rebased_sends_offset_and_rejects_bad_names(tmp_path, monkeypatch):
+    monkeypatch.setenv("AUTOCAD_MCP_BLOCK_LIBRARY", str(tmp_path / "kho"))
+    backend = LtFileIPCBackend()
+    calls = []
+
+    async def dispatch(command, params):
+        calls.append((command, params))
+        return CommandResult(ok=True, payload={})
+
+    backend._dispatch = dispatch
+    try:
+        await backend.block_export_rebased("DWGshare.com_5", "DS-SOFA-0005-1000x500", -250.5, -100)
+        bad = await backend.block_export_rebased("X", "../escape", 0, 0)
+    finally:
+        await backend.shutdown()
+    command, params = calls[0]
+    assert command == "block-export-rebased-lt"
+    assert (params["dx"], params["dy"]) == (-250.5, -100.0)
+    assert params["target_path"].endswith("kho/DS-SOFA-0005-1000x500.dwg")
+    assert not bad.ok and bad.error_code == "E_PARAMETER_REJECTED" and len(calls) == 1
 
 
 @pytest.mark.asyncio

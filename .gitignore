@@ -14,3 +14,5 @@ launcher/state/
 # Autodesk sample blocks extracted into the block library (not ours to redistribute)
 blocks/*.dwg
 blocks/*.dxf
+# Kho riêng (sub-folders of blocks/): third-party packs, local only
+blocks/*/

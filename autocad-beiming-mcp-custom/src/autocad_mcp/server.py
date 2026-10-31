@@ -1229,7 +1229,9 @@ async def block(
     """Block definition, insertion, and attribute management.
 
     Operations:
-      list                 — List all block definitions.
+      list                 — List all block definitions. On AutoCAD LT it also lists the block library and
+                             its stores (kho); data {kho, category?, min_width?, max_width?, min_depth?,
+                             max_depth?, limit?} (mm) lists one store, filtered by size.
       insert               — data: {name, x, y, scale?, rotation?, block_id?}
       insert_with_attributes — data: {name, x, y, scale?, rotation?, attributes: {tag: value}}
       get_attributes       — data: {entity_id}
@@ -1258,7 +1260,10 @@ async def block(
             return await add_screenshot_if_available(replay, False)
 
     if operation == "list":
-        result = await backend.block_list()
+        if backend.name == "file_ipc_lt":
+            result = await backend.block_list(data or None)
+        else:
+            result = await backend.block_list()
     elif operation == "insert":
         result = await backend.block_insert(
             data["name"], data["x"], data["y"],

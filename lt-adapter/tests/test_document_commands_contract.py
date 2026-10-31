@@ -27,3 +27,13 @@ def test_drawing_save_uses_activex_and_never_replaces_without_permission():
     assert "E_POSTCONDITION_MISMATCH" in saver
     assert "DBMOD" in _definition("mcp-lt-save-result")
     assert '(= cmd-name "drawing-save-lt") (mcp-cmd-drawing-save-lt params-json)' in LISP.read_text(encoding="utf-8")
+
+
+def test_rebased_block_export_explodes_a_copy_and_never_restores_erased_objects():
+    text = LISP.read_text(encoding="utf-8")
+    assert '(= cmd-name "block-export-rebased-lt") (mcp-cmd-block-export-rebased-lt params-json)' in text
+    exporter = _definition("mcp-cmd-block-export-rebased-lt")
+    assert "_.EXPLODE" in exporter and "_.-WBLOCK" in exporter and "(list 0.0 0.0 0.0)" in exporter
+    # entdel on an erased object restores it, so survivors are found with ENTLAST, which skips erased ones.
+    assert "(entlast)" in exporter and "vlax-erased-p" not in exporter and "(entnext" in exporter
+    assert "E_PARAMETER_REJECTED|Target file already exists" in exporter

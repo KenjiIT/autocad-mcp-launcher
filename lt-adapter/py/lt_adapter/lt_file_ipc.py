@@ -652,24 +652,35 @@ class LtFileIPCBackend(FileIPCBackend):
         return None
 
     @classmethod
+    def _block_library_stores(cls) -> list[Path]:
+        """Sub-folders of the library that hold an ``index.json``: one per "kho" (store)."""
+        folder = cls._block_library_folder()
+        try:
+            return sorted(path for path in folder.iterdir()
+                          if path.is_dir() and not path.name.startswith(".") and (path / "index.json").is_file())
+        except OSError:
+            return []
+
+    @classmethod
     def _block_library_path(cls, name) -> str | None:
         """Return the library file for ``name`` (``<name>.dwg`` or ``.dxf``), if any.
 
         The folder comes from AUTOCAD_MCP_BLOCK_LIBRARY, else ``blocks`` at the
-        repository root.  Names are limited to letters, digits, ``_`` and ``-``,
+        repository root; its stores (sub-folders with an ``index.json``) are searched
+        after it.  Names are limited to letters, digits, ``_`` and ``-``,
         so a name can never leave the folder.
         """
         if not isinstance(name, str) or not cls._LIBRARY_BLOCK_NAME.fullmatch(name):
             return None
-        folder = cls._block_library_folder()
-        for extension in (".dwg", ".dxf"):
-            candidate = folder / f"{name}{extension}"
-            if candidate.is_file():
-                return candidate.resolve().as_posix()
+        for folder in [cls._block_library_folder(), *cls._block_library_stores()]:
+            for extension in (".dwg", ".dxf"):
+                candidate = folder / f"{name}{extension}"
+                if candidate.is_file():
+                    return candidate.resolve().as_posix()
         return None
 
-    def _block_library_entries(self, drawing_units: int | None) -> list[dict]:
-        folder = self._block_library_folder()
+    def _block_library_entries(self, drawing_units: int | None, folder: Path | None = None) -> list[dict]:
+        folder = folder or self._block_library_folder()
         try:
             index = json.loads((folder / "index.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -699,7 +710,7 @@ class LtFileIPCBackend(FileIPCBackend):
                 "scale_factor": round(file_mm / drawing_mm, 6) if file_mm and drawing_mm else None,
                 "units_match": None if not file_mm or not drawing_mm else file_mm == drawing_mm,
             }
-            for field in ("meaning", "view", "size_mm", "bbox_mm", "dynamic"):
+            for field in ("meaning", "view", "size_mm", "bbox_mm", "dynamic", "category"):
                 if field in known:
                     entry[field] = known[field]
             if known.get("source_file"):
@@ -707,8 +718,59 @@ class LtFileIPCBackend(FileIPCBackend):
             entries[path.stem] = entry
         return list(entries.values())
 
-    async def block_list(self) -> CommandResult:
-        """List the drawing's blocks plus the library files that block.insert can load."""
+    _STORE_LIMIT = 40
+
+    def _store_listing(self, drawing_units: int | None, query: dict) -> dict:
+        """Answer ``block list`` for the stores: a summary, or the entries of one store that match ``query``."""
+        stores = {path.name: path for path in self._block_library_stores()}
+        wanted = query.get("kho")
+        if not wanted:
+            summary = []
+            for name, path in stores.items():
+                entries = self._block_library_entries(drawing_units, path)
+                categories: dict[str, int] = {}
+                for entry in entries:
+                    category = entry.get("category") or "-"
+                    categories[category] = categories.get(category, 0) + 1
+                summary.append({"kho": name, "count": len(entries), "categories": categories})
+            return {"stores": summary}
+        if wanted not in stores:
+            return {"error": f"Không có kho '{wanted}'", "stores": sorted(stores)}
+        entries = self._block_library_entries(drawing_units, stores[wanted])
+        category = str(query["category"]).upper() if query.get("category") else None
+
+        def side(entry: dict, position: int):
+            size = entry.get("size_mm")
+            return size[position] if isinstance(size, list) and len(size) == 2 else None
+
+        def keep(entry: dict) -> bool:
+            if category and entry.get("category") != category:
+                return False
+            for position, low, high in ((0, "min_width", "max_width"), (1, "min_depth", "max_depth")):
+                value = side(entry, position)
+                if value is None:
+                    return False
+                if query.get(low) is not None and value < float(query[low]):
+                    return False
+                if query.get(high) is not None and value > float(query[high]):
+                    return False
+            return True
+
+        matching = [entry for entry in entries if keep(entry)]
+        try:
+            limit = max(1, min(200, int(query.get("limit", self._STORE_LIMIT))))
+        except (TypeError, ValueError):
+            limit = self._STORE_LIMIT
+        return {"kho": wanted, "matching": len(matching), "shown": min(limit, len(matching)),
+                "entries": matching[:limit]}
+
+    async def block_list(self, query: dict | None = None) -> CommandResult:
+        """List the drawing's blocks plus the library files that block.insert can load.
+
+        Without ``query`` the root library is listed in full and each store only as a
+        summary.  ``query = {"kho": name, "category": ..., "min_width": ..., "max_width": ...,
+        "min_depth": ..., "max_depth": ..., "limit": n}`` lists one store, filtered by size in mm.
+        """
         result = await super().block_list()
         if not result.ok or not isinstance(result.payload, dict):
             return result
@@ -723,6 +785,14 @@ class LtFileIPCBackend(FileIPCBackend):
         result.payload["library_folder"] = str(self._block_library_folder())
         result.payload["drawing_units"] = (
             self._INSUNITS_NAMES.get(drawing_units, drawing_units) if drawing_units is not None else None)
+        if isinstance(query, dict) and query.get("kho"):
+            result.payload["store"] = self._store_listing(drawing_units, query)
+            result.payload.pop("blocks", None)
+            result.payload.pop("library", None)
+        else:
+            stores = self._store_listing(drawing_units, {})
+            if stores.get("stores"):
+                result.payload["stores"] = stores["stores"]
         return result
 
     async def block_export(self, name: str, library_name: str) -> CommandResult:
@@ -734,6 +804,19 @@ class LtFileIPCBackend(FileIPCBackend):
         folder.mkdir(parents=True, exist_ok=True)
         return await self._dispatch("block-export-lt", {
             "name": name, "target_path": (folder / f"{library_name}.dwg").resolve().as_posix(),
+        })
+
+    async def block_export_rebased(self, name: str, library_name: str, dx: float, dy: float) -> CommandResult:
+        """Like block_export, but the file's base point moves: the block is inserted at (dx, dy), exploded and
+        written with base point 0,0 (maintenance use, for blocks whose geometry is far from their base point)."""
+        if not isinstance(library_name, str) or not self._LIBRARY_BLOCK_NAME.fullmatch(library_name):
+            return CommandResult(ok=False, error="Library names use letters, digits, _ and - only",
+                                 error_code="E_PARAMETER_REJECTED", recoverable=False)
+        folder = self._block_library_folder()
+        folder.mkdir(parents=True, exist_ok=True)
+        return await self._dispatch("block-export-rebased-lt", {
+            "name": name, "target_path": (folder / f"{library_name}.dwg").resolve().as_posix(),
+            "dx": float(dx), "dy": float(dy),
         })
 
     async def block_catalog(self, start: int = 0, limit: int = 40) -> CommandResult:

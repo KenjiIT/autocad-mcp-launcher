@@ -36,7 +36,7 @@
   "Commands that pass points to (command ...) and would otherwise follow the user's OSMODE."
   (wcmatch cmd-name (strcat "create-*,entity-move,entity-copy,entity-rotate,entity-scale,entity-mirror,"
                             "entity-offset,entity-array,entity-fillet,entity-chamfer,entity-trim,entity-extend,"
-                            "entity-break,entity-create-lines-lt,block-insert*,block-define,pid-*,region-copy-lt"))
+                            "entity-break,entity-create-lines-lt,block-insert*,block-export-rebased*,block-define,pid-*,region-copy-lt"))
 )
 
 (defun mcp-dispatch-command (cmd-name params-json / old-osmode result)
@@ -88,6 +88,7 @@
       ((= cmd-name "block-insert-lt") (mcp-cmd-block-insert-lt params-json))
       ((= cmd-name "block-catalog-lt") (mcp-cmd-block-catalog-lt params-json))
       ((= cmd-name "block-export-lt") (mcp-cmd-block-export-lt params-json))
+      ((= cmd-name "block-export-rebased-lt") (mcp-cmd-block-export-rebased-lt params-json))
       (t (mcp-dispatch-command-upstream cmd-name params-json))
     )
   )
@@ -927,6 +928,55 @@
      (if (findfile path)
        (cons T (strcat "{\"block\":\"" (mcp-escape-string name) "\",\"file\":\"" (mcp-escape-string path) "\"}"))
        (cons nil "E_SYSTEM_CALL_FAILED|The block file was not written")))
+  )
+)
+
+(defun mcp-cmd-block-export-rebased-lt (params / name path dx dy old-attreq before ent ss count total)
+  "Write block NAME to PATH with its base point moved: insert it at (DX, DY), explode that copy and
+   -WBLOCK the pieces with base point 0,0.  For blocks whose geometry lies far from their own base point."
+  (setq name (mcp-json-get-string params "name")
+        path (mcp-json-get-string params "target_path")
+        dx (mcp-json-get-number params "dx")
+        dy (mcp-json-get-number params "dy"))
+  (cond
+    ((or (not name) (= name "") (not path) (= path "") (not dx) (not dy))
+     (cons nil "E_PARAMETER_REJECTED|Block name, target_path, dx and dy are required"))
+    ((not (tblsearch "BLOCK" name))
+     (cons nil (strcat "E_PARAMETER_REJECTED|Block '" (mcp-escape-string name) "' is not in the active drawing")))
+    ((findfile path)
+     (cons nil "E_PARAMETER_REJECTED|Target file already exists"))
+    (T
+     (vl-load-com)
+     (setq old-attreq (getvar "ATTREQ") before (entlast))
+     (setvar "ATTREQ" 0)
+     (command "_.-INSERT" name (list dx dy 0.0) 1.0 1.0 0.0)
+     (setvar "ATTREQ" old-attreq)
+     (setq ent (entlast))
+     (cond
+       ((or (not ent) (equal ent before))
+        (cons nil "E_SYSTEM_CALL_FAILED|Block insert did not create an entity"))
+       (T
+        (command "_.EXPLODE" ent)
+        ;; Everything added after BEFORE is the exploded copy.
+        (setq ss (ssadd) count 0 ent (if before (entnext before) (entnext)))
+        (while ent
+          (ssadd ent ss)
+          (setq count (1+ count) ent (entnext ent)))
+        (cond
+          ((zerop count)
+           (cons nil "E_SYSTEM_CALL_FAILED|Block explode produced no objects"))
+          (T
+           (command "_.-WBLOCK" path "" (list 0.0 0.0 0.0) ss "")
+           ;; -WBLOCK deletes the objects.  Remove any that survived; ENTLAST never returns an erased one
+           ;; (entdel on an erased object would restore it).
+           (setq total count ent (entlast))
+           (while (and ent (not (equal ent before)))
+             (entdel ent)
+             (setq ent (entlast)))
+           (if (findfile path)
+             (cons T (strcat "{\"block\":\"" (mcp-escape-string name) "\",\"file\":\"" (mcp-escape-string path) "\",\"objects\":" (itoa total) "}"))
+             (cons nil "E_SYSTEM_CALL_FAILED|The block file was not written"))))))
+    )
   )
 )
 

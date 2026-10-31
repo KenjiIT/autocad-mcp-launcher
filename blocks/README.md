@@ -8,6 +8,12 @@ Bộ khởi đầu gồm các block tách từ bản vẽ mẫu đi kèm AutoCAD
 
 `index.json` ghi nguồn gốc và mô tả của từng file (block gốc, ý nghĩa, loại hình, đơn vị, kích thước, khung bao). `block list` đọc nó để trả thêm `meaning`, `view`, `size_mm`, `bbox_mm` và `scale_factor`.
 
+## Kho riêng
+
+Thư mục con của `blocks/` có tệp `index.json` là một **kho** (store): bộ block của riêng bạn, nhập từ nguồn ngoài, tách khỏi 105 block gốc. Tên tệp vẫn là tên block và vẫn theo quy ước dưới đây; `block insert` tìm tên ở thư mục gốc trước rồi đến các kho. `block list` chỉ tóm tắt kho (số tệp theo loại); muốn xem một kho thì gọi `block list` với `data={"kho": ..., "category": ..., "min_width": ..., "max_width": ..., "min_depth": ..., "max_depth": ..., "limit": ...}` (mm). `index.json` của kho có cùng khuôn với `index.json` ở thư mục gốc, thêm trường `category` (viết hoa, dùng để lọc). Cả thư mục con nằm ngoài git (`.gitignore`), vì nội dung là của bên thứ ba.
+
+Kho đang có: `dwgshare/` (1.906 tệp) nhập từ 9 gói nội thất của DWGshare.com bằng `lt-adapter/tools/import_block_pack.py`. Khối có hình xa điểm chèn gốc được dời điểm chèn về giữa mép dưới (chạy với `--rebase`; trường `rebased` trong `index.json`). Tên khối trong gói chỉ là `DWGshare.com_<số>`, nên chỉ biết loại gói và kích thước; xem hình sau khi chèn. Gói có ghi chú bản quyền cấm phân phối lại, đừng chia sẻ thư mục này.
+
 ## Quy ước tên
 
 Tên file (bỏ đuôi) chính là tên block. Chỉ dùng chữ in hoa không dấu, số, dấu gạch ngang `-` và `_`, tối đa 80 ký tự. Không dùng dấu cách, dấu tiếng Việt, `/`, `\` hay `..`.

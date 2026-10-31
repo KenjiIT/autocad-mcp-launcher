@@ -67,7 +67,7 @@ Không vẽ gì trước khi người dùng đồng ý.
   - Dầm chính đặt trên cột hoặc vách thật, không đặt theo trục.
   - Vẽ dầm liền qua vách mỏng hơn bề rộng dầm.
   - Hatch vùng sàn và hạ sàn làm sau dầm.
-- **Kiến trúc:** theo [autocad-start-construction-drawing](../autocad-start-construction-drawing/SKILL.md). Thứ tự: trục, tường và cột, cửa, thiết bị và nội thất (sao chép hoặc lật từ mẫu), tên phòng và diện tích, kích thước, ghi chú.
+- **Kiến trúc:** theo [autocad-start-construction-drawing](../autocad-start-construction-drawing/SKILL.md). Thứ tự: trục, tường và cột, cửa, thiết bị và nội thất (sao chép hoặc lật từ mẫu), tên phòng và diện tích, kích thước, ghi chú. Mặt bằng chung cư: thêm [autocad-apartment-floor-plan](../autocad-apartment-floor-plan/SKILL.md) (kết cấu và giao thông chung đi trước, rà checklist trước khi giao).
 - **Cả hai nhánh:** dựng lưới trục sớm và đối chiếu tọa độ với bản nguồn để phát hiện sớm lệch gốc, xoay hoặc sai tỉ lệ.
 - Sau mỗi mốc (nền và trục; cấu kiện chính; chi tiết; ghi chú và kích thước), gửi ảnh cho người dùng duyệt rồi mới làm tiếp.
 

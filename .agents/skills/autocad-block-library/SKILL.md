@@ -1,6 +1,6 @@
 ---
 name: autocad-block-library
-description: Tra và chèn block dựng sẵn thay vì vẽ tay - nội thất (giường, bàn, ghế, tủ, sofa), thiết bị vệ sinh (toilet, bồn cầu, lavabo), thiết bị bếp, cửa đi, cửa sổ, cây cối, xe, ngoại thất, ký hiệu bản vẽ, thép hình; kèm danh mục 432 block của bản vẽ mẫu AutoCAD LT. Dùng khi người dùng cần bố trí hoặc thêm một vật thể thông dụng, hoặc nói 'chèn block', 'dùng block có sẵn'. Gọi trước khi định vẽ tay một vật thể.
+description: Tra và chèn block dựng sẵn thay vì vẽ tay - nội thất (giường, bàn, ghế, tủ, sofa), thiết bị vệ sinh (toilet, bồn cầu, lavabo), thiết bị bếp, cửa đi, cửa sổ, cây cối, xe, ngoại thất, ký hiệu bản vẽ, thép hình; kèm danh mục 432 block của bản vẽ mẫu AutoCAD LT và các kho riêng của người dùng (ví dụ kho `dwgshare`: sofa, bàn, văn phòng, bếp - phòng ngủ - vệ sinh, cây, cầu thang). Dùng khi người dùng cần bố trí hoặc thêm một vật thể thông dụng, hoặc nói 'chèn block', 'dùng block có sẵn'. Gọi trước khi định vẽ tay một vật thể.
 ---
 
 # Thư viện block AutoCAD
@@ -12,7 +12,7 @@ Thư viện là thư mục `blocks/` của dự án (hoặc thư mục trong bi�
 ## Quy trình lấy block thay vì vẽ
 
 1. **Xác định vật thể:** là gì, nhìn từ đâu (mặt bằng, mặt đứng hay ký hiệu), kích thước cần, đặt ở đâu và hướng nào. Bản vẽ mặt bằng dùng block loại *mặt bằng*; chỉ dùng loại *mặt đứng* khi vẽ mặt đứng hoặc mặt cắt.
-2. **Tra thư viện:** gọi `block` với `operation="list"`. Trường `library` liệt kê mỗi tệp với `meaning` (ý nghĩa), `view`, `size_mm` (rộng x sâu), `bbox_mm` (khung bao so với điểm chèn), `scale_factor`, `units`. Chọn mục có ý nghĩa và kích thước gần nhất. Cần tìm rộng hơn thì đọc [references/catalog.md](references/catalog.md), nơi liệt kê cả block chưa tách thành tệp.
+2. **Tra thư viện:** gọi `block` với `operation="list"`. Trường `library` liệt kê mỗi tệp với `meaning` (ý nghĩa), `view`, `size_mm` (rộng x sâu), `bbox_mm` (khung bao so với điểm chèn), `scale_factor`, `units`. Chọn mục có ý nghĩa và kích thước gần nhất. Cần tìm rộng hơn thì đọc [references/catalog.md](references/catalog.md), nơi liệt kê cả block chưa tách thành tệp. Không có mục phù hợp ở `library` thì tra các **kho riêng** (mục dưới), trước khi vẽ tay.
 3. **Tính điểm chèn.** Điểm chèn của block là gốc (0,0) của chính nó và **không nằm ở giữa**. `bbox_mm = [x1, y1, x2, y2]` cho biết hình nằm ở đâu quanh gốc (mm, tỉ lệ 1, góc xoay 0). Ví dụ `SANI-WC-PLAN` có `y` từ -838 đến 0: gốc ở mép sau giữa, tức đặt gốc lên mặt tường là bồn cầu áp tường.
    - Muốn tâm khung bao rơi vào điểm (cx, cy) khi xoay 0: chèn tại x = cx − (x1+x2)/2, y = cy − (y1+y2)/2.
    - Khi có xoay góc θ (độ, ngược chiều kim đồng hồ): lấy vectơ tâm c = ((x1+x2)/2, (y1+y2)/2); điểm chèn = (cx, cy) − R(θ)·c, với R(θ) quay vectơ một góc θ.
@@ -43,6 +43,27 @@ Tên tệp có dạng `<NHÓM>-<LOẠI>[-<BIẾN THỂ>]-<RỘNG>x<SÂU>` (mm). 
 | `ELEC` | 1 | Chiếu sáng: đèn huỳnh quang âm trần | `ELEC-LIGHT-RECESSED-DYN-1000x500` |
 
 Quy ước tên và yêu cầu khi tự thêm block nằm ở `blocks/README.md`.
+
+## Kho riêng (`stores` trong kết quả `block list`)
+
+Ngoài 105 tệp ở thư mục gốc, người dùng có thể có thêm các **kho**: thư mục con của thư viện có tệp `index.json`. Kho là bộ block nhập từ bên ngoài (hiện có `dwgshare`, nhập từ các gói nội thất của DWGshare.com). `block list` không in hết kho (có hàng nghìn tệp); nó chỉ có trường `stores`: tên kho, số tệp, số tệp theo loại.
+
+Cách tra:
+
+1. Gọi `block` `list` không tham số, đọc `stores` để biết có kho nào và loại nào (`SOFA`, `TABLE`, `OFFICE`, `DECOR`, `KBB`, `GYM`, `STAIR`, `LAND`, `BRAND` với kho `dwgshare`). Không có `stores` thì máy này chưa có kho riêng: báo người dùng, đừng bịa tên.
+2. Lọc một kho: `block` `list` với `data={"kho": "dwgshare", "category": "SOFA", "min_width": 1800, "max_width": 2400, "min_depth": 800, "max_depth": 1000, "limit": 20}` (mọi trường trừ `kho` là tùy chọn, đơn vị mm). Kết quả nằm ở `store.entries`; mỗi mục có `name`, `size_mm`, `bbox_mm`, `category`, `scale_factor` giống trường `library`. `store.matching` là số mục khớp, `shown` là số đã in (tối đa `limit`, mặc định 40). Lọc hẹp rồi mới đọc; đừng xin cả kho.
+3. Chèn đúng như block thường (`block` `insert`, `scale` 1): tên trong kho là tên tệp bỏ đuôi, ví dụ `DS-SOFA-0063-2135x865`. Tính điểm chèn bằng `bbox_mm` như ở bước 3 của quy trình.
+
+Điều cần biết về kho `dwgshare`:
+
+- Kho có 1.906 tệp. 1.301 tệp giữ điểm chèn gốc của gói; 605 tệp (`rebased` trong `index.json`) có hình nằm xa điểm chèn gốc nên đã **dời điểm chèn về giữa mép dưới của hình**: `bbox_mm` của chúng là `[-rộng/2, 0, rộng/2, sâu]`, tức gốc (0,0) ở giữa mép dưới. Với tệp không dời, vẫn đọc `bbox_mm` như thường lệ để tính điểm chèn. 20 khối quá nặng nên không nhập được; gói `BRAND` có 15 tệp.
+- Các tệp chỉ có tên dạng `DS-<LOẠI>-<số khối>-<rộng>x<sâu>`: nguồn đặt tên khối là `DWGshare.com_<số>`, không nói đó là vật gì. Cái duy nhất biết chắc là **loại gói** (sofa, bàn, văn phòng...) và **kích thước thật** (mm). `meaning` ghi đúng như vậy và `view` là `unverified`.
+- Vì thế **sau khi chèn phải kiểm bằng mắt**: gọi `drawing` `get_screenshot` (hoặc phóng to vùng vừa chèn) và xem hình có đúng vật cần không, có nhìn từ trên xuống không. Sai thì xóa đối tượng vừa chèn (`entity` `get` lấy handle rồi xóa), thử mục khác cùng cỡ, và nói rõ với người dùng.
+- Loại gói chỉ là gợi ý về chủ đề. Gói `SOFA` ("Most popular sofa sets") phần lớn là cả cụm bố trí phòng khách (sofa kèm bàn, ghế), không phải một chiếc sofa riêng. Có tệp là hình nhìn ngang (mặt đứng): ví dụ một xe ô tô nằm trong nhóm `STAIR`. Các nhóm `KBB`, `DECOR`, `GYM` trộn nhiều loại vật. Kích thước chỉ gợi ý. Giường đôi khoảng 1600x2000, bồn cầu khoảng 400x700.
+- Layer và màu nét bên trong block của gói chưa được kiểm; chèn xong xem lại layer đối tượng `INSERT`, và nếu hình mang layer lạ vào bản vẽ thì báo người dùng.
+- Mọi khối trong gói mang ghi chú bản quyền "© DWGshare.com. All rights reserved. Reproduction or redistribution without permission is not allowed." Kho chỉ nằm trên máy người dùng. Không đưa tệp của kho lên repo, không đóng gói kèm bản cài, không gửi đi nơi khác.
+
+Thêm kho mới (gói DWG khác) bằng `lt-adapter/tools/import_block_pack.py` (xem docstring); người dùng thêm thủ công bằng cách tạo thư mục con trong `blocks\` có `index.json` đúng mẫu `blocks\README.md`.
 
 ## Lưu ý theo loại
 
