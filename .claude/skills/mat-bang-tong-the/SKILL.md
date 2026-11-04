@@ -72,7 +72,7 @@ Khi người dùng nhờ thiết kế phương án và dựng MBTT (không chỉ
 15. Ghi kích thước theo phương án mới:
     - cạnh tiếp giáp đường chính: khoảng lùi – bề rộng khối – khoảng lùi, kèm tổng;
     - cạnh dọc lô: các đoạn từ ranh tới khối/tháp/sân, kèm tổng chiều dài lô.
-16. Trên AutoCAD LT, khi tool không tạo được dimension, vẽ kích thước bằng nét (đường kích thước, đường gióng, gạch 45°) và chữ trên layer kích thước; báo người dùng là không liên kết, sửa hình phải sửa tay.
+16. Trên AutoCAD LT, dùng `annotation` `create_dimension_*` để tạo DIM thật; chỉ khi tool đó báo lỗi mới vẽ kích thước bằng nét (đường kích thước, đường gióng, gạch 45°) và chữ trên layer kích thước; báo người dùng là không liên kết, sửa hình phải sửa tay.
 
 ### Bước 7 – Kiểm tra và bàn giao
 17. Chụp màn hình kiểm tra: chữ không đè nhau, không còn chi tiết thừa, số kích thước khớp hình, chữ đúng layer.
@@ -166,7 +166,7 @@ Vẽ ở vùng riêng trong Model Space (cách xa mặt bằng) rồi lấy ra g
 
 ## Ghi chú khi làm qua MCP AutoCAD LT
 
-- Kiểm tra trước tool nào chạy được trên LT; LT thường không cho tạo bản vẽ mới, lưu file, zoom extents hay tạo dimension qua tool. Báo người dùng các giới hạn này và nhắc họ tự lưu.
+- Kiểm tra trước tool nào chạy được trên LT; LT thường không cho tạo bản vẽ mới, zoom extents qua tool (dimension tạo được). Báo người dùng các giới hạn này và nhắc họ tự lưu.
 - Chép nền giữa các vùng: chép theo lô tối đa số đối tượng tool cho phép mỗi lần; ghi lại handle gốc để sau còn lọc và xóa chi tiết thừa trong bản chép.
 - Hình học: tạo hàng loạt bằng polyline/circle trong một lệnh batch; tính tọa độ bằng script từ hệ tọa độ cục bộ của lô.
 - Chữ: nếu MTEXT bị lỗi, dùng TEXT một dòng (căn giữa tại tọa độ cho trước), mỗi dòng một lệnh, giữ trọn một nhãn tiếng Việt trong một đối tượng; chữ dọc dùng rotation 90.

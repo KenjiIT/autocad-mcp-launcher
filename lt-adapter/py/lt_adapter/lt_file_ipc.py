@@ -22,6 +22,7 @@ from autocad_mcp import __version__
 from autocad_mcp.backends.base import BackendCapabilities, CommandResult
 from autocad_mcp.backends.file_ipc import FileIPCBackend
 from autocad_mcp.config import LISP_DIR
+from autocad_mcp.drafting import encode_autocad_text
 from lt_adapter.lt_window import find_lt_window
 from autocad_mcp.session import DocumentState, ProcessState, TransportState, UiState
 from autocad_mcp.variables import validate_variable_updates
@@ -85,8 +86,7 @@ class LtFileIPCBackend(FileIPCBackend):
         "product_render_view", "solid_create_box", "solid_create_cylinder", "solid_extrude",
         "solid_revolve", "solid_sweep", "solid_boolean", "product_create_feature",
         "drawing_plot_pdf", "drawing_audit", "entity_trim",
-        "entity_extend", "entity_join", "create_dimension_linear",
-        "create_dimension_aligned", "create_dimension_angular", "create_dimension_radius",
+        "entity_extend", "entity_join",
         "zoom_extents",
     })
 
@@ -594,6 +594,32 @@ class LtFileIPCBackend(FileIPCBackend):
             return await self._dispatch_unlocked(command, {
                 **params, "_expected_document_path": context.payload["active_path"]
             }, timeout=timeout)
+
+    # LT has no COM, so dimensions go straight to the dispatcher's DIM* commands.
+    # ``text`` replaces the measured text; ``layer`` must already exist.
+    @staticmethod
+    def _dimension_params(params: dict, text, layer) -> dict:
+        if text:
+            params["text"] = encode_autocad_text(text)
+        if layer:
+            params["layer"] = layer
+        return params
+
+    async def create_dimension_linear(self, x1, y1, x2, y2, dim_x, dim_y, text=None, layer=None) -> CommandResult:
+        return await self._dispatch("create-dimension-linear", self._dimension_params({
+            "x1": x1, "y1": y1, "x2": x2, "y2": y2, "dim_x": dim_x, "dim_y": dim_y}, text, layer))
+
+    async def create_dimension_aligned(self, x1, y1, x2, y2, offset, text=None, layer=None) -> CommandResult:
+        return await self._dispatch("create-dimension-aligned", self._dimension_params({
+            "x1": x1, "y1": y1, "x2": x2, "y2": y2, "offset": offset}, text, layer))
+
+    async def create_dimension_angular(self, cx, cy, x1, y1, x2, y2, text=None, layer=None) -> CommandResult:
+        return await self._dispatch("create-dimension-angular", self._dimension_params({
+            "cx": cx, "cy": cy, "x1": x1, "y1": y1, "x2": x2, "y2": y2}, text, layer))
+
+    async def create_dimension_radius(self, cx, cy, radius, angle, text=None, layer=None) -> CommandResult:
+        return await self._dispatch("create-dimension-radius", self._dimension_params({
+            "cx": cx, "cy": cy, "radius": radius, "angle": angle}, text, layer))
 
     async def status(self) -> CommandResult:
         selected = find_lt_window()

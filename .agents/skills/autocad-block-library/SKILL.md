@@ -19,13 +19,13 @@ Thư viện là thư mục `blocks/` của dự án (hoặc thư mục trong bi�
    - Muốn áp một cạnh vào tường: đặt gốc (hoặc cạnh của khung bao) lên đường tường rồi chọn θ để mặt trước hướng ra phía phòng.
 4. **Chèn:** gọi `block` với `operation="insert"`, `data={"name": <tên tệp bỏ đuôi>, "x": ..., "y": ..., "scale": 1, "rotation": θ}`. Giữ `scale` bằng 1: kích thước thật đã nằm trong tên (`FURN-BED-QUEEN-1525x2030` rộng 1525 mm, sâu 2030 mm). Chỉ đổi `scale` khi người dùng yêu cầu kích thước khác.
 5. **Kiểm sau khi chèn:** đọc lại bằng `entity` `get`. `xscale` phải bằng `scale` × `scale_factor` của mục thư viện. Tệp inch chèn vào bản vẽ mm có `scale_factor` 25.4, nên `xscale` 25.4 là đúng, AutoCAD tự quy đổi đơn vị. Nếu `scale_factor` là `null` (tệp không biết đơn vị) hoặc `xscale` khác dự kiến thì đo lại khung bao của đối tượng; sai kích thước thì xóa đối tượng vừa chèn và báo người dùng.
-6. **Layer và màu:** đối tượng `INSERT` mang layer hiện hành. Chọn layer nội thất/thiết bị đang có trong bản vẽ và theo quy ước màu của `autocad-agent-coordinator`. Hình bên trong 101 trong 105 block nằm hết trên layer `0`, nên block theo layer của đối tượng `INSERT`. Bốn block động (`CIVIL-PARKING-STALL`, `DOOR-DYN-ELEV`, `ELEC-LIGHT-RECESSED-DYN`, `STRUC-CHANNEL`) có thêm layer nội bộ `*ADSK_CONSTRAINTS` của ràng buộc động; bỏ qua. Màu của từng nét bên trong (ByLayer hay cố định) chưa được kiểm.
+6. **Layer và màu:** đối tượng `INSERT` mang layer hiện hành. Chọn layer nội thất/thiết bị đang có trong bản vẽ và theo quy ước màu của `autocad-agent-coordinator`. Hình bên trong 102 trong 106 block nằm hết trên layer `0`, nên block theo layer của đối tượng `INSERT`. Bốn block động (`CIVIL-PARKING-STALL`, `DOOR-DYN-ELEV`, `ELEC-LIGHT-RECESSED-DYN`, `STRUC-CHANNEL`) có thêm layer nội bộ `*ADSK_CONSTRAINTS` của ràng buộc động; bỏ qua. Màu của từng nét bên trong (ByLayer hay cố định) chưa được kiểm.
 
 Không có block phù hợp: nếu danh mục có mà chưa tách thành tệp, báo người dùng và đề nghị tách (mục *Dựng lại thư viện*). Nếu danh mục cũng không có, áp dụng quy tắc hỏi trước của `autocad-agent-coordinator`: hỏi người dùng cung cấp kích thước hoặc đồng ý để agent tự vẽ theo giả định nêu rõ; chỉ vẽ tay khi đã có kích thước hoặc được đồng ý. Không tự bịa tên block.
 
 ## Các nhóm trong thư viện
 
-Tên tệp có dạng `<NHÓM>-<LOẠI>[-<BIẾN THỂ>]-<RỘNG>x<SÂU>` (mm). Hiện có 105 tệp:
+Tên tệp có dạng `<NHÓM>-<LOẠI>[-<BIẾN THỂ>]-<RỘNG>x<SÂU>` (mm). Hiện có 106 tệp:
 
 | Nhóm | Số tệp | Nội dung | Ví dụ |
 |---|---|---|---|
@@ -39,14 +39,14 @@ Tên tệp có dạng `<NHÓM>-<LOẠI>[-<BIẾN THỂ>]-<RỘNG>x<SÂU>` (mm). 
 | `STRUC` | 7 | Ký hiệu và tiết diện kết cấu thép: dầm WF, I, chữ C, mối nối | `STRUC-CHANNEL-110x400`, `STRUC-ELEVATION-SYMBOL-4x4`, `STRUC-I-BEAM-55x100` |
 | `WNDW` | 5 | Cửa sổ: mặt bằng và mặt đứng | `WNDW-ALUMINUM-DYN-ELEV-900x900`, `WNDW-DYN-PLAN-900x100`, `WNDW-HALFCIRCLE-ELEV-915x455` |
 | `ARCH` | 3 | Cấu kiện kiến trúc: cầu thang xoắn, ống khói, thanh stud | `ARCH-CHIMNEY-ELEV-1180x3100`, `ARCH-STAIR-SPIRAL-1525x1525`, `ARCH-STUD-DYN-38x90` |
-| `CIVIL` | 2 | Hạ tầng: ô đỗ xe, hố ga | `CIVIL-MANHOLE-600x600`, `CIVIL-PARKING-STALL-2700x5500` |
+| `CIVIL` | 3 | Hạ tầng: ô đỗ xe, hố ga, xe ô tô con nhìn từ trên | `CIVIL-CAR-PLAN-1800x4400`, `CIVIL-MANHOLE-600x600`, `CIVIL-PARKING-STALL-2700x5500` |
 | `ELEC` | 1 | Chiếu sáng: đèn huỳnh quang âm trần | `ELEC-LIGHT-RECESSED-DYN-1000x500` |
 
 Quy ước tên và yêu cầu khi tự thêm block nằm ở `blocks/README.md`.
 
 ## Kho riêng (`stores` trong kết quả `block list`)
 
-Ngoài 105 tệp ở thư mục gốc, người dùng có thể có thêm các **kho**: thư mục con của thư viện có tệp `index.json`. Kho là bộ block nhập từ bên ngoài (hiện có `dwgshare`, nhập từ các gói nội thất của DWGshare.com). `block list` không in hết kho (có hàng nghìn tệp); nó chỉ có trường `stores`: tên kho, số tệp, số tệp theo loại.
+Ngoài 106 tệp ở thư mục gốc, người dùng có thể có thêm các **kho**: thư mục con của thư viện có tệp `index.json`. Kho là bộ block nhập từ bên ngoài (hiện có `dwgshare`, nhập từ các gói nội thất của DWGshare.com). `block list` không in hết kho (có hàng nghìn tệp); nó chỉ có trường `stores`: tên kho, số tệp, số tệp theo loại.
 
 Cách tra:
 

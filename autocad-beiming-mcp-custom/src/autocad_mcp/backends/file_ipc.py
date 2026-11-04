@@ -4931,6 +4931,7 @@ class FileIPCBackend(AutoCADBackend):
                 system_call="AutoCAD.ModelSpace.AddCylinder", error_code="E_SOLID_OPERATION",
             )
 
+    @sta_async_method("solid.extrude")
     async def solid_extrude(
         self, profile_id, height, taper_angle=0.0, erase_profile=False, layer=None
     ) -> CommandResult:
@@ -4962,6 +4963,7 @@ class FileIPCBackend(AutoCADBackend):
                     pass
             self._auto_fit_view()
 
+    @sta_async_method("solid.revolve")
     async def solid_revolve(
         self,
         profile_id,
@@ -5005,6 +5007,7 @@ class FileIPCBackend(AutoCADBackend):
                     pass
             self._auto_fit_view()
 
+    @sta_async_method("solid.sweep")
     async def solid_sweep(self, profile_id, path_id, erase_profile=False, layer=None) -> CommandResult:
         region = None
         try:

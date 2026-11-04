@@ -1,6 +1,6 @@
 ---
 name: autocad-copy-similar-objects
-description: Tìm vật thể có sẵn trong DWG giống với vật thể cần tạo (phòng, căn hộ, cột, dầm, cửa, cụm chi tiết) rồi sao chép, xoay/đối xứng và đặt vào vị trí mới thay vì vẽ lại; cũng dùng để chép vùng sang bản vẽ khác (`copy_region_between_dwgs`). Dùng khi người dùng nói 'tạo … giống …', 'thêm một … như …', 'làm tương tự', 'lặp lại', 'chép sang', 'copy sang bản vẽ khác'.
+description: Kiểm kê bản vẽ (`entity inventory`) để biết vật thể đã có chưa rồi sao chép thay vì vẽ lại - xe, ô đỗ, bãi xe, tầng hầm, cột, cửa, cụm lặp. Tìm vật thể có sẵn trong DWG giống với vật thể cần tạo (phòng, căn hộ, cột, dầm, cửa, cụm chi tiết) rồi sao chép, xoay/đối xứng và đặt vào vị trí mới thay vì vẽ lại; cũng dùng để chép vùng sang bản vẽ khác (`copy_region_between_dwgs`). Dùng khi người dùng nói 'tạo … giống …', 'thêm một … như …', 'làm tương tự', 'lặp lại', 'chép sang', 'copy sang bản vẽ khác', và khi agent sắp vẽ một vật thể có thể đã có trong bản vẽ (vẽ bãi xe, tầng hầm, dãy ô đỗ).
 ---
 
 # Sao chép vật thể giống nhau thay vì vẽ lại
@@ -8,6 +8,15 @@ description: Tìm vật thể có sẵn trong DWG giống với vật thể cầ
 Dùng khi người dùng muốn tạo một vật thể đã có mẫu trong bản vẽ ("tạo cho tôi một căn phòng giống phòng 1", "thêm cột như cột C3 ở trục 7", "lặp căn hộ này sang bên kia"), hoặc hỏi "những phòng nào giống phòng 1". Một vật thể có thể gồm nhiều entity: tường, cửa, hatch, block nội thất, chữ, kích thước. Nhận diện mẫu theo [autocad-identify-and-measure](../autocad-identify-and-measure/SKILL.md). Kết nối MCP, thông báo trước khi sửa và kiểm tra sau khi sửa theo [autocad-agent-coordinator](../autocad-agent-coordinator/SKILL.md).
 
 Nguyên tắc: **có mẫu đúng thì sao chép mẫu**. Chỉ vẽ mới khi không có mẫu, khi đích khác mẫu tới mức phải sửa phần lớn, hoặc khi người dùng yêu cầu vẽ mới.
+
+## 0. Vật thể đã có trong bản vẽ chưa (kiểm kê)
+
+Trước khi vẽ mới một vật thể, theo Quy tắc 3 của [autocad-agent-coordinator](../autocad-agent-coordinator/SKILL.md): gọi `entity` `operation="inventory"` trên layer liên quan. Từ một nhóm trong `groups`:
+- Mẫu là `sample_handles` (mọi entity của một bản); tâm mẫu lấy từ `centres_mm[0]`. `centres_mm` chỉ liệt kê tối đa 20 vị trí (`centres_listed`); `extent_mm` là khung bao của cả nhóm, `count` là tổng số bản.
+- Chép tới tâm đích (x, y): `dx = x - centres_mm[0][0]`, `dy = y - centres_mm[0][1]`. Nhiều ô đích thì `copy_batching` với các offset (handle × offset tối đa 100 mỗi lần).
+- Ô đích quay hoặc đối xứng so với mẫu (xem `directions`): chép rồi `entity rotate` quanh tâm đích hoặc `entity mirror`.
+- Mẫu là một `blocks[].block`: chèn INSERT cùng tên, không chép từng entity.
+- Không có nhóm nào khớp: tra thư viện block rồi mới vẽ tay một bản.
 
 ## 1. Xác định mẫu
 
@@ -37,7 +46,7 @@ Nguyên tắc: **có mẫu đúng thì sao chép mẫu**. Chỉ vẽ mới khi k
 | Cùng bản vẽ, nhiều entity hoặc nhiều vị trí | `copy_batching`: nhiều handle × nhiều offset, tối đa 100 bản sao mỗi lần gọi, tự hoàn tác nếu lỗi |
 | Cần xoay | Sao chép trước, rồi `entity rotate` (tâm = điểm neo đích) trên các handle mới |
 | Cần đối xứng (lật) | Dùng thẳng `entity mirror` trên handle của mẫu (trục = tim vách chung): lệnh giữ bản gốc (`_MIRROR … _N`) và tạo bản lật, không cần sao chép trước. Lật tại chỗ = `mirror` rồi `erase` bản gốc. Mỗi lần gọi chỉ một handle, và `cad_batch` không có `mirror`: mẫu nhiều đối tượng thì gọi lần lượt hoặc gom thành block. Xoay 180° không thay được đối xứng gương. Kiểm tra chữ sau khi lật (MIRRTEXT) |
-| Lặp từ 3 lần trở lên, hoặc người dùng muốn sửa một chỗ là đổi tất cả | Đề xuất gom mẫu thành block (`block define`), rồi `block insert` ở từng vị trí. Hỏi người dùng trước, vì việc này thay đổi cấu trúc bản vẽ |
+| Lặp từ 3 lần trở lên, hoặc người dùng muốn sửa một chỗ là đổi tất cả | Đề xuất gom mẫu thành block (`block define`), rồi `block insert` ở từng vị trí. Hỏi người dùng trước, vì việc này thay đổi cấu trúc bản vẽ; không cần hỏi nếu đó là vật thể agent vừa tự vẽ trong phiên này. Trên LT `block define` chỉ nhận LINE, CIRCLE, ATTDEF; hình có polyline thì chép bằng `copy_batching` |
 | Mẫu đã là một block | Chèn thêm INSERT cùng tên block với đúng tỉ lệ và góc, không nổ block |
 | Cả một vùng (từ bản vẽ khác hoặc trong cùng bản vẽ) | Xem mục 3a "Sao chép theo vùng" |
 

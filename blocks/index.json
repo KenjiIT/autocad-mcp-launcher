@@ -56,6 +56,25 @@
   "units": "millimeters",
   "view": "elevation"
  },
+ "CIVIL-CAR-PLAN-1800x4400": {
+  "bbox_mm": [
+   -900.0,
+   0.0,
+   900.0,
+   4400.0
+  ],
+  "dynamic": false,
+  "meaning": "Xe ô tô con nhìn từ trên (mặt bằng), mũi xe hướng +y; điểm chèn ở giữa mép sau. Lấy từ lớp B1-OTO của bản vẽ tầng hầm 1 (ngăn đỗ xe 2500x5000)",
+  "mm_per_unit": 1.0,
+  "size_mm": [
+   1800,
+   4400
+  ],
+  "source_block": "B1-OTO (3 polyline)",
+  "source_file": "tầng hầm 1 phương án 3 - mở rộng.dwg",
+  "units": "millimeters",
+  "view": "plan"
+ },
  "CIVIL-MANHOLE-600x600": {
   "bbox_mm": [
    -300.0,

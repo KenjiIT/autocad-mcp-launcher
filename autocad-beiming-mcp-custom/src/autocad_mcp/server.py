@@ -303,6 +303,60 @@ def _finish_journaled_mutation(
     return result
 
 
+_INVENTORY_CACHE: dict = {}
+_INVENTORY_TTL_S = 600.0
+
+
+async def _entity_inventory(backend, layer, data) -> CommandResult:
+    import time
+
+    from autocad_mcp.inventory import inventory
+
+    layers = data.get("layers") or ([layer] if layer else None)
+    options = {
+        "tolerance": float(data.get("tolerance", 10.0)),
+        "min_count": int(data.get("min_count", 2)),
+        "max_side": float(data.get("max_side", 12000.0)),
+    }
+    # Stamp = document + revision (the gateway counts the agent's own changes) + entity count of each
+    # layer (a hand edit that adds or erases objects changes it).  A pure move is not seen; the
+    # time limit and refresh=true cover that.
+    context = await backend.document_context()
+    doc_stamp = None
+    if context.ok and isinstance(context.payload, dict):
+        doc_stamp = (context.payload.get("doc_id"), context.payload.get("revision"))
+    counts = []
+    for name in (layers or [None]):
+        counted = await backend.entity_count(name)
+        count = counted.payload.get("count") if counted.ok and isinstance(counted.payload, dict) else None
+        counts.append((name, count))
+    key = (doc_stamp, tuple(sorted(layers)) if layers else None, tuple(sorted(options.items())))
+    stamp = (doc_stamp, tuple(counts))
+    now = time.monotonic()
+    hit = _INVENTORY_CACHE.get(key)
+    usable = (
+        hit and doc_stamp and doc_stamp[0] and None not in [c for _, c in counts]
+        and hit["stamp"] == stamp and now - hit["at"] < _INVENTORY_TTL_S
+    )
+    if usable and not data.get("refresh"):
+        return CommandResult(ok=True, payload={
+            **hit["found"], "cached": True, "cached_age_s": round(now - hit["at"])})
+    entities = []
+    for name in (layers or [None]):
+        listing = await backend.entity_list(name)
+        if not listing.ok:
+            return listing
+        payload = listing.payload
+        entities.extend(payload.get("entities", []) if isinstance(payload, dict) else payload or [])
+    found = inventory(entities, layers=None, **options)
+    found["layers_scanned"] = layers or "all"
+    found["revision"] = doc_stamp[1] if doc_stamp else None
+    found["entity_counts"] = dict(counts)
+    if doc_stamp and doc_stamp[0]:
+        _INVENTORY_CACHE[key] = {"stamp": stamp, "at": now, "found": found}
+    return CommandResult(ok=True, payload={**found, "cached": False, "cached_age_s": 0})
+
+
 async def _guard_mutation(
     backend,
     doc_id,
@@ -868,6 +922,11 @@ async def entity(
       list              — layer? → list entities
       count             — layer? → count entities
       get               — entity_id → entity details
+      inventory         — find repeated objects (blocks by name, loose shapes by outline + parts, any
+                          turn or mirror). layer or data {layers?, tolerance? (mm, 10), min_count? (2),
+                          max_side? (12000), refresh?}. Run before drawing an object: if it already
+                          exists, copy a sample (sample_handles) instead of redrawing. Cached per
+                          document revision; pass refresh=true after hand edits.
 
     Modify operations:
       copy    — entity_id, data: {dx, dy}
@@ -886,13 +945,13 @@ async def entity(
     known_operations = {
         "create_line", "create_circle", "create_polyline", "create_rectangle",
         "create_arc", "create_tangent_arc", "create_ellipse", "create_mtext",
-        "create_text", "create_hatch", "create_batch", "list", "count", "get",
+        "create_text", "create_hatch", "create_batch", "list", "count", "get", "inventory",
         "copy", "move", "rotate", "scale", "mirror", "offset", "array", "fillet",
         "chamfer", "trim", "extend", "break", "join", "constrain", "erase", "set_layer", "set_hatch_pattern", "create_lines_file", "erase_layers",
     }
     if operation not in known_operations:
         return tool_error(f"Unknown entity operation: {operation}", code="E_UNSUPPORTED_OPERATION")
-    mutating = operation not in {"list", "count", "get"}
+    mutating = operation not in {"list", "count", "get", "inventory"}
     if mutating:
         guard = await _guard_mutation(
             backend, doc_id, expected_revision, lease_token, worker_generation
@@ -1058,6 +1117,8 @@ async def entity(
         result = await backend.entity_list(layer)
     elif operation == "count":
         result = await backend.entity_count(layer)
+    elif operation == "inventory":
+        result = await _entity_inventory(backend, layer, data)
     elif operation == "get":
         result = await backend.entity_get_with_semantics(entity_id)
     # --- Modify ---
@@ -1307,10 +1368,11 @@ async def annotation(
 
     Operations:
       create_text             — data: {x, y, text, height?, rotation?, layer?}
-      create_dimension_linear — data: {x1, y1, x2, y2, dim_x, dim_y}
-      create_dimension_aligned — data: {x1, y1, x2, y2, offset}
-      create_dimension_angular — data: {cx, cy, x1, y1, x2, y2}
-      create_dimension_radius — data: {cx, cy, radius, angle}
+      create_dimension_linear — data: {x1, y1, x2, y2, dim_x, dim_y, text?, layer?}
+      create_dimension_aligned — data: {x1, y1, x2, y2, offset, text?, layer?}
+      create_dimension_angular — data: {cx, cy, x1, y1, x2, y2, text?, layer?}
+      create_dimension_radius — data: {cx, cy, radius, angle, text?, layer?}
+      (text? replaces the measured text, e.g. "250x10=2500"; AutoCAD LT only)
       create_leader           — data: {points: [[x,y],...], text}
     """
     data = data or {}
@@ -1349,18 +1411,22 @@ async def annotation(
     elif operation == "create_dimension_linear":
         result = await backend.create_dimension_linear(
             data["x1"], data["y1"], data["x2"], data["y2"], data["dim_x"], data["dim_y"],
+            **_dimension_extras(data),
         )
     elif operation == "create_dimension_aligned":
         result = await backend.create_dimension_aligned(
             data["x1"], data["y1"], data["x2"], data["y2"], data["offset"],
+            **_dimension_extras(data),
         )
     elif operation == "create_dimension_angular":
         result = await backend.create_dimension_angular(
             data["cx"], data["cy"], data["x1"], data["y1"], data["x2"], data["y2"],
+            **_dimension_extras(data),
         )
     elif operation == "create_dimension_radius":
         result = await backend.create_dimension_radius(
             data["cx"], data["cy"], data["radius"], data["angle"],
+            **_dimension_extras(data),
         )
     elif operation == "create_leader":
         result = await backend.create_leader(data["points"], data["text"])
@@ -1372,6 +1438,11 @@ async def annotation(
 # ==========================================================================
 # 6. pid — P&ID operations (CTO library)
 # ==========================================================================
+
+
+def _dimension_extras(data: dict) -> dict:
+    """Optional ``text`` and ``layer`` for a dimension; passed only when given so other backends are unchanged."""
+    return {key: data[key] for key in ("text", "layer") if data.get(key)}
 
 
 @mcp.tool(annotations={"title": "AutoCAD Native 3D Solids", "readOnlyHint": False})

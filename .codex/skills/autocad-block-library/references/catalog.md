@@ -253,6 +253,7 @@ Chưa tách thành tệp thư viện. Tên block: Road Section - Imperial, Road 
 | PVI - Metric | — | khối phụ trợ của block khác, không dùng riêng | — | — | — |
 | Station - Metric | — | khối phụ trợ của block khác, không dùng riêng | — | — | — |
 | Parking - Metric | `CIVIL-PARKING-STALL-2700x5500` | Ô đỗ xe, mặt bằng (block động) | mặt bằng | 2700×5500 | 0,-5500 → 2700,0 |
+| B1-OTO (bản vẽ tầng hầm 1) | `CIVIL-CAR-PLAN-1800x4400` | Xe ô tô con nhìn từ trên, mũi xe hướng +y, điểm chèn ở giữa mép sau | mặt bằng | 1800×4400 | -900,0 → 900,4400 |
 | _ClosedBlank | — | khối phụ trợ của block khác, không dùng riêng | — | — | — |
 
 ## Dynamic Blocks/Electrical - Imperial.dwg

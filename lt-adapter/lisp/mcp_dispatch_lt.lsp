@@ -89,7 +89,8 @@
       ((= cmd-name "block-catalog-lt") (mcp-cmd-block-catalog-lt params-json))
       ((= cmd-name "block-export-lt") (mcp-cmd-block-export-lt params-json))
       ((= cmd-name "block-export-rebased-lt") (mcp-cmd-block-export-rebased-lt params-json))
-      (t (mcp-dispatch-command-upstream cmd-name params-json))
+      ((wcmatch cmd-name "create-dimension-*") (mcp-lt-create-dimension cmd-name params-json))
+      (t(mcp-dispatch-command-upstream cmd-name params-json))
     )
   )
 )(defun mcp-current-document-path ()
@@ -1269,3 +1270,76 @@
 )
 
 
+
+(defun mcp-lt-dimension-result (before-ent name / created-ent)
+  (setq created-ent (entlast))
+  (if (or (not created-ent) (eq before-ent created-ent))
+    (cons nil (strcat name " completed without creating an entity"))
+    (cons T (strcat "{\"entity_type\":\"DIMENSION\",\"handle\":\"" (cdr (assoc 5 (entget created-ent))) "\"}")))
+)
+
+;; The upstream versions stop before the dimension-line prompt, so LT cancels them.
+(defun mcp-cmd-create-dimension-radius-lt (params / cx cy radius angle rad px py lx ly before-ent picked target idx data)
+  (setq cx (mcp-json-get-number params "cx")
+        cy (mcp-json-get-number params "cy")
+        radius (mcp-json-get-number params "radius")
+        angle (mcp-json-get-number params "angle")
+        rad (* angle (/ pi 180.0))
+        px (+ cx (* radius (cos rad)))
+        py (+ cy (* radius (sin rad)))
+        lx (+ cx (* radius 1.5 (cos rad)))
+        ly (+ cy (* radius 1.5 (sin rad)))
+        before-ent (entlast))
+  ;; Find the circle or arc by centre and radius; a pick-point window is unreliable here.
+  (setq picked (ssget "_X" '((0 . "CIRCLE,ARC")))
+        idx 0)
+  (while (and picked (< idx (sslength picked)) (not target))
+    (setq data (entget (ssname picked idx)))
+    (if (and (< (distance (cdr (assoc 10 data)) (list cx cy (caddr (cdr (assoc 10 data))))) 0.5)
+             (< (abs (- (cdr (assoc 40 data)) radius)) 0.5))
+      (setq target (ssname picked idx)))
+    (setq idx (1+ idx)))
+  (if (not target)
+    (cons nil "No circle or arc with that centre and radius in the drawing")
+    (progn
+      (command "_.DIMRADIUS" (list target (list px py 0)) (list lx ly 0))
+      (mcp-lt-dimension-result before-ent "DIMRADIUS")))
+)
+
+;; Enter at the first prompt selects "specify vertex": vertex, two end points, arc location.
+(defun mcp-cmd-create-dimension-angular-lt (params / cx cy x1 y1 x2 y2 a1 a2 mid reach lx ly before-ent)
+  (setq cx (mcp-json-get-number params "cx")
+        cy (mcp-json-get-number params "cy")
+        x1 (mcp-json-get-number params "x1")
+        y1 (mcp-json-get-number params "y1")
+        x2 (mcp-json-get-number params "x2")
+        y2 (mcp-json-get-number params "y2")
+        a1 (angle (list cx cy) (list x1 y1))
+        a2 (angle (list cx cy) (list x2 y2))
+        mid (+ a1 (/ (- (rem (+ (- a2 a1) (* 3 pi)) (* 2 pi)) pi) 2.0))
+        reach (* 0.6 (min (distance (list cx cy) (list x1 y1)) (distance (list cx cy) (list x2 y2))))
+        lx (+ cx (* reach (cos mid)))
+        ly (+ cy (* reach (sin mid)))
+        before-ent (entlast))
+  (command "_.DIMANGULAR" "" (list cx cy 0) (list x1 y1 0) (list x2 y2 0) (list lx ly 0))
+  (mcp-lt-dimension-result before-ent "DIMANGULAR")
+)
+
+;; Make the dimension, then apply the optional "text" (replaces the measured text) and "layer".
+(defun mcp-lt-create-dimension (cmd-name params / result text layer ent data)
+  (setq result (cond ((= cmd-name "create-dimension-radius") (mcp-cmd-create-dimension-radius-lt params))
+                     ((= cmd-name "create-dimension-angular") (mcp-cmd-create-dimension-angular-lt params))
+                     (t (mcp-dispatch-command-upstream cmd-name params)))
+        text (mcp-json-get-string params "text")
+        layer (mcp-json-get-string params "layer"))
+  (if (and (car result) (or text layer) (setq ent (entlast)))
+    (progn
+      (setq data (entget ent))
+      (if text
+        (setq data (if (assoc 1 data) (subst (cons 1 text) (assoc 1 data) data) (append data (list (cons 1 text))))))
+      (if layer
+        (setq data (subst (cons 8 layer) (assoc 8 data) data)))
+      (entmod data)
+      (entupd ent)))
+  result
+)
