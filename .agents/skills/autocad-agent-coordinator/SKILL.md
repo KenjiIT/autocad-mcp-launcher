@@ -26,6 +26,7 @@ Skill chỉ có tác dụng khi được nạp. Ngay sau khi nhận yêu cầu A
 | "kiểm tra hồ sơ/số liệu/phiên bản trước khi vẽ", "đã đủ căn cứ chưa", bản vẽ nền không rõ phiên bản | `autocad-verify-drawing-inputs` |
 | "chung cư", "căn hộ", "mặt bằng điển hình", "chia căn", "tháp rác", "hộp kỹ thuật" | `autocad-apartment-floor-plan`, kèm `autocad-start-construction-drawing` |
 | "bố trí phòng", "thiết kế nhà", "WC khách", "tiền sảnh", "hành lang", "phòng ngủ", "gầm cầu thang", "áp mái", "riêng tư", "tầm nhìn" | `thiet-ke-phong-nha`, kèm `autocad-start-construction-drawing` |
+| "định mức", "dự toán", "đơn giá", "hao phí", "bóc tách khối lượng", "giá ca máy", "TT 38/2026" | `tra-dinh-muc-du-toan`; đo khối lượng thì thêm `autocad-identify-and-measure` |
 | bắt đầu bản vẽ xây dựng mới, layer, đơn vị, hệ trục, Layout, in | `autocad-start-construction-drawing` |
 | "nét vẽ", "đường trục", "TCVN 5570", kiểu và bề rộng nét | `construction-drawing-tcvn5570` |
 | thiết kế cơ sở, thiết kế kỹ thuật, bản vẽ thi công, chưa rõ đang ở bước nào | `construction-document-router`, rồi `construction-design-stages` |
