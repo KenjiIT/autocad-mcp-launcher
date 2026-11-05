@@ -7,6 +7,15 @@ description: Tra tri thức chung đã tải về máy (cách đọc bản vẽ 
 
 Tri thức chung là **công khai, không mật**. Bản gốc là repo `KenjiIT/autocad-knowledge`; launcher tải thư mục `wiki/` về máy bằng nút **Tải tri thức** (tab Cài đặt). Quy ước đầy đủ: `references/quy-uoc.md` của skill `knowledge-capture`.
 
+## Cách nhanh nhất: tool `knowledge` của launcher
+
+Nếu agent có tool MCP `knowledge`, dùng nó trước. Nó đọc đúng thư mục tri thức của launcher và hoạt động cả khi agent không được cấp quyền vào thư mục đó:
+- `operation=index`: danh sách trang và mục lục.
+- `operation=search`, `query=...`: tìm theo từ khóa, không cần gõ dấu (`dam san` tìm ra `dầm sàn`).
+- `operation=get`, `path=...`: đọc một trang (đường dẫn lấy từ `index` hoặc `search`).
+
+Báo `KNOWLEDGE_NOT_DOWNLOADED` thì bảo người dùng bấm **Tải tri thức** ở tab Cài đặt của launcher. Tool chỉ phục vụ `wiki/` (trang đã duyệt), không phục vụ `proposals/`. Không có tool này thì làm theo các mục dưới.
+
 ## Tìm thư mục tri thức
 
 1. Biến môi trường `COMMON_KNOWLEDGE_DIR`, nếu có.

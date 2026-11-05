@@ -4,6 +4,15 @@ import sys
 from pathlib import Path
 
 
+def extends_read_timeout(repo):
+    """Large-drawing reads (drawing.audit, entity.collect) need a deadline beyond 60 s.
+
+    The Beiming source was renamed from beiming183-cloud's checkout to autocad-beiming-mcp-custom;
+    matching only the old name silently dropped the extension and poisoned the COM worker.
+    """
+    return repo.name.startswith("beiming183") or repo.name == "autocad-beiming-mcp-custom"
+
+
 def main():
     repo = Path(sys.argv[1]).resolve(strict=True)
     port = int(sys.argv[2])
@@ -18,6 +27,7 @@ def main():
     if repo.name.startswith("beiming183"):
         os.environ.setdefault("AUTOCAD_MCP_OUTPUT_ROOT", str(repo / "output"))
         os.environ.setdefault("AUTOCAD_MCP_AUTOSTART", "false")
+    if extends_read_timeout(repo):
         from beiming_timeout import apply as apply_beiming_read_timeout
         apply_beiming_read_timeout()
     from autocad_mcp.server import mcp

@@ -3699,8 +3699,117 @@ class FileIPCBackend(AutoCADBackend):
                 payload={"rolled_back": rolled_back},
             )
 
+    @staticmethod
+    def _same_file(left: str, right: str) -> bool:
+        def normal(value: str) -> str:
+            return os.path.normcase(str(Path(str(value)).expanduser().resolve()))
+
+        try:
+            return normal(left) == normal(right)
+        except (OSError, ValueError):
+            return False
+
+    @sta_sync_method("drawing.open", timeout=300.0)  # a large drawing with xrefs can take minutes; a timeout poisons the COM worker
+    def _open_via_com(self, path: str) -> dict:
+        """Open (or activate) a drawing through the Documents collection and verify it is active.
+
+        The upstream ``(command "_.OPEN" ...)`` route reports success even when nothing opened,
+        so full AutoCAD opens through COM and checks the result.  AutoCAD LT has no COM; its
+        backend overrides ``drawing_open`` and keeps the AutoLISP route.
+        """
+        target = Path(path).expanduser().resolve()
+        if not target.is_file():
+            raise FileNotFoundError(f"Drawing file not found: {target}")
+
+        def attempt() -> dict:
+            application = self._get_autocad_application()
+            documents = application.Documents
+
+            def find_open():
+                for index in range(int(documents.Count)):
+                    candidate = documents.Item(index)
+                    if self._same_file(str(_com_value(candidate, "FullName", "") or ""), str(target)):
+                        return candidate
+                return None
+
+            document = find_open()
+            already_open = document is not None
+            if document is None:
+                # The object Open() returns is late-bound without type information (it lacks Activate),
+                # so look the drawing up again in the collection, which also proves it is really open.
+                documents.Open(str(target))
+                document = find_open()
+                if document is None:
+                    raise RuntimeError(f"E_POSTCONDITION_MISMATCH: Documents.Open returned but {target} is not open")
+            document.Activate()
+            active = application.ActiveDocument
+            active_path = str(_com_value(active, "FullName", "") or "")
+            if not self._same_file(active_path, str(target)):
+                raise RuntimeError(
+                    f"E_POSTCONDITION_MISMATCH: opened {target} but the active drawing is {active_path or '(none)'}"
+                )
+            self._bind_document(active)
+            return {"opened": active_path, "already_open": already_open, "renderer": "autocad-com-open"}
+
+        # pywin32 reports a busy AutoCAD (call rejected) as AttributeError on late-bound objects.
+        # Opening is idempotent (find first), so retry for a few seconds before giving up.
+        deadline = time.monotonic() + 10.0
+        while True:
+            try:
+                return attempt()
+            except Exception:
+                if time.monotonic() >= deadline:
+                    raise
+                self._com_executor.cooperative_sleep(0.3)
+
+    async def _wait_until_active(self, path: str, timeout: float = 3.0) -> tuple[bool, str]:
+        """Poll the active drawing until it is ``path``; returns (matched, last active path)."""
+        deadline = time.monotonic() + timeout
+        active = ""
+        while True:
+            context = await self.document_context()
+            if context.ok and isinstance(context.payload, dict):
+                active = str(context.payload.get("active_path") or context.payload.get("requested_path") or "")
+                if active and self._same_file(active, path):
+                    return True, active
+            if time.monotonic() >= deadline:
+                return False, active
+            await asyncio.sleep(0.25)
+
     async def drawing_open(self, path: str) -> CommandResult:
+        try:
+            result = CommandResult(ok=True, payload=self._open_via_com(path))
+        except FileNotFoundError as exc:
+            return CommandResult(
+                ok=False,
+                error=str(exc),
+                error_code="E_PARAMETER_REJECTED",
+                recoverable=False,
+                recommended_action="correct_request_fields",
+            )
+        except Exception as com_error:
+            result = await self._dispatch("drawing-open", {"path": path})
+            if result.ok:
+                matched, active = await self._wait_until_active(path)
+                if not matched:
+                    return CommandResult(
+                        ok=False,
+                        error=(
+                            f"drawing-open reported success but {path} is not the active drawing "
+                            f"(active: {active or 'unknown'}). COM open also failed: {com_error}"
+                        ),
+                        error_code="E_POSTCONDITION_MISMATCH",
+                        recoverable=False,
+                        recommended_action="stop_and_inspect_backend_state",
+                    )
+        return await self._finish_drawing_open(path, result)
+
+    async def _drawing_open_via_dispatch(self, path: str) -> CommandResult:
+        """Open through the AutoLISP dispatcher (the only route on AutoCAD LT)."""
         result = await self._dispatch("drawing-open", {"path": path})
+        return await self._finish_drawing_open(path, result)
+
+    async def _finish_drawing_open(self, path: str, result: CommandResult) -> CommandResult:
         if result.ok:
             context = await self.document_context()
             if context.ok:

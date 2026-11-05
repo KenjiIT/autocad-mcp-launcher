@@ -548,6 +548,10 @@ class LtFileIPCBackend(FileIPCBackend):
                     payload={"requested": match["path"], "active": context.payload.get("active_path")})
             return context
 
+    async def drawing_open(self, path: str) -> CommandResult:
+        """AutoCAD LT has no COM: keep the AutoLISP route (mcp_dispatch_lt.lsp opens through Documents.Open and checks it)."""
+        return await self._drawing_open_via_dispatch(path)
+
     async def drawing_save(self, path: str | None = None, overwrite: bool = False) -> CommandResult:
         """Save the active drawing in place, or save a copy under ``path`` (an absolute .dwg path).
 

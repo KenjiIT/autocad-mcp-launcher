@@ -757,3 +757,30 @@ async def test_lt_help_popup_while_waiting_retypes_the_trigger_for_a_quick_read(
     finally:
         await backend.shutdown()
     assert result.error_code == "E_IPC_TIMEOUT" and len(triggers) == 2 and elapsed < 4.0
+
+
+@pytest.mark.asyncio
+async def test_lt_open_keeps_the_lisp_route_and_never_touches_com():
+    backend = LtFileIPCBackend()
+    try:
+        def com_forbidden(path):
+            raise AssertionError("AutoCAD LT has no COM")
+
+        seen = []
+
+        async def fake_dispatch(command, params):
+            seen.append((command, params))
+            return CommandResult(ok=True, payload={"opened": params["path"]})
+
+        async def fake_context():
+            return CommandResult(ok=True, payload={"active_path": "unrelated.dwg"})
+
+        backend._open_via_com = com_forbidden
+        backend._dispatch = fake_dispatch
+        backend.document_context = fake_context
+        backend._active_document_dispatch_key = lambda: "doc"
+        result = await backend.drawing_open(r"C:\Users\x\ban ve.dwg")
+        assert result.ok
+        assert seen == [("drawing-open", {"path": r"C:\Users\x\ban ve.dwg"})]
+    finally:
+        await backend.shutdown()

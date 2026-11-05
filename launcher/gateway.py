@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "launcher"))
 import acad_pid
 from logfile import RotatingLog, start_logged
 import knowledge_propose
+import knowledge_read
 import skillserve
 from cad_adapter import find_lt_window, prove_connection, prove_offline
 SERVERS = {
@@ -337,7 +338,7 @@ async def tool_schema(key):
         creationflags=subprocess.CREATE_NO_WINDOW)
     if result.returncode:
         raise RuntimeError(f"Không đọc được danh sách công cụ {key}: {result.stderr[-500:]}")
-    TOOL_CACHE[key] = [*json.loads(result.stdout), BACKEND_TOOL, SKILLS_TOOL, knowledge_propose.TOOL]
+    TOOL_CACHE[key] = [*json.loads(result.stdout), BACKEND_TOOL, SKILLS_TOOL, knowledge_read.TOOL, knowledge_propose.TOOL]
     return TOOL_CACHE[key]
 
 
@@ -372,7 +373,7 @@ async def mcp_route(request: Request):
             "protocolVersion": requested,
             "capabilities": {"tools": {"listChanged": False}, "prompts": {"listChanged": False}},
             "serverInfo": {"name": SERVERS[key][0], "version": "1.0.0"},
-            "instructions": skillserve.INSTRUCTIONS,
+            "instructions": skillserve.INSTRUCTIONS + chr(10) * 2 + knowledge_read.INSTRUCTIONS,
         })
     if method == "notifications/initialized":
         return Response(status_code=202)
@@ -406,6 +407,9 @@ async def mcp_route(request: Request):
     params = message.get("params") or {}
     if params.get("name") == "skills":
         payload, is_error = skills_call(params.get("arguments") or {})
+        return rpc_tool_result(request_id, payload, is_error)
+    if params.get("name") == "knowledge":
+        payload, is_error = await asyncio.to_thread(knowledge_read.call, params.get("arguments") or {})
         return rpc_tool_result(request_id, payload, is_error)
     if params.get("name") == "knowledge_propose":
         payload, is_error = await asyncio.to_thread(knowledge_propose.propose, params.get("arguments") or {})
@@ -450,7 +454,7 @@ async def queued_mcp_route(request: Request):
         return await mcp_route(request)
     key = request.path_params["key"]
     tool_name = (message.get("params") or {}).get("name", "")
-    if tool_name in ("skills", "knowledge_propose"):  # no CAD involved; never wait behind a CAD request
+    if tool_name in ("skills", "knowledge", "knowledge_propose"):  # no CAD involved; never wait behind a CAD request
         return await mcp_route(request)
     async with board.request_slot(key, tool_name):
         return await mcp_route(request)

@@ -48,7 +48,7 @@ git submodule update --init --recursive
 
 Bạn có thể xem trạng thái gateway tại `http://127.0.0.1:8764/status`. Nhật ký nằm trong `launcher/logs/`. Khi làm việc với AutoCAD, app giữ AutoCAD mở lúc đổi MCP hoặc tắt gateway.
 
-Với Beiming, launcher cho các thao tác đọc bản vẽ lớn (`drawing.audit`, `entity.collect`) tối đa **300 giây** thay vì 60 giây; File IPC cũng chờ tối đa 300 giây và gateway chờ phản hồi tối đa 360 giây. Các giới hạn này chỉ có hiệu lực sau khi thoát hẳn và mở lại app.
+Với Beiming, launcher cho các thao tác đọc bản vẽ lớn (`drawing.audit`, `entity.collect`) tối đa **600 giây** thay vì 60 giây (`AUTOCAD_MCP_READ_TIMEOUT`); File IPC chờ tối đa 300 giây và gateway chờ phản hồi tối đa 720 giây. Các thao tác đọc khác vẫn giữ hạn riêng (khoảng 30 đến 60 giây): lệnh nào chạy quá hạn sẽ khóa luồng COM (`poisoned`) cho tới khi gọi `system init` hoặc khởi động lại MCP, nên với DWG lớn hãy đọc từng layer. Các giới hạn này chỉ có hiệu lực sau khi thoát hẳn và mở lại app.
 
 Beiming có thêm tool `copy_batching` để sao chép hàng loạt từ các handle gốc. Truyền `entity_ids` và `offsets` (`[dx, dy]`); tool tạo một bản sao cho mỗi cặp handle và độ dời, tối đa 100 bản sao/lần. Ví dụ, `entity_ids=["A1","A2"], offsets=[[100,0]]` sao chép hai đối tượng cùng độ dời; `entity_ids=["A1"], offsets=[[100,0],[200,0]]` sao chép một đối tượng đến hai vị trí. Kết quả trả handle từng bản sao. Mặc định nếu có lỗi, tool thử xóa các bản sao đã tạo và trả rõ các handle chưa xóa được; xem kết quả trước khi gọi lại.
 
