@@ -16,6 +16,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
 import knowledge
+import knowledge_propose
 import revit_mcp
 import revit_pyrevit_mcp
 from logfile import RotatingLog, start_logged
@@ -475,7 +476,7 @@ class App(tk.Tk):
         ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Tri thức AutoCAD", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
-                  text="Tải các trang tri thức công khai (cách đọc mặt bằng kết cấu, kiến trúc) về máy. Chỉ tải về, không tải lên gì; tệp trùng tên sẽ được thay bằng bản mới.",
+                  text="Tải các trang tri thức công khai (cách đọc mặt bằng kết cấu, kiến trúc) về máy. Nút này chỉ tải về, không tải lên gì; tệp trùng tên sẽ được thay bằng bản mới. Việc gửi đề xuất do agent làm bằng tool knowledge_propose, ở mục bên dưới.",
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
         self.knowledge_dir_var = tk.StringVar(value=self.knowledge_dir())
         knowledge_row = ttk.Frame(frame)
@@ -487,6 +488,23 @@ class App(tk.Tk):
         self.knowledge_btn.pack(side="left", padx=(6, 0))
         self.knowledge_status = ttk.Label(frame, text="")
         self.knowledge_status.pack(anchor="w", pady=(6, 0))
+        ttk.Label(frame, text="Gửi đề xuất tri thức", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(12, 0))
+        ttk.Label(frame,
+                  text="Agent gửi trang đề xuất (đã gỡ tên dự án, số liệu thật) vào hàng chờ duyệt; chỉ sau khi người duyệt chấp nhận mới công khai. Cần khóa nhóm do người quản lý cấp. Nội dung được kiểm tra trên máy trước khi gửi: email, số điện thoại, đường dẫn máy, khóa và các thuật ngữ trong sensitive-terms.local.txt (đặt trong thư mục tri thức) sẽ bị chặn. Khóa lưu trong launcher/state/settings.json trên máy này.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(4, 6))
+        settings_now = knowledge_propose.load_settings()
+        self.propose_url_var = tk.StringVar(value=knowledge_propose.gateway_url(settings_now))
+        self.propose_key_var = tk.StringVar(value=str(settings_now.get("knowledge_team_key") or ""))
+        for caption, variable, hidden in (("Địa chỉ cổng", self.propose_url_var, False),
+                                          ("Khóa nhóm", self.propose_key_var, True)):
+            row = ttk.Frame(frame)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=caption, width=14).pack(side="left")
+            ttk.Entry(row, textvariable=variable, show="•" if hidden else "").pack(side="left", fill="x", expand=True)
+        ttk.Button(frame, text="Lưu cấu hình gửi đề xuất", command=self.save_propose_settings).pack(
+            anchor="w", pady=(6, 0))
+        self.propose_status = ttk.Label(frame, text="")
+        self.propose_status.pack(anchor="w", pady=(6, 0))
         ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Thư viện block", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
@@ -680,6 +698,22 @@ class App(tk.Tk):
             self.after(0, lambda: self.finish_knowledge_download(message, color))
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def save_propose_settings(self):
+        url = self.propose_url_var.get().strip().rstrip("/")
+        key = self.propose_key_var.get().strip()
+        if not url.startswith("https://"):
+            self.propose_status.configure(text="Địa chỉ cổng phải bắt đầu bằng https://", foreground="#a12622")
+            return
+        try:
+            save_setting("knowledge_gateway_url", url)
+            save_setting("knowledge_team_key", key)
+        except OSError as exc:
+            self.propose_status.configure(text=f"Không lưu được cấu hình: {exc}", foreground="#a12622")
+            return
+        self.propose_status.configure(
+            text="Đã lưu. Agent gửi được đề xuất." if key else "Đã lưu địa chỉ. Chưa có khóa nhóm nên chưa gửi được.",
+            foreground="#225c53")
 
     def finish_knowledge_download(self, message, color):
         self.knowledge_btn.configure(state="normal")

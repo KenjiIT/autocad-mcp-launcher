@@ -39,7 +39,7 @@ Các trang công khai hiện có chưa có đầu trang; thêm dần khi sửa t
 1. **Đối chiếu bản công khai** (xem mục dưới) để không tạo trang trùng.
 2. Ghi vào `proposals/` với `status: draft`.
 3. Gỡ thông tin nhạy cảm, chạy `lint.py` (skill `knowledge-lint`).
-4. Người duyệt đọc, sửa, đưa vào repo công khai. Hiện **chưa có cổng tự động gửi đề xuất**: người dùng gửi tệp trong `proposals/` cho người duyệt.
+4. Gửi đề xuất bằng tool `knowledge_propose` của launcher (cần khóa nhóm, nhập ở tab Cài đặt). Đề xuất vào hàng chờ riêng tư. Không có tool thì người dùng gửi tệp trong `proposals/` cho người duyệt. Người duyệt đọc, sửa, rồi đưa vào repo công khai.
 5. Agent không tự sửa `wiki/` hay repo công khai.
 
 ## Đối chiếu với bản công khai

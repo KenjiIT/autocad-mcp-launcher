@@ -28,6 +28,7 @@ INCLUDE = (
 )
 SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "logs", "output", ".local-data", "bin", "obj"}
 SKIP_SUFFIXES = {".dwg"}  # User drawings must not be bundled with the launcher.
+SKIP_PATHS = {("launcher", "state")}  # Per-machine settings, including the team key; never bundled.
 
 
 def files_to_package():
@@ -41,7 +42,8 @@ def files_to_package():
         for candidate in sorted(path.rglob("*")):
             if candidate.is_file() and not candidate.is_symlink():
                 relative = candidate.relative_to(ROOT)
-                if not any(part in SKIP_DIRS for part in relative.parts) and candidate.suffix.lower() not in SKIP_SUFFIXES:
+                if (not any(part in SKIP_DIRS for part in relative.parts) and candidate.suffix.lower() not in SKIP_SUFFIXES
+                        and relative.parts[:2] not in SKIP_PATHS):
                     yield candidate
 
 

@@ -1,0 +1,14 @@
+name = "knowledge-gateway"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+INBOX_REPO = "KenjiIT/common-knowledge-inbox"
+INBOX_BRANCH = "main"
+MAX_BYTES = "51200"
+DAILY_LIMIT = "50"
+
+# Bỏ dấu # và điền id sau khi chạy: npx wrangler kv namespace create RATE
+# [[kv_namespaces]]
+# binding = "RATE"
+# id = "DAN_ID_VAO_DAY"
