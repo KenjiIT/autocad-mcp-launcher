@@ -76,3 +76,11 @@ def test_call_dispatch_and_errors(folder):
 def test_env_overrides_the_folder(tmp_path, monkeypatch):
     monkeypatch.setenv("COMMON_KNOWLEDGE_DIR", str(tmp_path))
     assert kr.knowledge_dir({"knowledge_dir": "C:/khac"}) == tmp_path
+
+
+def test_index_reports_the_release_version(folder):
+    assert kr.index(folder)["version"] is None
+    (Path(folder["knowledge_dir"]) / "wiki" / ".version").write_text(
+        '{"tag": "v0.1.0", "downloaded_at": 1793872416, "sha256": "x"}', encoding="utf-8")
+    assert kr.index(folder)["version"] == {"tag": "v0.1.0", "downloaded_at": 1793872416}
+    assert all(p["path"] != ".version" for p in kr.index(folder)["pages"])

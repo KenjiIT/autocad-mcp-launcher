@@ -56,7 +56,16 @@ Tab **Điều khiển**, chọn agent, bấm **Sao chép cấu hình**, làm the
 **Cách 2: Claude Desktop** (chỉ nhận file zip). Cài đặt, mục Skills, tải lên từng file zip trong thư mục `dist` của bản đã cài (cũng có trong `autocad-mcp-launcher-complete.zip` ở trang Releases, hoặc thư mục `dist` của repo): `knowledge-query.zip`, `knowledge-capture.zip`, `knowledge-promote.zip`, `knowledge-lint.zip`, cùng các skill AutoCAD bạn cần.
 
 ### 2.5 Tải tri thức chung
-Tab **Cài đặt**, mục **Tri thức AutoCAD**, bấm **Tải tri thức**. Mặc định lưu ở `C:\Users\<tên bạn>\autocad-knowledge`; có thể **Đổi thư mục**. Làm lại bấm nút này mỗi khi muốn lấy bản mới.
+Từ launcher **v0.2.14**, việc này **tự động**: khi mở launcher (và mỗi 24 giờ khi đang chạy) launcher hỏi GitHub bản phát hành mới nhất của `autocad-knowledge` (tag `vX.Y.Z`), tải về nếu mới hơn hoặc nếu máy chưa có, kiểm tra SHA-256, rồi thay các trang trong `wiki/`. Máy mới cài xong chỉ cần mở launcher là có tri thức.
+
+Tab **Cài đặt**, mục **Tri thức AutoCAD**:
+- Hộp **Tự kiểm tra và cập nhật tri thức mỗi 24 giờ** (mặc định bật). Dòng bên dưới cho biết đang giữ phiên bản nào và lần kiểm tra cuối.
+- Nút **Tải tri thức** tải lại ngay, kể cả khi đã là bản mới nhất (để sửa khi lỡ xóa tệp).
+- **Đổi thư mục** nếu muốn lưu chỗ khác. Mặc định `C:\Users\<tên bạn>\autocad-knowledge`.
+
+Launcher chỉ nhận **bản đã đóng tag**, không nhận mọi thay đổi trên nhánh `main`. Trang nào bản mới không còn sẽ bị xóa khỏi `wiki/`; `proposals/` và `sensitive-terms.local.txt` không bị đụng. Mất mạng hoặc GitHub không trả lời thì launcher im lặng thử lại sau và vẫn dùng bản đang có.
+
+Launcher bản cũ (đến 0.2.13) vẫn tải từ `main` khi bấm nút.
 
 Nút này chỉ tải về, không tải lên gì.
 
@@ -171,9 +180,17 @@ Hiện làm thủ công. Cần quyền vào repo `common-knowledge-inbox` (riên
    - Nội dung có đúng không? Đối chiếu với bản vẽ hoặc tài liệu khi cần.
 3. Chấp nhận: sửa đầu trang `status: confirmed`, điền `reviewed_by`, đặt tệp vào `wiki/<nhóm>/<slug>.md` của `autocad-knowledge`, thêm một dòng vào `wiki/index.md`, rồi commit và push. Có thể chạy `lint.py` của skill `knowledge-lint` (`py -3 <skill>\scripts\lint.py --root <thư mục chứa wiki>`) trước khi push.
 4. Từ chối hoặc đã xử lý xong: xóa tệp khỏi `proposals/` của repo inbox, để hàng chờ chỉ còn việc chưa xử lý.
-5. Thành viên bấm **Tải tri thức** để nhận trang mới.
+5. **Đóng tag để phát hành.** Chỉ đẩy tag, workflow của `autocad-knowledge` tự kiểm tra (`lint.py`), dựng gói `autocad-knowledge-wiki.zip` kèm SHA-256 và tạo Release (đừng tạo Release thủ công: thiếu tệp đính kèm thì launcher không cập nhật được):
 
-Trang công khai sẽ **hiện với mọi người trên Internet** ngay khi push. Đọc kỹ trước khi đẩy.
+   ```
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+   Tăng số giữa khi thêm hoặc sửa trang đáng kể, số cuối khi sửa nhỏ. Nên đặt bí mật `SENSITIVE_TERMS` của repo (Settings, Secrets and variables, Actions) để bước kiểm tra chặn được mã dự án và tên khách hàng.
+6. Mọi launcher tự nhận bản mới trong vòng 24 giờ (hoặc người dùng bấm **Tải tri thức**).
+
+Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đóng tag, nên bước 5 là cổng phát hành cuối cùng. Trang công khai **hiện với mọi người trên Internet** ngay khi push lên `main`; đọc kỹ trước khi đẩy.
 
 ## 6. Sự cố thường gặp
 
@@ -188,7 +205,8 @@ Trang công khai sẽ **hiện với mọi người trên Internet** ngay khi pu
 | `NO_TEAM_KEY` dù đã nhập | Chưa bấm Lưu, hoặc gateway chạy trước khi lưu | Bấm Lưu; thử gửi lại (gateway đọc khóa mỗi lần gửi) |
 | Gửi bị chặn `REJECTED_LOCALLY` vì thuật ngữ nhạy cảm | Đúng như thiết kế | Gỡ thuật ngữ khỏi trang |
 | Không gửi được vì cổng 401 | Khóa đã đổi | Xin khóa mới |
-| Tải tri thức không được | Mất mạng, hoặc GitHub chặn | Thử lại; có thể đọc trực tiếp `https://raw.githubusercontent.com/KenjiIT/autocad-knowledge/main/wiki/index.md` |
+| Tải tri thức không được | Mất mạng, GitHub chặn, hoặc chưa có bản phát hành nào được đóng tag | Xem dòng trạng thái dưới nút; thử lại sau. Chưa có tag thì người duyệt phải đóng tag đầu tiên (mục 5) |
+| Dòng trạng thái báo SHA-256 không khớp | Gói tải về bị hỏng hoặc bị can thiệp | Không dùng; bấm Tải tri thức thử lại, nếu vẫn báo thì báo người duyệt |
 
 ## 7. Giới hạn đã biết
 - Khóa nhóm dùng chung, nằm trên mỗi máy, không phải bí mật tuyệt đối.

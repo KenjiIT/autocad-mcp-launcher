@@ -191,7 +191,10 @@ class App(tk.Tk):
         self.startup_var = tk.BooleanVar(value=startup_enabled())
         self.autostart_mcp_var = tk.BooleanVar(value=bool(load_settings().get("autostart_mcp")))
         self.status = tk.StringVar(value="Sẵn sàng")
+        self.knowledge_checking = False
+        self.knowledge_auto_var = tk.BooleanVar(value=load_settings().get("knowledge_auto_update", True) is not False)
         self.build()
+        self.refresh_knowledge_status()
         self.refresh_config()
         self.tray_menu = tk.Menu(self, tearoff=False)
         self.tray_menu.add_command(label="Mở ứng dụng", command=self.restore)
@@ -204,6 +207,7 @@ class App(tk.Tk):
         self.bind("<Unmap>", self.on_unmap)
         self.after(500, self.tick)
         self.after(1600, self.check_for_updates)
+        self.after(4000, self.knowledge_tick)
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         if "--start" in sys.argv[1:] or self.autostart_mcp_var.get():
             self.after(300, self.start)
@@ -476,15 +480,18 @@ class App(tk.Tk):
         ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Tri thức AutoCAD", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
-                  text="Tải các trang tri thức công khai (cách đọc mặt bằng kết cấu, kiến trúc) về máy. Nút này chỉ tải về, không tải lên gì; tệp trùng tên sẽ được thay bằng bản mới. Việc gửi đề xuất do agent làm bằng tool knowledge_propose, ở mục bên dưới.",
+                  text="Tải các trang tri thức công khai (cách đọc bản vẽ, bóc khối lượng, lỗi hay gặp) về máy. Launcher chỉ nhận bản phát hành đã được người duyệt đóng tag, kiểm tra SHA-256, và kiểm tra bản mới mỗi 24 giờ. Trang nào bản mới không còn sẽ bị xóa khỏi wiki/; thư mục proposals/ và sensitive-terms.local.txt không bị đụng. Nút bên phải tải lại ngay. Chỉ tải về, không tải lên gì. Việc gửi đề xuất do agent làm bằng tool knowledge_propose, ở mục bên dưới.",
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
+        ttk.Checkbutton(frame, text="Tự kiểm tra và cập nhật tri thức mỗi 24 giờ",
+                        variable=self.knowledge_auto_var,
+                        command=self.save_knowledge_auto_setting).pack(anchor="w", pady=(0, 6))
         self.knowledge_dir_var = tk.StringVar(value=self.knowledge_dir())
         knowledge_row = ttk.Frame(frame)
         knowledge_row.pack(fill="x")
         ttk.Entry(knowledge_row, textvariable=self.knowledge_dir_var, state="readonly").pack(
             side="left", fill="x", expand=True)
         ttk.Button(knowledge_row, text="Đổi thư mục…", command=self.choose_knowledge_dir).pack(side="left", padx=(6, 0))
-        self.knowledge_btn = ttk.Button(knowledge_row, text="Tải tri thức", command=self.download_knowledge)
+        self.knowledge_btn = ttk.Button(knowledge_row, text="Tải tri thức", command=lambda: self.run_knowledge_check(force=True))
         self.knowledge_btn.pack(side="left", padx=(6, 0))
         self.knowledge_status = ttk.Label(frame, text="")
         self.knowledge_status.pack(anchor="w", pady=(6, 0))
@@ -682,22 +689,9 @@ class App(tk.Tk):
             self.knowledge_status.configure(text=f"Không lưu được thư mục: {exc}", foreground="#a12622")
             return
         self.knowledge_dir_var.set(chosen)
-
-    def download_knowledge(self):
-        destination = self.knowledge_dir_var.get()
-        self.knowledge_btn.configure(state="disabled")
-        self.knowledge_status.configure(text="Đang tải…", foreground="#225c53")
-
-        def worker():
-            try:
-                written = knowledge.download_knowledge(destination)
-            except (OSError, ValueError, zipfile.BadZipFile) as exc:
-                message, color = f"Không tải được tri thức: {exc}", "#a12622"
-            else:
-                message, color = f"Đã tải {len(written)} trang vào {destination}.", "#225c53"
-            self.after(0, lambda: self.finish_knowledge_download(message, color))
-
-        threading.Thread(target=worker, daemon=True).start()
+        self.refresh_knowledge_status()
+        if self.knowledge_auto_var.get():
+            self.run_knowledge_check(force=False)
 
     def save_propose_settings(self):
         url = self.propose_url_var.get().strip().rstrip("/")
@@ -715,9 +709,69 @@ class App(tk.Tk):
             text="Đã lưu. Agent gửi được đề xuất." if key else "Đã lưu địa chỉ. Chưa có khóa nhóm nên chưa gửi được.",
             foreground="#225c53")
 
-    def finish_knowledge_download(self, message, color):
+    def save_knowledge_auto_setting(self):
+        enabled = bool(self.knowledge_auto_var.get())
+        try:
+            save_setting("knowledge_auto_update", enabled)
+        except OSError as exc:
+            self.knowledge_auto_var.set(not enabled)
+            self.knowledge_status.configure(text=f"Không lưu được cài đặt: {exc}", foreground="#a12622")
+            return
+        if enabled:
+            self.run_knowledge_check(force=False)
+        else:
+            self.refresh_knowledge_status("Đã tắt tự cập nhật.")
+
+    def refresh_knowledge_status(self, note=None):
+        version = knowledge.read_version(self.knowledge_dir_var.get())
+        last = load_settings().get("knowledge_last_check")
+        parts = [f"Tri thức {version['tag']}" if version else "Chưa tải tri thức"]
+        if isinstance(last, (int, float)) and last > 0:
+            parts.append("kiểm tra lần cuối " + time.strftime("%H:%M %d/%m", time.localtime(last)))
+        text = "; ".join(parts) + "."
+        if note:
+            text += " " + note
+        self.knowledge_status.configure(text=text, foreground="#225c53")
+
+    def knowledge_tick(self):
+        """Look once after start and then every hour; a look only contacts GitHub when 24 hours have passed."""
+        if self.closing:
+            return
+        if self.knowledge_auto_var.get():
+            self.run_knowledge_check(force=False)
+        self.after(3600 * 1000, self.knowledge_tick)
+
+    def run_knowledge_check(self, force):
+        if self.knowledge_checking:
+            return
+        self.knowledge_checking = True
+        destination = self.knowledge_dir_var.get()
+        last_check = load_settings().get("knowledge_last_check")
+        if force:
+            self.knowledge_btn.configure(state="disabled")
+            self.knowledge_status.configure(text="Đang tải…", foreground="#225c53")
+
+        def worker():
+            result = knowledge.check(destination, last_check=last_check if isinstance(last_check, (int, float)) else None,
+                                     force=force)
+            self.after(0, lambda: self.finish_knowledge_check(result))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def finish_knowledge_check(self, result):
+        self.knowledge_checking = False
         self.knowledge_btn.configure(state="normal")
-        self.knowledge_status.configure(text=message, foreground=color)
+        if result.get("checked"):
+            try:
+                save_setting("knowledge_last_check", time.time())
+            except OSError:
+                pass
+        if result["state"] == "error":
+            self.knowledge_status.configure(text=result["message"], foreground="#a12622")
+        elif result["state"] == "unavailable":
+            self.knowledge_status.configure(text=result["message"], foreground="#65736f")
+        else:
+            self.refresh_knowledge_status(result["message"] if result["state"] == "updated" else None)
 
     def refresh_config(self):
         hints = {

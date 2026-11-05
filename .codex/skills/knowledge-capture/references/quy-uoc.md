@@ -32,14 +32,14 @@ reviewed_by:         # để trống; người duyệt điền
 ---
 ```
 
-Các trang công khai hiện có chưa có đầu trang; thêm dần khi sửa trang. Khi trang đề xuất được duyệt, người duyệt đặt `status: confirmed`, điền `reviewed_by`, chuyển vào `wiki/<nhóm>/`, thêm một dòng vào `wiki/index.md` rồi đẩy lên repo công khai.
+Các trang công khai hiện có chưa có đầu trang; thêm dần khi sửa trang. Khi trang đề xuất được duyệt, người duyệt đặt `status: confirmed`, điền `reviewed_by`, chuyển vào `wiki/<nhóm>/`, thêm một dòng vào `wiki/index.md`, đẩy lên repo công khai rồi **đóng tag** `vX.Y.Z` (chỉ đẩy tag, workflow tự dựng Release). Launcher chỉ nhận bản đã đóng tag nên trang chưa tới người dùng cho tới khi có tag.
 
 ## Đường đi
 
 1. **Đối chiếu bản công khai** (xem mục dưới) để không tạo trang trùng.
 2. Ghi vào `proposals/` với `status: draft`.
 3. Gỡ thông tin nhạy cảm, chạy `lint.py` (skill `knowledge-lint`).
-4. Gửi đề xuất bằng tool `knowledge_propose` của launcher (cần khóa nhóm, nhập ở tab Cài đặt). Đề xuất vào hàng chờ riêng tư. Không có tool thì người dùng gửi tệp trong `proposals/` cho người duyệt. Người duyệt đọc, sửa, rồi đưa vào repo công khai.
+4. Gửi đề xuất bằng tool `knowledge_propose` của launcher (cần khóa nhóm, nhập ở tab Cài đặt). Đề xuất vào hàng chờ riêng tư. Không có tool thì người dùng gửi tệp trong `proposals/` cho người duyệt. Người duyệt đọc, sửa, đưa vào repo công khai rồi đóng tag.
 5. Agent không tự sửa `wiki/` hay repo công khai.
 
 ## Đối chiếu với bản công khai

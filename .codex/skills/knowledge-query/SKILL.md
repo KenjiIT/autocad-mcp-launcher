@@ -10,7 +10,7 @@ Tri thức chung là **công khai, không mật**. Bản gốc là repo `KenjiIT
 ## Cách nhanh nhất: tool `knowledge` của launcher
 
 Nếu agent có tool MCP `knowledge`, dùng nó trước. Nó đọc đúng thư mục tri thức của launcher và hoạt động cả khi agent không được cấp quyền vào thư mục đó:
-- `operation=index`: danh sách trang và mục lục.
+- `operation=index`: danh sách trang, mục lục và `version` (tag của bản tri thức đang giữ; khi trả lời có thể nói trang thuộc phiên bản nào).
 - `operation=search`, `query=...`: tìm theo từ khóa, không cần gõ dấu (`dam san` tìm ra `dầm sàn`).
 - `operation=get`, `path=...`: đọc một trang (đường dẫn lấy từ `index` hoặc `search`).
 
