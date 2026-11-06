@@ -33,7 +33,7 @@ TOOL = {
     "name": "knowledge_propose",
     "description": (
         "Gửi một trang tri thức đề xuất lên hàng chờ duyệt của kho tri thức chung. Sau khi người duyệt "
-        "chấp nhận, trang trở thành CÔNG KHAI. Chỉ gọi khi người dùng đã xem và đồng ý nội dung, và nội dung đã "
+        "chấp nhận, trang trở thành CÔNG KHAI. Chỉ gọi khi lint sạch và nội dung đã "
         "gỡ tên khách hàng, mã dự án, số liệu thật, tên người, đường dẫn máy (xem skill knowledge-capture). "
         "content là markdown có đầu trang: title, type (concept|rule|howto|pitfall), topics, status: draft, "
         "source, updated (YYYY-MM-DD), reviewed_by để trống. Launcher kiểm tra nội dung trên máy trước khi gửi."

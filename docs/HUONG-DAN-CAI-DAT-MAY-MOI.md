@@ -109,7 +109,7 @@ Tên Khách Hàng
 | Chuyển từ ghi chú riêng của dự án | "Chuyển trang này thành tri thức chung" |
 | Kiểm tra kho | "Lint kho tri thức chung" |
 
-Luồng khi ghi: agent đối chiếu bản công khai (tránh trùng) → gỡ tên dự án và số liệu thật → viết vào `proposals/` → kiểm tra → **hỏi bạn có gửi không** → gọi `knowledge_propose`. Đọc lại bản nháp kỹ trước khi đồng ý, vì sau khi người duyệt chấp nhận trang sẽ **công khai**.
+Luồng khi ghi: agent đối chiếu bản công khai (tránh trùng) → gỡ tên dự án và số liệu thật → viết vào `proposals/` → kiểm tra → gọi `knowledge_propose` → báo bạn một dòng. Agent không hỏi trước; chỗ chặn là người duyệt, nên đọc kỹ từng trang trong hàng chờ trước khi đóng tag, vì trang được duyệt sẽ **công khai**.
 
 Kết quả gửi:
 

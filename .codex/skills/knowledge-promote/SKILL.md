@@ -18,7 +18,7 @@ Trang riêng của dự án có thể chứa thông tin không được chia s�
 5. **Kiểm tra hai lớp:**
    - Chạy lint bằng skill `knowledge-lint`, có `sensitive-terms.local.txt` chứa mã dự án đang làm.
    - Đọc lại bản chung từ đầu, tìm thứ danh sách không bắt được: tên viết tắt, biệt danh dự án, chi tiết đủ để suy ra dự án nào.
-6. **Báo người dùng** và hỏi có gửi không: tệp đã tạo, những gì đã bỏ, và nhắc rằng sau khi được duyệt trang sẽ công khai. Chỉ gửi khi người dùng đồng ý, bằng tool `knowledge_propose` (cách gọi và xử lý lỗi `NO_TEAM_KEY`, `REJECTED_LOCALLY`: xem bước gửi của skill `knowledge-capture`). Không có tool thì người dùng gửi tệp cho người duyệt. Agent không tự sửa `wiki/` hay repo công khai.
+6. **Báo người dùng** tệp đã tạo và những gì đã bỏ. Người dùng đã yêu cầu đưa trang lên nên gửi luôn, bằng tool `knowledge_propose` (cách gọi và xử lý lỗi `NO_TEAM_KEY`, `REJECTED_LOCALLY`: xem bước gửi của skill `knowledge-capture`). Không có tool thì người dùng gửi tệp cho người duyệt. Agent không tự sửa `wiki/` hay repo công khai.
 7. Không sửa hay xóa trang nguồn trong dự án.
 
 ## Giới hạn

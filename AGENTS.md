@@ -17,8 +17,7 @@ Mọi việc liên quan đến AutoCAD (vẽ, sửa, đọc, đo, kiểm tra, ch
    - người dùng chỉnh lại bạn, hoặc bạn phải thử hai ba cách mới ra;
    - bạn gặp một quy ước hay cấu trúc không có ghi ở đâu.
    Thời điểm: ngay sau khi giải quyết xong lỗi hoặc thắc mắc, ngay sau khi người dùng chỉnh, và khi người dùng báo xong hoặc trước báo cáo cuối. 
-   Mỗi lần chỉ làm một việc nhỏ: tra `knowledge` xem đã có chưa; nếu chưa và điều đó không hiển nhiên, dùng lại được, **hỏi người dùng một câu** có muốn ghi vào tri thức chung không. 
-   Chỉ khi được đồng ý mới làm theo skill `knowledge-capture` (gỡ tên dự án và số liệu thật, rồi gửi bằng `knowledge_propose`). Không ghi số liệu riêng của dự án, trạng thái việc dở dang, hay điều chưa kiểm chứng.
+   Mỗi lần chỉ làm một việc nhỏ: tra `knowledge` xem đã có chưa; nếu chưa và điều đó không hiển nhiên, dùng lại được, **tự ghi theo skill `knowledge-capture` và gửi bằng `knowledge_propose`, không cần hỏi trước**. Phải gỡ tên dự án, tên khách hàng, mã dự án, số liệu thật và đường dẫn máy trước khi gửi; chưa chắc một chi tiết có nhạy cảm không thì bỏ chi tiết đó. Kiểm tra lỗi (lint) không sạch hoặc còn nghi ngờ thì **không gửi**, giữ ở `proposals/` và hỏi người dùng. Gửi xong chỉ báo người dùng một dòng (tệp nào, nói gì); người duyệt vẫn đọc lại trước khi trang công khai. Không ghi số liệu riêng của dự án, trạng thái việc dở dang, hay điều chưa kiểm chứng.
 
 Skill nằm trong `.claude/skills`, `.codex/skills` và `.agents/skills` (ba bản giống nhau). Không có công cụ Skill thì đọc thẳng tệp `SKILL.md` trong thư mục đó.
 

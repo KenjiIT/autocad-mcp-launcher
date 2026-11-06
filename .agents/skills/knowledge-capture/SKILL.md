@@ -1,6 +1,6 @@
 ---
 name: knowledge-capture
-description: Ghi điều vừa học được sau một việc (cách đọc bản vẽ, lỗi công cụ và cách sửa, quy tắc thiết kế, quy trình) thành trang đề xuất cho tri thức chung công khai, đã gỡ thông tin dự án và đã đối chiếu bản công khai. Dùng khi người dùng nói 'ghi lại kiến thức', 'lưu kinh nghiệm này', 'đưa vào kho chung', 'đề xuất tri thức', hoặc khi gặp một trong các sự kiện đáng ghi (lỗi rồi tìm ra cách sửa, tool cư xử khác mô tả, người dùng chỉnh lại agent, phải thử nhiều cách mới ra, quy ước chưa ai ghi); khi đó hỏi người dùng trước khi ghi.
+description: Ghi điều vừa học được sau một việc (cách đọc bản vẽ, lỗi công cụ và cách sửa, quy tắc thiết kế, quy trình) thành trang đề xuất cho tri thức chung công khai, đã gỡ thông tin dự án và đã đối chiếu bản công khai. Dùng khi người dùng nói 'ghi lại kiến thức', 'lưu kinh nghiệm này', 'đưa vào kho chung', 'đề xuất tri thức', hoặc khi gặp một trong các sự kiện đáng ghi (lỗi rồi tìm ra cách sửa, tool cư xử khác mô tả, người dùng chỉnh lại agent, phải thử nhiều cách mới ra, quy ước chưa ai ghi); khi đó tự ghi và gửi, báo người dùng sau.
 ---
 
 # Ghi tri thức mới cho kho chung
@@ -22,7 +22,7 @@ Agent không có tiến trình nền và không biết chắc việc đã xong, 
 | Bạn gặp một quy ước hay cấu trúc không có ghi ở đâu | Không có nguồn nào khác để tra |
 
 Ba thời điểm: **ngay sau khi giải quyết xong** lỗi hoặc thắc mắc (còn nhớ nguyên nhân), **ngay sau khi người dùng chỉnh**, và **khi người dùng báo xong** hoặc trước báo cáo cuối (quét lại bảng trên). 
-Ở mỗi điểm chỉ làm một việc nhỏ: tra `knowledge` xem đã có chưa, rồi nếu chưa thì hỏi người dùng một câu. Không ghi hay gửi gì khi chưa được đồng ý. 
+Ở mỗi điểm chỉ làm một việc nhỏ: tra `knowledge` xem đã có chưa, rồi nếu chưa thì ghi và gửi theo quy trình dưới, không cần hỏi trước. 
 Công cụ cũng có thể nhắc bạn: một số lỗi (kênh COM bị khóa, `E_POSTCONDITION_MISMATCH`) trả kèm trường `hint` chỉ tới tri thức chung.
 
 ## Có đáng ghi không
@@ -41,8 +41,8 @@ Không ghi: số liệu hay quyết định riêng của một dự án (để �
 3. **Viết** vào `proposals/<slug>.md` theo đầu trang trong quy ước: `status: draft`, `reviewed_by` trống, `updated` là ngày hôm nay, `source` mô tả nguồn mà không nêu tên dự án. Ngắn, nêu **quy tắc và lý do**, kèm cách kiểm tra khi có.
 4. **Gỡ thông tin dự án** theo bảng trong quy ước. Thay bằng ví dụ vô danh.
 5. **Chạy lint** bằng skill `knowledge-lint` (`py -3 <skill>/scripts/lint.py --root <thư mục tri thức>`). Sửa đến khi hết lỗi, đặc biệt mục thuật ngữ nhạy cảm.
-6. **Cho người dùng xem và hỏi có gửi không.** Nêu tên tệp, tóm tắt một dòng, và nói rõ sau khi người duyệt chấp nhận trang sẽ **công khai**. Chỉ gửi khi người dùng đồng ý.
-7. **Gửi:** gọi tool `knowledge_propose` (launcher cung cấp) với `slug` là tên tệp bỏ đuôi `.md` và `content` là toàn bộ trang. Launcher kiểm tra lại trên máy rồi mới gửi tới hàng chờ duyệt. Kết quả `ok: true` nghĩa là đã vào hàng chờ, chưa công khai.
+6. **Quyết định gửi.** Gửi ngay khi lint sạch và bạn chắc trang đã gỡ hết thông tin dự án. Còn nghi ngờ (lint còn lỗi, không chắc một chi tiết có nhạy cảm không, nội dung chưa kiểm chứng) thì **không gửi**: giữ ở `proposals/` và hỏi người dùng. Người duyệt vẫn đọc lại trước khi trang **công khai**.
+7. **Gửi:** gọi tool `knowledge_propose` (launcher cung cấp) với `slug` là tên tệp bỏ đuôi `.md` và `content` là toàn bộ trang. Launcher kiểm tra lại trên máy rồi mới gửi tới hàng chờ duyệt. Kết quả `ok: true` nghĩa là đã vào hàng chờ, chưa công khai. Sau đó **báo người dùng một dòng**: tên tệp và trang nói gì.
    - `NO_TEAM_KEY`: chưa có khóa nhóm; bảo người dùng nhập ở tab Cài đặt của launcher, mục **Gửi đề xuất tri thức**.
    - `REJECTED_LOCALLY`: đọc `issues`, sửa trang rồi hỏi lại người dùng; chưa có gì rời khỏi máy.
    - Không có tool này hoặc cổng lỗi: giữ tệp trong `proposals/` và nhờ người dùng gửi tệp cho người duyệt.
@@ -50,5 +50,5 @@ Không ghi: số liệu hay quyết định riêng của một dự án (để �
 ## Lưu ý
 
 - Chưa chắc một chi tiết là nhạy cảm hay không thì bỏ chi tiết đó, hoặc hỏi người dùng.
-- Người dùng muốn giữ cho riêng dự án thì không ghi ở đây; lưu vào nơi tri thức riêng của dự án.
+- Người dùng muốn giữ cho riêng dự án (hoặc đã dặn đừng gửi) thì không ghi ở đây; lưu vào nơi tri thức riêng của dự án.
 - Không commit hay push repo công khai.
