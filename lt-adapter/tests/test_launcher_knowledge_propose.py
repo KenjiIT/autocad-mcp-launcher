@@ -133,3 +133,22 @@ def test_env_overrides(tmp_path, monkeypatch):
     opener, calls = recorder()
     kp.propose({"slug": "a", "content": GOOD}, {"knowledge_dir": str(tmp_path)}, opener)
     assert calls[0].full_url == "https://env.test/propose" and calls[0].get_header("X-team-key") == "tu-env"
+
+
+def test_embedded_key_roundtrip_and_precedence(tmp_path, monkeypatch):
+    key = "Khoa-Nhom_123!"
+    assert kp.decode_key(kp.encode_key(key)) == key
+    assert key not in kp.encode_key(key)
+    monkeypatch.delenv("KNOWLEDGE_TEAM_KEY", raising=False)
+    monkeypatch.setattr(kp, "embedded_key", lambda: key)
+    assert kp.team_key({}) == key
+    assert kp.team_key({"knowledge_team_key": "typed"}) == "typed"
+    monkeypatch.setenv("KNOWLEDGE_TEAM_KEY", "env")
+    assert kp.team_key({"knowledge_team_key": "typed"}) == "env"
+
+
+def test_missing_or_broken_embedded_file_means_no_key(tmp_path, monkeypatch):
+    monkeypatch.setattr(kp, "__file__", str(tmp_path / "kp.py"))
+    assert kp.embedded_key() == ""
+    (tmp_path / kp.EMBEDDED_KEY_FILE).write_text("!!not base64!!", encoding="ascii")
+    assert kp.embedded_key() == ""

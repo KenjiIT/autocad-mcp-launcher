@@ -13,18 +13,21 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Check out source and submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       - name: Verify release version and build portable package
         shell: pwsh
+        env:
+          KNOWLEDGE_TEAM_KEY: ${{ secrets.KNOWLEDGE_TEAM_KEY }}
         run: |
+          python scripts/write_team_key.py
           $version = (Get-Content VERSION -Raw).Trim()
           if ("v$version" -ne $env:GITHUB_REF_NAME) {
             throw "Tag $env:GITHUB_REF_NAME does not match VERSION v$version"

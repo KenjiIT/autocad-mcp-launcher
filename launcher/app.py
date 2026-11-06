@@ -497,17 +497,24 @@ class App(tk.Tk):
         self.knowledge_status.pack(anchor="w", pady=(6, 0))
         ttk.Label(frame, text="Gửi đề xuất tri thức", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(12, 0))
         ttk.Label(frame,
-                  text="Agent gửi trang đề xuất (đã gỡ tên dự án, số liệu thật) vào hàng chờ duyệt; chỉ sau khi người duyệt chấp nhận mới công khai. Cần khóa nhóm do người quản lý cấp. Nội dung được kiểm tra trên máy trước khi gửi: email, số điện thoại, đường dẫn máy, khóa và các thuật ngữ trong sensitive-terms.local.txt (đặt trong thư mục tri thức) sẽ bị chặn. Khóa lưu trong launcher/state/settings.json trên máy này.",
+                  text="Agent gửi trang đề xuất (đã gỡ tên dự án, số liệu thật) vào hàng chờ duyệt; chỉ sau khi người duyệt chấp nhận mới công khai. Khóa nhóm đã có sẵn trong launcher (bản phát hành chính thức). Nội dung được kiểm tra trên máy trước khi gửi: email, số điện thoại, đường dẫn máy, khóa và các thuật ngữ trong sensitive-terms.local.txt (đặt trong thư mục tri thức) sẽ bị chặn. Bản tự dựng không có khóa sẽ hiện thêm ô nhập; khóa nhập tay lưu trong launcher/state/settings.json.",
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(4, 6))
         settings_now = knowledge_propose.load_settings()
         self.propose_url_var = tk.StringVar(value=knowledge_propose.gateway_url(settings_now))
         self.propose_key_var = tk.StringVar(value=str(settings_now.get("knowledge_team_key") or ""))
-        for caption, variable, hidden in (("Địa chỉ cổng", self.propose_url_var, False),
-                                          ("Khóa nhóm", self.propose_key_var, True)):
+        # A key shipped in the package is never shown or editable; the field appears only when none is embedded.
+        has_embedded_key = bool(knowledge_propose.embedded_key())
+        fields = [("Địa chỉ cổng", self.propose_url_var, False)]
+        if not has_embedded_key:
+            fields.append(("Khóa nhóm", self.propose_key_var, True))
+        for caption, variable, hidden in fields:
             row = ttk.Frame(frame)
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=caption, width=14).pack(side="left")
             ttk.Entry(row, textvariable=variable, show="•" if hidden else "").pack(side="left", fill="x", expand=True)
+        if has_embedded_key:
+            ttk.Label(frame, text="Khóa nhóm đã được tích hợp sẵn trong launcher; không cần nhập.",
+                      foreground="#225c53").pack(anchor="w", pady=(2, 0))
         ttk.Button(frame, text="Lưu cấu hình gửi đề xuất", command=self.save_propose_settings).pack(
             anchor="w", pady=(6, 0))
         self.propose_status = ttk.Label(frame, text="")
@@ -695,18 +702,19 @@ class App(tk.Tk):
 
     def save_propose_settings(self):
         url = self.propose_url_var.get().strip().rstrip("/")
-        key = self.propose_key_var.get().strip()
+        key = self.propose_key_var.get().strip() if not knowledge_propose.embedded_key() else None
         if not url.startswith("https://"):
             self.propose_status.configure(text="Địa chỉ cổng phải bắt đầu bằng https://", foreground="#a12622")
             return
         try:
             save_setting("knowledge_gateway_url", url)
-            save_setting("knowledge_team_key", key)
+            if key is not None:
+                save_setting("knowledge_team_key", key)
         except OSError as exc:
             self.propose_status.configure(text=f"Không lưu được cấu hình: {exc}", foreground="#a12622")
             return
         self.propose_status.configure(
-            text="Đã lưu. Agent gửi được đề xuất." if key else "Đã lưu địa chỉ. Chưa có khóa nhóm nên chưa gửi được.",
+            text="Đã lưu. Agent gửi được đề xuất." if knowledge_propose.team_key() else "Đã lưu địa chỉ. Chưa có khóa nhóm nên chưa gửi được.",
             foreground="#225c53")
 
     def save_knowledge_auto_setting(self):

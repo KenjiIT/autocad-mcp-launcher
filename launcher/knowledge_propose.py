@@ -5,6 +5,7 @@ reads; nothing here changes the public pages.  Content is checked on this machin
 so a page with an e-mail address, a machine path, a key or one of the user's own
 sensitive terms never leaves the computer.
 """
+import base64
 import json
 import os
 import re
@@ -65,9 +66,33 @@ def gateway_url(settings=None):
     return str(value).strip().rstrip("/")
 
 
+EMBEDDED_KEY_FILE = "team_key.dat"
+_MASK = b"autocad-mcp-launcher"
+
+
+def encode_key(key):
+    """Obfuscate (not encrypt) a key for the embedded file."""
+    raw = key.encode("utf-8")
+    return base64.b64encode(bytes(b ^ _MASK[i % len(_MASK)] for i, b in enumerate(raw))).decode("ascii")
+
+
+def decode_key(text):
+    raw = base64.b64decode(text.strip().encode("ascii"))
+    return bytes(b ^ _MASK[i % len(_MASK)] for i, b in enumerate(raw)).decode("utf-8")
+
+
+def embedded_key():
+    """Key shipped inside the release package; empty when the build had none."""
+    try:
+        return decode_key((Path(__file__).with_name(EMBEDDED_KEY_FILE)).read_text(encoding="ascii"))
+    except (OSError, ValueError):
+        return ""
+
+
 def team_key(settings=None):
+    """Environment, then a key typed in settings, then the one embedded in the package."""
     settings = settings if settings is not None else load_settings()
-    return str(os.environ.get("KNOWLEDGE_TEAM_KEY") or settings.get("knowledge_team_key") or "").strip()
+    return str(os.environ.get("KNOWLEDGE_TEAM_KEY") or settings.get("knowledge_team_key") or embedded_key() or "").strip()
 
 
 def knowledge_dir(settings=None):
