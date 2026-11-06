@@ -7,14 +7,17 @@ description: Tra định mức dự toán xây dựng (TT 38/2026/TT-BXD) và l�
 
 Skill này dẫn đường: tìm đúng công tác trong tập định mức, đọc đúng cột, nhân với đơn giá, và nói rõ chỗ nào chưa có căn cứ. Nguồn giá nội bộ (bảng DMS của công ty): [references/gia-noi-bo-dms.md](references/gia-noi-bo-dms.md); dữ liệu nội bộ, không chia sẻ ra ngoài. Quy trình, bảng mã và các điểm phải kiểm nằm ở [references/quy-trinh-du-toan.md](references/quy-trinh-du-toan.md), [references/cau-truc-tai-lieu.md](references/cau-truc-tai-lieu.md) (định mức, đơn giá nhân công, ca máy) và [references/gia-vat-lieu-tphcm.md](references/gia-vat-lieu-tphcm.md) (giá vật liệu, cạm bẫy khi tra).
 
-## Hai tài liệu đã biết
+## Bộ tài liệu
 
 | Tài liệu | Dùng để | Dạng file |
 |---|---|---|
-| CV 9947/BXD-VPB (29/6/2026), phụ lục thay thế TT 38/2026/TT-BXD (I-VIII) và Phụ lục V TT 36/2026/TT-BXD | Hao phí vật liệu, nhân công, máy trên một đơn vị công tác | PDF có chữ, 1.895 trang |
-| Quyết định 1491/QĐ-SXD-KT&VLXD (31/12/2024, Sở Xây dựng TP.HCM) | Đơn giá nhân công, giá ca máy năm 2024, Vùng I và II | PDF quét, không có chữ |
+| NĐ 206/2026/NĐ-CP (hiệu lực 01/07/2026) | Nghị định khung quản lý chi phí đầu tư XD (thay NĐ 10/2021) | DOCX |
+| TT 36/2026/TT-BXD (26/6/2026) | Tỷ lệ chi phí chung, TL, nhà tạm (Phụ lục III Bảng 3.2→3.9) | DOCX |
+| TT 37/2026/TT-BXD (26/6/2026) | PP xác định giá nhân công (nhóm mới), giá ca máy, chỉ số giá (thay TT 13/2021) | DOCX |
+| CV 9947/BXD-VPB (29/6/2026), phụ lục thay thế TT 38/2026/TT-BXD (I-VIII) và Phụ lục V TT 36 | Hao phí VL/NC/máy, cấp phối vữa BT (Chương VI mã C), hao hụt VL (Phụ lục VII) | PDF có chữ, 1.895 trang |
+| QĐ 1491/QĐ-SXD-KT&VLXD (31/12/2024, Sở XD TP.HCM) | Đơn giá nhân công (bậc thợ cũ), giá ca máy Vùng I/II — còn hiệu lực đến khi có bảng nhóm mới | PDF quét, không có chữ |
 | File `gia-mat-hang-DMS-*.xlsx` (giá hợp đồng nội bộ công ty, 29/07-29/10/2026) | Giá riêng của công ty; nguồn chính khi làm dự toán cho công ty | Excel, tra bằng `tra_gia_dms.py`; **bảo mật** |
-| Thư mục "CONG BO GIA VLXD THANG 6-2026" (Thông báo 24594/TB-SXD-KTVLXD, 166 file) | Giá vật liệu xây dựng TP.HCM, 25 nhóm, giá chưa VAT, niêm yết của doanh nghiệp | Excel tra được bằng script; thép và nhiều công văn là PDF quét |
+| Thư mục "CONG BO GIA VLXD THANG 6-2026" (Thông báo 24594/TB-SXD-KTVLXD, 166 file) | Giá VLXD TP.HCM, 25 nhóm, giá chưa VAT, niêm yết | Excel tra được bằng script; thép và nhiều công văn là PDF quét |
 
 Tên file người dùng có thể khác; hỏi hoặc dò bằng `info`. Văn bản 2026 thay bản phát hành trước: không trộn với bản cũ.
 
@@ -37,12 +40,12 @@ Tên file người dùng có thể khác; hỏi hoặc dò bằng `info`. Văn b
 
 ## Điều không được làm
 
-- Không bịa mã, hao phí, đơn giá hay tỷ lệ. Không có trong tài liệu đã nạp thì nói "chưa có trong tài liệu", và chỉ ra văn bản cần lấy (ví dụ tỷ lệ chi phí chung, thu nhập chịu thuế tính trước, thuế GTGT nằm ở TT 36/2026, chưa nạp).
+- Không bịa mã, hao phí, đơn giá hay tỷ lệ. Không có trong tài liệu đã nạp thì nói "chưa có trong tài liệu" và chỉ ra cần lấy ở đâu.
 - Không trộn đơn giá nhân công 2024 với định mức 2026 và giá vật liệu 2026 mà không nói; kể cả hệ số điều chỉnh.
 - **Đơn giá vật liệu lấy giá niêm yết** (Bảng niêm yết giá, Mẫu 01 Phụ lục VIII, cột giá bán chưa VAT), theo yêu cầu của người dùng. Không lấy sheet hay file mẫu khác (VII.2, "file 737", "liên sở", báo giá) trừ khi người dùng bảo; nếu không có bảng niêm yết thì nói rõ và hỏi.
 - **Chọn nguồn giá:** mặc định giá niêm yết. Người dùng nói dự toán cho công ty hay giá riêng/nội bộ thì dùng bảng DMS làm nguồn chính (trung vị khi từ 3 mẫu và 2 dự án; ít mẫu thì nói rõ), vẫn ghi giá niêm yết để đối chiếu, lệch trên 25 % thì cảnh báo. Một dòng dự toán chỉ một nguồn. Chưa rõ thì hỏi một lần.
 - **Bảng DMS là dữ liệu nội bộ:** không chép giá, tên nhà cung cấp, tên dự án từ đó vào skill, commit, bản phát hành hay tài liệu gửi ra ngoài; báo cáo ghi "nội bộ".
 - Giá vật liệu công bố là giá niêm yết, chưa trừ chiết khấu, **không dùng để thanh quyết toán**; ghi rõ khi báo cáo. Tra đúng khu vực, đúng điều kiện giao hàng, ghi hãng và nguồn.
-- Định mức ghi "nhóm 2" (nhân công) không kèm bậc thợ: bậc thợ phải lấy theo hướng dẫn của thông tư hoặc hỏi người dùng, không tự chọn.
+- Định mức 2026 ghi "nhóm 2" = nhóm nhân công XD theo Bảng 3.1 TT 37/2026, không phải bậc thợ cũ. Dùng giá nhóm chuyển đổi (nếu Sở XD chưa công bố giá nhóm mới) hoặc giá bậc thợ QĐ 1491 kèm quy đổi; hỏi người dùng chọn, ghi rõ nguồn.
 - Bản quét (QĐ 1491) không tra bằng script: đọc ảnh trang, ghi lại số nhìn thấy, báo đã đọc từ ảnh.
 - Không ghi kết quả này là dự toán đã thẩm tra hoặc làm căn cứ pháp lý.
