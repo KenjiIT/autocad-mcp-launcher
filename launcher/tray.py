@@ -86,6 +86,42 @@ def restore_existing():
     return found
 
 
+_instance_handle = None
+
+
+def acquire_single_instance():
+    """Take a per-install named mutex before any slow startup work.
+
+    The tray window only exists once the app has finished building, so checking
+    for it alone lets two quick launches both start. Returns False when another
+    launcher of this install already holds the mutex.
+    """
+    global _instance_handle
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+    kernel32.CreateMutexW.restype = wintypes.HANDLE
+    handle = kernel32.CreateMutexW(None, False, "Local\\AutoCADMCPLauncher_" + APP_ID)
+    if not handle:
+        return True  # cannot tell; do not block startup
+    if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        kernel32.CloseHandle(handle)
+        return False
+    _instance_handle = handle
+    return True
+
+
+def restore_running(wait=6.0):
+    """Show the running launcher's window, waiting while it is still starting."""
+    import time
+    deadline = time.monotonic() + wait
+    while True:
+        if restore_existing():
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.25)
+
+
 class TrayIcon:
     def __init__(self, root, on_open, on_menu):
         self.root = root

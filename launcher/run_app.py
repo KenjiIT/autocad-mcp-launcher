@@ -5,9 +5,10 @@ from pathlib import Path
 
 
 try:
-    from tray import restore_existing
+    from tray import acquire_single_instance, restore_running
 
-    if restore_existing():
+    if not acquire_single_instance():
+        restore_running()
         raise SystemExit(0)
 
     from install_ui import prepare
