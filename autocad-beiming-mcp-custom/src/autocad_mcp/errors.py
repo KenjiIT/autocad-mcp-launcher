@@ -48,6 +48,26 @@ ERROR_ACTIONS = {
 }
 
 
+_COM_LOCK_HINT = (
+    "Kênh COM bị khóa vì một lệnh chạy quá hạn. Gọi `system` với operation=init (dựng lại kết nối, không đụng tới bản vẽ); "
+    "nếu vẫn lỗi thì khởi động lại MCP trong launcher. Với bản vẽ lớn, audit tóm tắt rồi đọc từng layer. "
+    "Tra tool `knowledge` (search \"poisoned\") xem đã có hướng dẫn chưa; nếu cách xử lý bạn tìm ra là mới, "
+    "hỏi người dùng có muốn ghi vào tri thức chung (`knowledge_propose`) không."
+)
+
+# Guidance appended to a few errors that cost real time to diagnose, so the agent looks the lesson up
+# and offers to record a new one.  Only codes listed here get a hint.
+ERROR_HINTS = {
+    "E_COM_STA_TIMEOUT": _COM_LOCK_HINT,
+    "E_COM_STA_UNAVAILABLE": _COM_LOCK_HINT,
+    "E_POSTCONDITION_MISMATCH": (
+        "Thao tác báo xong nhưng kết quả không đúng như yêu cầu: dừng, đọc lại trạng thái bản vẽ (`drawing` `context`) "
+        "trước khi làm tiếp. Tra tool `knowledge` xem đã có trường hợp tương tự chưa; nếu bạn tìm ra nguyên nhân mới, "
+        "hỏi người dùng có muốn ghi vào tri thức chung (`knowledge_propose`) không."
+    ),
+}
+
+
 def infer_error_code(message: str | None) -> str:
     text = (message or "").lower()
     if "not installed" in text or "executable was not found" in text:
@@ -128,9 +148,12 @@ def error_payload(
     default_recoverable, default_action = ERROR_ACTIONS.get(
         resolved_code, ERROR_ACTIONS["E_INTERNAL"]
     )
-    return {
+    payload = {
         "code": resolved_code,
         "message": message or "Unknown error",
         "recoverable": default_recoverable if recoverable is None else recoverable,
         "recommended_action": recommended_action or default_action,
     }
+    if resolved_code in ERROR_HINTS:
+        payload["hint"] = ERROR_HINTS[resolved_code]
+    return payload

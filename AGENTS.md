@@ -11,6 +11,14 @@ Mọi việc liên quan đến AutoCAD (vẽ, sửa, đọc, đo, kiểm tra, ch
 5. Câu hỏi có vài lựa chọn rời rạc (xác nhận ranh đất, số tầng hầm, phương án): gọi công cụ hỏi có lựa chọn (`AskUserQuestion`) ngay lần đầu, không liệt kê lựa chọn bằng văn bản (mục "Cách hỏi" của skill `autocad-agent-coordinator`).
 6. Chỉ tạo file DXF (`save_as_dxf`, backend `ezdxf`, bản sao DXF để phân tích) khi người dùng yêu cầu, hoặc khi không có kết nối AutoCAD. AutoCAD đang kết nối thì làm trực tiếp trên DWG đang mở; không tự xuất DXF (mục "Chỉ tạo file DXF" của skill `autocad-agent-coordinator`).
 7. Trước khi làm việc mới về bản vẽ hoặc khi gặp lỗi lạ của MCP: tra tri thức chung bằng tool `knowledge` của launcher (`operation=index`, rồi `search` hoặc `get`), hoặc skill `knowledge-query`. Đó là các trang công khai đã duyệt, đã tải về `~/autocad-knowledge`; nói rõ đã dựa vào trang nào.
+8. **Ghi lại điều học được:** agent không có tiến trình nền và không biết chắc việc đã xong, nên đừng chờ "cuối việc". Hãy cân nhắc ngay khi một trong các sự kiện sau xảy ra:
+   - một lỗi xảy ra rồi bạn tìm ra cách khắc phục;
+   - một tool cư xử khác mô tả hoặc tài liệu (ví dụ báo thành công nhưng kết quả không đúng);
+   - người dùng chỉnh lại bạn, hoặc bạn phải thử hai ba cách mới ra;
+   - bạn gặp một quy ước hay cấu trúc không có ghi ở đâu.
+   Thời điểm: ngay sau khi giải quyết xong lỗi hoặc thắc mắc, ngay sau khi người dùng chỉnh, và khi người dùng báo xong hoặc trước báo cáo cuối. 
+   Mỗi lần chỉ làm một việc nhỏ: tra `knowledge` xem đã có chưa; nếu chưa và điều đó không hiển nhiên, dùng lại được, **hỏi người dùng một câu** có muốn ghi vào tri thức chung không. 
+   Chỉ khi được đồng ý mới làm theo skill `knowledge-capture` (gỡ tên dự án và số liệu thật, rồi gửi bằng `knowledge_propose`). Không ghi số liệu riêng của dự án, trạng thái việc dở dang, hay điều chưa kiểm chứng.
 
 Skill nằm trong `.claude/skills`, `.codex/skills` và `.agents/skills` (ba bản giống nhau). Không có công cụ Skill thì đọc thẳng tệp `SKILL.md` trong thư mục đó.
 

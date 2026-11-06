@@ -1,6 +1,6 @@
 ---
 name: knowledge-capture
-description: Ghi điều vừa học được sau một việc (cách đọc bản vẽ, lỗi công cụ và cách sửa, quy tắc thiết kế, quy trình) thành trang đề xuất cho tri thức chung công khai, đã gỡ thông tin dự án và đã đối chiếu bản công khai. Dùng khi người dùng nói 'ghi lại kiến thức', 'lưu kinh nghiệm này', 'đưa vào kho chung', 'đề xuất tri thức', hoặc khi cuối một việc agent thấy có điều không hiển nhiên và dùng lại được; khi đó hỏi người dùng trước khi ghi.
+description: Ghi điều vừa học được sau một việc (cách đọc bản vẽ, lỗi công cụ và cách sửa, quy tắc thiết kế, quy trình) thành trang đề xuất cho tri thức chung công khai, đã gỡ thông tin dự án và đã đối chiếu bản công khai. Dùng khi người dùng nói 'ghi lại kiến thức', 'lưu kinh nghiệm này', 'đưa vào kho chung', 'đề xuất tri thức', hoặc khi gặp một trong các sự kiện đáng ghi (lỗi rồi tìm ra cách sửa, tool cư xử khác mô tả, người dùng chỉnh lại agent, phải thử nhiều cách mới ra, quy ước chưa ai ghi); khi đó hỏi người dùng trước khi ghi.
 ---
 
 # Ghi tri thức mới cho kho chung
@@ -8,6 +8,22 @@ description: Ghi điều vừa học được sau một việc (cách đọc b�
 Kết quả là **một tệp trong `proposals/`** của thư mục tri thức trên máy. Agent không sửa `wiki/` (launcher ghi đè khi tải) và không sửa repo công khai; người duyệt mới đưa trang vào. Quy ước, đầu trang, đường đi và bảng gỡ thông tin: [references/quy-uoc.md](references/quy-uoc.md). Đọc trước khi viết.
 
 Thư mục tri thức: theo mục "Tìm thư mục tri thức" của skill `knowledge-query`. Chưa có thư mục thì hỏi người dùng nơi đặt; `proposals/` nằm cạnh `wiki/`.
+
+## Khi nào cân nhắc (gắn với sự kiện, không chờ "cuối việc")
+
+Agent không có tiến trình nền và không biết chắc việc đã xong, nên cân nhắc ngay khi một sự kiện sau xảy ra:
+
+| Sự kiện | Vì sao đáng ghi |
+|---|---|
+| Một lỗi xảy ra, rồi bạn tìm ra cách khắc phục | Cặp "lỗi và cách sửa" là loại tri thức dùng lại nhiều nhất |
+| Tool cư xử khác mô tả hoặc tài liệu (báo thành công nhưng kết quả không đúng) | Agent sau sẽ tin mô tả và lặp lại lỗi |
+| Người dùng chỉnh lại bạn ("không phải thế, phải ...") | Là quy tắc do người có chuyên môn đưa ra |
+| Bạn phải thử hai ba cách mới ra | Chi phí tìm kiếm đã bỏ ra, để người sau khỏi lặp lại |
+| Bạn gặp một quy ước hay cấu trúc không có ghi ở đâu | Không có nguồn nào khác để tra |
+
+Ba thời điểm: **ngay sau khi giải quyết xong** lỗi hoặc thắc mắc (còn nhớ nguyên nhân), **ngay sau khi người dùng chỉnh**, và **khi người dùng báo xong** hoặc trước báo cáo cuối (quét lại bảng trên). 
+Ở mỗi điểm chỉ làm một việc nhỏ: tra `knowledge` xem đã có chưa, rồi nếu chưa thì hỏi người dùng một câu. Không ghi hay gửi gì khi chưa được đồng ý. 
+Công cụ cũng có thể nhắc bạn: một số lỗi (kênh COM bị khóa, `E_POSTCONDITION_MISMATCH`) trả kèm trường `hint` chỉ tới tri thức chung.
 
 ## Có đáng ghi không
 
