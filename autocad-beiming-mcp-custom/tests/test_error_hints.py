@@ -11,7 +11,7 @@ from autocad_mcp.errors import ERROR_ACTIONS, ERROR_HINTS, error_payload
 def test_hinted_codes_point_at_the_knowledge_tool_and_the_recovery(code):
     hint = error_payload("x", code=code)["hint"]
     assert "`knowledge`" in hint and "`knowledge_propose`" in hint
-    assert "hỏi người dùng" in hint  # the agent must ask, never record on its own
+    assert "báo người dùng" in hint  # the agent must ask, never record on its own
 
 
 def test_com_lock_hint_names_the_recovery_step():
