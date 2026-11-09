@@ -146,6 +146,12 @@ ACI là mã màu cần truyền cho AutoCAD khi công cụ nhận ACI; HEX/RGB c
 - Kích thước thật (`annotation` `create_dimension_linear`, `create_dimension_aligned`, `create_dimension_angular`, `create_dimension_radius`) **dùng được trên LT**: tạo đối tượng `DIMENSION` qua lệnh DIM của AutoLISP, đo lại bằng `entity` `get` (`measurement`; góc tính bằng radian). `radius` cần một CIRCLE/ARC đã có trong bản vẽ với đúng tâm `(cx, cy)` và bán kính `radius` (sai số 0,5); `angle` (độ) là hướng đặt đường kích thước. `angular` nhận đỉnh `(cx, cy)` và hai điểm cuối, trả `measurement` bằng radian. Đã thử: linear, aligned, angular, radius đều ra đúng giá trị. Kiểu hiển thị theo `DIMSTYLE` đang dùng của bản vẽ. Thêm `text` để ghi đè chữ đo (ví dụ `"250x10=2500"`; số đo thật vẫn là `measurement`) và `layer` (phải có sẵn, thiếu thì trả `E_LAYER_NOT_FOUND`). Bản vẽ mới tạo có `DIMSCALE`=1 (chữ và mũi tên cao 2,5 mm) nên DIM trên hình mm gần như không thấy chữ: đặt `DIMSCALE` bằng mẫu số tỉ lệ in (1:50 thì 50) bằng `drawing` `set_variables` (kèm `doc_id`, `expected_revision`, `lease_token` trong `data`) trước khi tạo DIM; DIM đã tạo không tự đổi theo. Không vẽ kích thước bằng nét và chữ rời khi các tool này chạy được.
 - Không hỗ trợ trên LT (trả `E_NOT_SUPPORTED_ON_LT`): `drawing` các thao tác `create`, `close`, `copy_dwg`, `save_as_dxf`, `plot_pdf`, `audit`, `render_preview`; `recover`; `zoom_extents`; `entity` các thao tác `trim`, `extend`, `join`; `solid_*`; `product_*`. Nguồn danh sách: `_UNSUPPORTED` trong `lt-adapter/py/lt_adapter/lt_file_ipc.py`; đối chiếu lại khi nghi ngờ.
 
+## Tri thức chung: tra và ghi
+
+- Trước việc mới về bản vẽ hoặc khi gặp lỗi lạ, tra tool `knowledge` (`index`, `search`, `get`) và nói rõ đã dựa vào trang nào.
+- **Ghi lại điều học được ngay khi xảy ra, không chờ cuối việc và không cần hỏi người dùng:** một lỗi rồi bạn tìm ra cách sửa; một tool báo thành công nhưng kết quả sai; người dùng chỉnh lại bạn hoặc bạn phải thử nhiều cách mới ra; một quy ước chưa ai ghi. Nếu `knowledge` chưa có và điều đó dùng lại được cho dự án khác, gửi một trang ngắn bằng tool `knowledge_propose` theo skill `knowledge-capture`. Trang vào hàng chờ riêng tư; người duyệt đọc lại trước khi công khai.
+- Gỡ tên dự án, khách hàng, mã dự án, số liệu thật, tên người, đường dẫn máy trước khi gửi. Còn nghi ngờ thì không gửi. Gửi xong chỉ báo người dùng một dòng.
+
 ## Giới hạn
 
 - Việc nạp hoặc gọi skill không chứng minh rằng công cụ đã chạy. Chỉ báo cáo kết quả đã quan sát được.

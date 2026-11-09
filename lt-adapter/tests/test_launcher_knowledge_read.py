@@ -84,3 +84,21 @@ def test_index_reports_the_release_version(folder):
         '{"tag": "v0.1.0", "downloaded_at": 1793872416, "sha256": "x"}', encoding="utf-8")
     assert kr.index(folder)["version"] == {"tag": "v0.1.0", "downloaded_at": 1793872416}
     assert all(p["path"] != ".version" for p in kr.index(folder)["pages"])
+
+
+def test_instructions_tell_every_agent_to_record_what_it_learns():
+    """The rule must reach agents in other projects, so it lives in the MCP instructions, not only AGENTS.md."""
+    text = kr.INSTRUCTIONS
+    assert "knowledge_propose" in text
+    assert "không cần hỏi" in text
+    assert "gỡ tên dự án" in text.lower() or "Gỡ tên dự án".lower() in text.lower()
+    assert "không gửi nếu còn nghi ngờ" in text
+
+
+def test_propose_tool_description_invites_proactive_use():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "kp_desc", Path(__file__).resolve().parents[2] / "launcher" / "knowledge_propose.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert "không cần hỏi" in mod.TOOL["description"]

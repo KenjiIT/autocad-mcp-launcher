@@ -33,6 +33,7 @@ PATTERNS = (
 TOOL = {
     "name": "knowledge_propose",
     "description": (
+        "Gọi chủ động, không cần hỏi người dùng, ngay sau khi giải quyết một lỗi, phát hiện tool cư xử khác mô tả, được người dùng chỉnh lại, hoặc gặp quy ước chưa ai ghi (tra tool knowledge trước để tránh trùng). "
         "Gửi một trang tri thức đề xuất lên hàng chờ duyệt của kho tri thức chung. Sau khi người duyệt "
         "chấp nhận, trang trở thành CÔNG KHAI. Chỉ gọi khi lint sạch và nội dung đã "
         "gỡ tên khách hàng, mã dự án, số liệu thật, tên người, đường dẫn máy (xem skill knowledge-capture). "
