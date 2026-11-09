@@ -26,7 +26,10 @@ pip install -e .
 
 Cần file `data/dutoan.db` (~106 MB) chứa đơn giá, định mức, giá vật tư. Tệp này được chuyển từ phần mềm dự toán thương mại nên **không nằm trong git và không đi kèm bản phát hành công khai**.
 
-### Cách 1: tải trong launcher (khuyến nghị)
+### Cách 0: nhập từ tệp (đơn giản nhất)
+Người quản lý gửi `dutoan.db` (hoặc zip chứa nó, nhỏ hơn nhiều). Trong launcher: tab **Cài đặt**, mục **Dữ liệu dự toán**, bấm **Nhập từ tệp…** và chọn tệp. Tệp được kiểm tra (kích thước, đủ bảng `don_gia`, `dinh_muc`, `tu_dien_vat_tu`) rồi mới thay bản cũ. Nếu báo tệp đang được dùng thì đóng các phiên agent đang mở công cụ dutoan rồi nhập lại.
+
+### Cách 1: tải trong launcher (khi có địa chỉ tải riêng hoặc cổng nhóm)
 Tab **Cài đặt**, mục **Dữ liệu dự toán**: dán địa chỉ https tải riêng do người quản lý cấp (SharePoint, Drive, kho riêng), điền SHA-256 nếu có, bấm **Tải dữ liệu dự toán**. Tệp được kiểm tra (kích thước, SHA-256, có đủ bảng `don_gia`, `dinh_muc`, `tu_dien_vat_tu`) rồi mới thay bản cũ.
 
 ### Cách 2: chép tay

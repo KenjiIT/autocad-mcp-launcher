@@ -134,3 +134,40 @@ def test_sync_reports_gateway_problems_without_touching_file(tmp_path):
 def test_sync_key_prefers_own_key():
     assert dd.sync_key({"dutoan_data_key": " rieng "}, "chung") == "rieng"
     assert dd.sync_key({}, "chung") == "chung"
+
+
+def test_import_plain_db_and_zip(tmp_path):
+    import zipfile
+    data = make_db(tmp_path / "src.db")
+    dest = tmp_path / "data" / "dutoan.db"
+    result = dd.import_file(tmp_path / "src.db", dest)
+    assert result["ok"], result
+    assert dest.read_bytes() == data and result["sha256"] == hashlib.sha256(data).hexdigest()
+    assert dd.local_sha256(dest) == result["sha256"]
+    archive = tmp_path / "gui.zip"
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(tmp_path / "src.db", "thu-muc/dutoan.db")
+    other = tmp_path / "data2" / "dutoan.db"
+    assert dd.import_file(archive, other)["ok"] and other.read_bytes() == data
+
+
+def test_import_refuses_bad_files_and_keeps_current(tmp_path):
+    import zipfile
+    dest = tmp_path / "dutoan.db"
+    dest.write_bytes(b"old")
+    assert "Không tìm thấy" in dd.import_file(tmp_path / "khong-co.db", dest)["message"]
+    small = tmp_path / "small.db"
+    small.write_bytes(b"x" * 100)
+    assert "quá nhỏ" in dd.import_file(small, dest)["message"]
+    wrong = make_db(tmp_path / "w.db", tables=("don_gia",))
+    assert "Thiếu bảng" in dd.import_file(tmp_path / "w.db", dest)["message"]
+    two = tmp_path / "hai.zip"
+    with zipfile.ZipFile(two, "w") as z:
+        z.writestr("a.db", b"1")
+        z.writestr("b.db", b"2")
+    assert "đúng một" in dd.import_file(two, dest)["message"]
+    empty = tmp_path / "rong.zip"
+    with zipfile.ZipFile(empty, "w") as z:
+        z.writestr("ghi-chu.txt", "khong co db")
+    assert "đúng một" in dd.import_file(empty, dest)["message"]
+    assert dest.read_bytes() == b"old" and not dest.with_name("dutoan.db.part").exists()

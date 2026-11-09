@@ -545,7 +545,7 @@ class App(tk.Tk):
         ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Dữ liệu dự toán", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
-                  text="Công cụ dutoan cần tệp dutoan.db (đơn giá, định mức). Tệp này không đi kèm launcher và không được đưa lên chỗ công khai. Nhập khóa dữ liệu do người quản lý cấp (khóa riêng, không nhúng sẵn trong launcher), launcher sẽ tự tải và cập nhật tệp từ cổng của nhóm; tệp được kiểm tra (SHA-256, đủ bảng) rồi mới thay bản cũ. Nếu không dùng cổng nhóm, có thể dán địa chỉ https tải riêng bên dưới.",
+                  text="Công cụ dutoan cần tệp dutoan.db (đơn giá, định mức). Tệp này không đi kèm launcher và không được đưa lên chỗ công khai. Nhập khóa dữ liệu do người quản lý cấp (khóa riêng, không nhúng sẵn trong launcher), launcher sẽ tự tải và cập nhật tệp từ cổng của nhóm; tệp được kiểm tra (SHA-256, đủ bảng) rồi mới thay bản cũ. Cách đơn giản nhất: bấm Nhập từ tệp và chọn tệp dutoan.db (hoặc zip chứa nó) do người quản lý gửi. Nếu có cổng nhóm hoặc địa chỉ tải riêng thì dùng các ô bên dưới.",
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
         settings_dutoan = knowledge_propose.load_settings()
         self.dutoan_url_var = tk.StringVar(value=str(settings_dutoan.get("dutoan_db_url") or ""))
@@ -563,6 +563,7 @@ class App(tk.Tk):
         self.dutoan_sync_button.pack(side="left")
         self.dutoan_button = ttk.Button(buttons, text="Tải theo địa chỉ", command=self.run_dutoan_download)
         self.dutoan_button.pack(side="left", padx=(8, 0))
+        ttk.Button(buttons, text="Nhập từ tệp…", command=self.import_dutoan_file).pack(side="left", padx=(8, 0))
         ttk.Button(buttons, text="Mở thư mục dữ liệu", command=self.open_dutoan_folder).pack(side="left", padx=(8, 0))
         self.dutoan_status = ttk.Label(frame, text=dutoan_data.describe()["message"])
         self.dutoan_status.pack(anchor="w", pady=(6, 0))
@@ -862,6 +863,26 @@ class App(tk.Tk):
             self.dutoan_status.configure(text=result["message"], foreground="#225c53" if result["ok"] else "#a12622")
         if result["ok"] and hasattr(self, "dutoan_label"):
             self.dutoan_label.configure(text="●  dutoan  ·  Sẵn sàng (MCP stdio)")
+
+    def import_dutoan_file(self):
+        if self.dutoan_busy:
+            return
+        chosen = filedialog.askopenfilename(
+            parent=self, title="Chọn tệp dữ liệu dự toán",
+            filetypes=[("Dữ liệu dự toán", "*.db *.zip"), ("Tất cả", "*.*")])
+        if not chosen:
+            return
+        self.dutoan_busy = True
+        self.dutoan_progress = {"text": "Đang nhập và kiểm tra tệp…", "result": None}
+
+        def worker():
+            try:
+                self.dutoan_progress["result"] = dutoan_data.import_file(chosen)
+            except Exception as exc:  # never leave the buttons blocked
+                self.dutoan_progress["result"] = {"ok": False, "message": f"Không nhập được: {exc}"}
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(300, self.poll_dutoan_download)
 
     def open_dutoan_folder(self):
         folder = dutoan_data.db_path().parent

@@ -12,6 +12,7 @@ import os
 import sqlite3
 import urllib.error
 import urllib.request
+import zipfile
 from contextlib import closing
 from pathlib import Path
 
@@ -161,3 +162,60 @@ def sync(gateway_url, team_key, dest=None, progress=None, opener=urllib.request.
 def sync_key(settings, team_key):
     """Key for the estimating data: its own key when set, else the shared team key."""
     return str((settings or {}).get("dutoan_data_key") or os.environ.get("DUTOAN_DATA_KEY") or team_key or "").strip()
+
+
+MAX_UNPACKED = 2 * 1024 ** 3  # refuse a zip that expands past 2 GiB
+
+
+def import_file(source, dest=None):
+    """Install a database the user was handed: a .db file or a .zip holding one.
+
+    The file is copied to a temporary name beside ``dest``, checked, and only then
+    replaces the current database; on any problem the current file is untouched.
+    Returns {"ok", "message", "sha256"?}.
+    """
+    source = Path(source)
+    dest = Path(dest) if dest else db_path()
+    if not source.is_file():
+        return {"ok": False, "message": "Không tìm thấy tệp đã chọn."}
+    part = dest.with_name(dest.name + ".part")
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256()
+        done = 0
+        if zipfile.is_zipfile(source):
+            with zipfile.ZipFile(source) as archive:
+                members = [m for m in archive.infolist() if not m.is_dir() and m.filename.lower().endswith(".db")]
+                named = [m for m in members if Path(m.filename).name.lower() == "dutoan.db"]
+                chosen = named or members
+                if len(chosen) != 1:
+                    return {"ok": False, "message": "Tệp zip phải chứa đúng một tệp dutoan.db."}
+                if chosen[0].file_size > MAX_UNPACKED:
+                    return {"ok": False, "message": "Tệp trong zip quá lớn; không dùng."}
+                with archive.open(chosen[0]) as reader, part.open("wb") as out:
+                    for block in iter(lambda: reader.read(CHUNK), b""):
+                        done += len(block)
+                        if done > MAX_UNPACKED:
+                            return _fail(part, "Tệp trong zip quá lớn; không dùng.")
+                        out.write(block)
+                        digest.update(block)
+        else:
+            with source.open("rb") as reader, part.open("wb") as out:
+                for block in iter(lambda: reader.read(CHUNK), b""):
+                    out.write(block)
+                    digest.update(block)
+                    done += len(block)
+        if done < MIN_BYTES:
+            return _fail(part, "Tệp quá nhỏ nên không phải dữ liệu dự toán.")
+        reason = check_database(part)
+        if reason:
+            return _fail(part, reason)
+        os.replace(part, dest)
+    except PermissionError:
+        part.unlink(missing_ok=True)
+        return {"ok": False, "message": "Tệp dữ liệu đang được dùng. Đóng các phiên agent (Claude, Codex) đang mở công cụ dutoan rồi nhập lại."}
+    except (OSError, zipfile.BadZipFile) as exc:
+        part.unlink(missing_ok=True)
+        return {"ok": False, "message": f"Không nhập được: {exc}"}
+    _remember(dest, digest.hexdigest())
+    return {"ok": True, "message": f"Đã nhập dữ liệu dự toán ({done / (1024 * 1024):.0f} MB).", "sha256": digest.hexdigest()}
