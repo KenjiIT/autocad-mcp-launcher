@@ -15,6 +15,7 @@ import zipfile
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+import dutoan_data
 import knowledge
 import knowledge_propose
 import revit_mcp
@@ -34,6 +35,7 @@ REPOS = {
 }
 NAMES = {"puran": "autocad_puran", "beiming": "autocad_beiming"}
 UPDATE_REPO = "KenjiIT/autocad-mcp-launcher"
+DUTOAN_DIR = ROOT / "du-toan-mcp"
 STARTUP_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 STARTUP_VALUE = "AutoCADMcpLauncher"
 
@@ -160,16 +162,29 @@ def kill_tree(process):
 
 def config_for(agent):
     urls = {NAMES[key]: f"http://127.0.0.1:8764/{key}/mcp" for key in REPOS}
+    dutoan_available = (DUTOAN_DIR / "src" / "dutoan_mcp" / "server.py").is_file()
+    dutoan_python = str(python_in(DUTOAN_DIR)) if python_in(DUTOAN_DIR).is_file() else "python"
     if agent == "OpenAI Codex":
-        return "\n\n".join(f'[mcp_servers.{name}]\nurl = "{url}"' for name, url in urls.items())
+        lines = [f'[mcp_servers.{name}]\nurl = "{url}"' for name, url in urls.items()]
+        if dutoan_available:
+            lines.append("[mcp_servers.dutoan]" + chr(10) + "command = " + json.dumps(dutoan_python)
+                         + chr(10) + 'args = ["-m", "dutoan_mcp.server"]')
+        return "\n\n".join(lines)
     if agent == "Claude Code":
-        return "\n".join(f"claude mcp add --transport http {name} {url}" for name, url in urls.items())
+        lines = [f"claude mcp add --transport http {name} {url}" for name, url in urls.items()]
+        if dutoan_available:
+            lines.append(f'claude mcp add dutoan -- "{dutoan_python}" -m dutoan_mcp.server')
+        return "\n".join(lines)
     if agent == "Claude Desktop":
         python = str(python_in(REPOS["puran"]))
         bridge = str(ROOT / "launcher" / "stdio_bridge.py")
-        return json.dumps({"mcpServers": {
-            NAMES[key]: {"command": python, "args": [bridge, key]} for key in REPOS
-        }}, indent=2)
+        servers = {NAMES[key]: {"command": python, "args": [bridge, key]} for key in REPOS}
+        if dutoan_available:
+            servers["dutoan"] = {
+                "command": dutoan_python,
+                "args": ["-m", "dutoan_mcp.server"],
+            }
+        return json.dumps({"mcpServers": servers}, indent=2)
     raise ValueError(agent)
 
 class App(tk.Tk):
@@ -240,6 +255,10 @@ class App(tk.Tk):
             label = ttk.Label(main, text=f"○  {NAMES[key]}  ·  Chưa khởi chạy")
             label.pack(anchor="w", pady=3)
             self.labels[key] = label
+        dutoan_status = ("●  dutoan  ·  Sẵn sàng (MCP stdio)" if dutoan_data.describe()["present"]
+                         else "○  dutoan  ·  Chưa có dữ liệu (xem Cài đặt, mục Dữ liệu dự toán)")
+        self.dutoan_label = ttk.Label(main, text=dutoan_status)
+        self.dutoan_label.pack(anchor="w", pady=3)
         ttk.Label(main, textvariable=self.status, foreground="#225c53",
                   wraplength=690).pack(anchor="w", pady=(11, 16))
         row = ttk.Frame(main)
@@ -520,6 +539,26 @@ class App(tk.Tk):
         self.propose_status = ttk.Label(frame, text="")
         self.propose_status.pack(anchor="w", pady=(6, 0))
         ttk.Separator(frame).pack(fill="x", pady=12)
+        ttk.Label(frame, text="Dữ liệu dự toán", font=("Segoe UI", 13, "bold")).pack(anchor="w")
+        ttk.Label(frame,
+                  text="Công cụ dutoan cần tệp dutoan.db (đơn giá, định mức). Tệp này không đi kèm launcher và không được đưa lên chỗ công khai. Dán địa chỉ https tải riêng do người quản lý cấp (SharePoint, Drive, kho riêng); nên điền SHA-256 để kiểm tra. Tệp được kiểm tra rồi mới thay bản cũ.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
+        settings_dutoan = knowledge_propose.load_settings()
+        self.dutoan_url_var = tk.StringVar(value=str(settings_dutoan.get("dutoan_db_url") or ""))
+        self.dutoan_sha_var = tk.StringVar(value=str(settings_dutoan.get("dutoan_db_sha256") or ""))
+        for caption, variable in (("Địa chỉ tải", self.dutoan_url_var), ("SHA-256", self.dutoan_sha_var)):
+            row = ttk.Frame(frame)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=caption, width=14).pack(side="left")
+            ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True)
+        buttons = ttk.Frame(frame)
+        buttons.pack(anchor="w", pady=(6, 0))
+        self.dutoan_button = ttk.Button(buttons, text="Tải dữ liệu dự toán", command=self.run_dutoan_download)
+        self.dutoan_button.pack(side="left")
+        ttk.Button(buttons, text="Mở thư mục dữ liệu", command=self.open_dutoan_folder).pack(side="left", padx=(8, 0))
+        self.dutoan_status = ttk.Label(frame, text=dutoan_data.describe()["message"])
+        self.dutoan_status.pack(anchor="w", pady=(6, 0))
+        ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Thư viện block", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
                   text="Nơi lưu các block dựng sẵn (nội thất, cây cối, thiết bị vệ sinh) dạng .dwg hoặc .dxf. Agent chèn chúng bằng tên file; đơn vị mỗi file phải là mm. Thư mục con có file index.json là một kho riêng (ví dụ dwgshare), agent tra theo loại và kích thước. Quy ước đặt tên có trong README.md của thư mục.",
@@ -700,6 +739,50 @@ class App(tk.Tk):
         if self.knowledge_auto_var.get():
             self.run_knowledge_check(force=False)
 
+    def run_dutoan_download(self):
+        url = self.dutoan_url_var.get().strip()
+        sha = self.dutoan_sha_var.get().strip()
+        if not url:
+            self.dutoan_status.configure(text="Chưa có địa chỉ tải. Hãy dán địa chỉ do người quản lý cấp.", foreground="#a12622")
+            return
+        try:
+            save_setting("dutoan_db_url", url)
+            save_setting("dutoan_db_sha256", sha)
+        except OSError as exc:
+            self.dutoan_status.configure(text=f"Không lưu được cấu hình: {exc}", foreground="#a12622")
+            return
+        self.dutoan_button.configure(state="disabled")
+        self.dutoan_progress = {"text": "Đang tải…", "result": None}
+
+        def progress(done, total):
+            mb = done / (1024 * 1024)
+            self.dutoan_progress["text"] = f"Đang tải… {mb:.0f}/{total / (1024 * 1024):.0f} MB" if total else f"Đang tải… {mb:.0f} MB"
+
+        def worker():
+            self.dutoan_progress["result"] = dutoan_data.download(url, sha, progress=progress)
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(300, self.poll_dutoan_download)
+
+    def poll_dutoan_download(self):
+        result = self.dutoan_progress["result"]
+        if result is None:
+            self.dutoan_status.configure(text=self.dutoan_progress["text"], foreground="#225c53")
+            self.after(300, self.poll_dutoan_download)
+            return
+        self.dutoan_button.configure(state="normal")
+        self.dutoan_status.configure(text=result["message"], foreground="#225c53" if result["ok"] else "#a12622")
+        if result["ok"] and hasattr(self, "dutoan_label"):
+            self.dutoan_label.configure(text="●  dutoan  ·  Sẵn sàng (MCP stdio)")
+
+    def open_dutoan_folder(self):
+        folder = dutoan_data.db_path().parent
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            os.startfile(folder)
+        except OSError as exc:
+            self.dutoan_status.configure(text=f"Không mở được thư mục: {exc}", foreground="#a12622")
+
     def save_propose_settings(self):
         url = self.propose_url_var.get().strip().rstrip("/")
         key = self.propose_key_var.get().strip() if not knowledge_propose.embedded_key() else None
@@ -839,6 +922,7 @@ class App(tk.Tk):
                     raise RuntimeError(f"Thiếu thư viện {NAMES[key]}. Thoát app rồi mở lại để cài.")
             if self.closing:
                 return
+
             if listening(8764):
                 pid = listener_pid(8764) if is_launcher_gateway() else None
                 if not pid:

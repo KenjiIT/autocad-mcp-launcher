@@ -19,3 +19,7 @@ blocks/*/
 
 # Team key embedded at release build time (see scripts/write_team_key.py); never commit
 launcher/team_key.dat
+
+# Estimating database: compiled from a commercial package, distributed privately (see launcher/dutoan_data.py)
+du-toan-mcp/data/
+du-toan-mcp/*.db

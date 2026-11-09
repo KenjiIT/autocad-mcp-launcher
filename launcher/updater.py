@@ -256,6 +256,7 @@ def refresh_mcp_environments(root: Path) -> None:
     for name, relative in (
         ("autocad_puran", "puran-water-autocad-mcp"),
         ("autocad_beiming", "autocad-beiming-mcp-custom"),
+        ("dutoan", "du-toan-mcp"),
     ):
         project = root / relative
         python = project / ".venv" / "Scripts" / "python.exe"

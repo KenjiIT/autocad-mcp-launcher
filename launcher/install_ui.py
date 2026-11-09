@@ -11,16 +11,20 @@ from tkinter import ttk
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT / "launcher" / "logs"
+CAD_CHECK = "import mcp, ezdxf, autocad_mcp"
+DUTOAN_CHECK = "import mcp, sqlalchemy, dutoan_mcp"
 REPOS = (
     ("autocad_puran", ROOT / "puran-water-autocad-mcp"),
     ("autocad_beiming", ROOT / "autocad-beiming-mcp-custom"),
+    ("dutoan", ROOT / "du-toan-mcp"),
 )
+CHECKS = {"dutoan": DUTOAN_CHECK}
 
 
-def installed(repo):
+def installed(repo, check=CAD_CHECK):
     python = repo / ".venv" / "Scripts" / "python.exe"
     return python.is_file() and subprocess.run(
-        [str(python), "-c", "import mcp, ezdxf, autocad_mcp"],
+        [str(python), "-c", check],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW,
     ).returncode == 0
@@ -28,7 +32,9 @@ def installed(repo):
 
 def prepare():
     """Return True when both MCP environments are ready; show setup when needed."""
-    missing = [(name, repo) for name, repo in REPOS if not installed(repo)]
+    # dutoan is optional: a package without du-toan-mcp skips it.
+    wanted = [(name, repo) for name, repo in REPOS if name != "dutoan" or (repo / "pyproject.toml").is_file()]
+    missing = [(name, repo) for name, repo in wanted if not installed(repo, CHECKS.get(name, CAD_CHECK))]
     if not missing:
         return True
 
@@ -76,7 +82,7 @@ def prepare():
                     detail = next((line for line in reversed(lines) if line.startswith("ERROR:")),
                                   f"pip trả mã {process.returncode}")
                     raise RuntimeError(f"Không thể cài {name}: {detail}\nLog: {log_path}")
-                if not installed(repo):
+                if not installed(repo, CHECKS.get(name, CAD_CHECK)):
                     raise RuntimeError(f"Cài {name} xong nhưng không nạp được thư viện. Xem {log_path}")
                 events.put(("progress", index))
             events.put(("done", None))

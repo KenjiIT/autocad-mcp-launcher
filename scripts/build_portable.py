@@ -25,10 +25,11 @@ INCLUDE = (
     *(f"dist/{name}.zip" for name in SKILL_ARCHIVES),
     "puran-water-autocad-mcp",
     "autocad-beiming-mcp-custom",
+    "du-toan-mcp",
 )
 SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "logs", "output", ".local-data", "bin", "obj"}
 SKIP_SUFFIXES = {".dwg"}  # User drawings must not be bundled with the launcher.
-SKIP_PATHS = {("launcher", "state")}  # Per-machine settings, including the team key; never bundled.
+SKIP_PATHS = {("launcher", "state"), ("du-toan-mcp", "data")}  # Per-machine settings, including the team key; never bundled.
 
 
 def files_to_package():
