@@ -15,6 +15,7 @@ import zipfile
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+import agentnote
 import dutoan_data
 import knowledge
 import knowledge_propose
@@ -208,6 +209,8 @@ class App(tk.Tk):
         self.status = tk.StringVar(value="Sẵn sàng")
         self.knowledge_checking = False
         self.knowledge_auto_var = tk.BooleanVar(value=load_settings().get("knowledge_auto_update", True) is not False)
+        self.dutoan_auto_var = tk.BooleanVar(value=load_settings().get("dutoan_auto_update", True) is not False)
+        self.dutoan_busy = False
         self.build()
         self.refresh_knowledge_status()
         self.refresh_config()
@@ -223,6 +226,7 @@ class App(tk.Tk):
         self.after(500, self.tick)
         self.after(1600, self.check_for_updates)
         self.after(4000, self.knowledge_tick)
+        self.after(9000, self.dutoan_tick)
         self.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
         if "--start" in sys.argv[1:] or self.autostart_mcp_var.get():
             self.after(300, self.start)
@@ -541,23 +545,29 @@ class App(tk.Tk):
         ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Dữ liệu dự toán", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
-                  text="Công cụ dutoan cần tệp dutoan.db (đơn giá, định mức). Tệp này không đi kèm launcher và không được đưa lên chỗ công khai. Dán địa chỉ https tải riêng do người quản lý cấp (SharePoint, Drive, kho riêng); nên điền SHA-256 để kiểm tra. Tệp được kiểm tra rồi mới thay bản cũ.",
+                  text="Công cụ dutoan cần tệp dutoan.db (đơn giá, định mức). Tệp này không đi kèm launcher và không được đưa lên chỗ công khai. Nhập khóa dữ liệu do người quản lý cấp (khóa riêng, không nhúng sẵn trong launcher), launcher sẽ tự tải và cập nhật tệp từ cổng của nhóm; tệp được kiểm tra (SHA-256, đủ bảng) rồi mới thay bản cũ. Nếu không dùng cổng nhóm, có thể dán địa chỉ https tải riêng bên dưới.",
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
         settings_dutoan = knowledge_propose.load_settings()
         self.dutoan_url_var = tk.StringVar(value=str(settings_dutoan.get("dutoan_db_url") or ""))
         self.dutoan_sha_var = tk.StringVar(value=str(settings_dutoan.get("dutoan_db_sha256") or ""))
-        for caption, variable in (("Địa chỉ tải", self.dutoan_url_var), ("SHA-256", self.dutoan_sha_var)):
+        self.dutoan_key_var = tk.StringVar(value=str(settings_dutoan.get("dutoan_data_key") or ""))
+        for caption, variable, hidden in (("Khóa dữ liệu", self.dutoan_key_var, True), ("Địa chỉ tải", self.dutoan_url_var, False),
+                                          ("SHA-256", self.dutoan_sha_var, False)):
             row = ttk.Frame(frame)
             row.pack(fill="x", pady=2)
             ttk.Label(row, text=caption, width=14).pack(side="left")
-            ttk.Entry(row, textvariable=variable).pack(side="left", fill="x", expand=True)
+            ttk.Entry(row, textvariable=variable, show="•" if hidden else "").pack(side="left", fill="x", expand=True)
         buttons = ttk.Frame(frame)
         buttons.pack(anchor="w", pady=(6, 0))
-        self.dutoan_button = ttk.Button(buttons, text="Tải dữ liệu dự toán", command=self.run_dutoan_download)
-        self.dutoan_button.pack(side="left")
+        self.dutoan_sync_button = ttk.Button(buttons, text="Cập nhật từ cổng nhóm", command=lambda: self.run_dutoan_sync(manual=True))
+        self.dutoan_sync_button.pack(side="left")
+        self.dutoan_button = ttk.Button(buttons, text="Tải theo địa chỉ", command=self.run_dutoan_download)
+        self.dutoan_button.pack(side="left", padx=(8, 0))
         ttk.Button(buttons, text="Mở thư mục dữ liệu", command=self.open_dutoan_folder).pack(side="left", padx=(8, 0))
         self.dutoan_status = ttk.Label(frame, text=dutoan_data.describe()["message"])
         self.dutoan_status.pack(anchor="w", pady=(6, 0))
+        ttk.Checkbutton(frame, text="Tự cập nhật dữ liệu dự toán từ cổng nhóm khi mở launcher",
+                        variable=self.dutoan_auto_var, command=self.save_dutoan_auto_setting).pack(anchor="w", pady=(4, 0))
         ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Thư viện block", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
@@ -582,6 +592,10 @@ class App(tk.Tk):
             "OpenAI Codex": Path.home() / ".codex" / "skills",
             "Claude Code": Path.home() / ".claude" / "skills",
             CLAUDE_DESKTOP: Path.home() / "AutoCAD-MCP-Skills-Claude-Desktop",
+        }
+        self.agent_notes = {
+            "OpenAI Codex": Path.home() / ".codex" / "AGENTS.md",
+            "Claude Code": Path.home() / ".claude" / "CLAUDE.md",
         }
         ttk.Combobox(frame, textvariable=self.skill_agent, state="readonly", width=24,
                      values=tuple(self.skill_agents)).pack(anchor="w", pady=(0, 8))
@@ -649,8 +663,12 @@ class App(tk.Tk):
                 if not (source / "SKILL.md").is_file():
                     raise FileNotFoundError(f"Không tìm thấy nội dung skill: {source}")
                 shutil.copytree(source, target, dirs_exist_ok=True)
+            note_path = self.agent_notes.get(self.skill_agent.get())
+            if note_path:
+                agentnote.install_note(note_path)
             self.skill_status.configure(
-                text=f"Đã cài / cập nhật {len(selected)} skill cho {self.skill_agent.get()} tại {target_root}.",
+                text=f"Đã cài / cập nhật {len(selected)} skill cho {self.skill_agent.get()} tại {target_root}."
+                     + (f" Đã ghi chỉ dẫn tự dùng skill vào {note_path}." if note_path else ""),
                 foreground="#225c53")
         except OSError as exc:
             self.skill_status.configure(text=f"Không cài được skill: {exc}", foreground="#a12622")
@@ -740,6 +758,8 @@ class App(tk.Tk):
             self.run_knowledge_check(force=False)
 
     def run_dutoan_download(self):
+        if self.dutoan_busy:
+            return
         url = self.dutoan_url_var.get().strip()
         sha = self.dutoan_sha_var.get().strip()
         if not url:
@@ -751,6 +771,7 @@ class App(tk.Tk):
         except OSError as exc:
             self.dutoan_status.configure(text=f"Không lưu được cấu hình: {exc}", foreground="#a12622")
             return
+        self.dutoan_busy = True
         self.dutoan_button.configure(state="disabled")
         self.dutoan_progress = {"text": "Đang tải…", "result": None}
 
@@ -770,8 +791,75 @@ class App(tk.Tk):
             self.dutoan_status.configure(text=self.dutoan_progress["text"], foreground="#225c53")
             self.after(300, self.poll_dutoan_download)
             return
+        self.dutoan_busy = False
         self.dutoan_button.configure(state="normal")
         self.dutoan_status.configure(text=result["message"], foreground="#225c53" if result["ok"] else "#a12622")
+        if result["ok"] and hasattr(self, "dutoan_label"):
+            self.dutoan_label.configure(text="●  dutoan  ·  Sẵn sàng (MCP stdio)")
+
+    def save_dutoan_auto_setting(self):
+        enabled = bool(self.dutoan_auto_var.get())
+        try:
+            save_setting("dutoan_auto_update", enabled)
+        except OSError as exc:
+            self.dutoan_auto_var.set(not enabled)
+            self.dutoan_status.configure(text=f"Không lưu được cài đặt: {exc}", foreground="#a12622")
+            return
+        if enabled:
+            self.run_dutoan_sync(manual=False)
+
+    def dutoan_tick(self):
+        """Look at the team gateway once after start and then every six hours."""
+        if self.closing:
+            return
+        if self.dutoan_auto_var.get():
+            self.run_dutoan_sync(manual=False)
+        self.after(6 * 3600 * 1000, self.dutoan_tick)
+
+    def run_dutoan_sync(self, manual):
+        if self.dutoan_busy:
+            return
+        if manual:
+            try:
+                save_setting("dutoan_data_key", self.dutoan_key_var.get().strip())
+            except OSError as exc:
+                self.dutoan_status.configure(text=f"Không lưu được khóa: {exc}", foreground="#a12622")
+                return
+        settings = knowledge_propose.load_settings()
+        key = dutoan_data.sync_key(settings, knowledge_propose.team_key(settings))
+        if not key:
+            if manual:
+                self.dutoan_status.configure(text="Chưa có khóa dữ liệu dự toán nên chưa tự tải được. Nhập khóa bên dưới hoặc dùng địa chỉ tải riêng.", foreground="#a12622")
+            return
+        self.dutoan_busy = True
+        self.dutoan_sync_button.configure(state="disabled")
+        self.dutoan_progress = {"text": "Đang hỏi cổng nhóm…", "result": None, "manual": manual}
+        gateway = knowledge_propose.gateway_url(settings)
+
+        def progress(done, total):
+            mb = done / (1024 * 1024)
+            self.dutoan_progress["text"] = f"Đang tải… {mb:.0f}/{total / (1024 * 1024):.0f} MB" if total else f"Đang tải… {mb:.0f} MB"
+
+        def worker():
+            try:
+                self.dutoan_progress["result"] = dutoan_data.sync(gateway, key, progress=progress)
+            except Exception as exc:  # never leave the button disabled
+                self.dutoan_progress["result"] = {"ok": False, "changed": False, "message": f"Không cập nhật được: {exc}"}
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(300, self.poll_dutoan_sync)
+
+    def poll_dutoan_sync(self):
+        result = self.dutoan_progress["result"]
+        if result is None:
+            self.dutoan_status.configure(text=self.dutoan_progress["text"], foreground="#225c53")
+            self.after(300, self.poll_dutoan_sync)
+            return
+        self.dutoan_busy = False
+        self.dutoan_sync_button.configure(state="normal")
+        # A quiet start-up check only speaks when something changed or went wrong with a database that is missing.
+        if self.dutoan_progress.get("manual") or result.get("changed") or (not result["ok"] and not dutoan_data.describe()["present"]):
+            self.dutoan_status.configure(text=result["message"], foreground="#225c53" if result["ok"] else "#a12622")
         if result["ok"] and hasattr(self, "dutoan_label"):
             self.dutoan_label.configure(text="●  dutoan  ·  Sẵn sàng (MCP stdio)")
 

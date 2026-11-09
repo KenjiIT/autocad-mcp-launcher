@@ -64,6 +64,39 @@ curl https://knowledge-gateway.<tên-bạn>.workers.dev/health
 
 Thấy `{"ok":true}` là cổng chạy. Thử ghi thật cần một trang đề xuất hợp lệ và khóa nhóm; kết quả xuất hiện trong `proposals/` của repo inbox.
 
+## Phát dữ liệu dự toán (dutoan.db) cho launcher
+
+Cổng còn phát tệp `dutoan.db` (~106 MB) từ kho R2 riêng tư, để launcher tự tải và tự cập nhật. Tệp này chuyển từ phần mềm dự toán thương mại, **không được đưa lên chỗ công khai**.
+
+```
+launcher --GET /dutoan/manifest, /dutoan/db + X-Team-Key--> Worker --> R2 (bucket dutoan-data)
+```
+
+- `GET /dutoan/manifest` trả `{ sha256, size, version }`; `GET /dutoan/db` trả tệp. Cả hai cần khóa; sai khóa trả 401, chưa gắn kho 503, chưa tải lên 404.
+- Launcher so SHA-256 trong manifest với tệp trên máy, chỉ tải khi khác, kiểm tra SHA-256 và đủ bảng rồi mới thay bản cũ.
+
+**Dùng khóa riêng, không dùng khóa nhóm chung.** Khóa nhóm chung nằm sẵn trong launcher công khai (chỉ che mờ, không phải mã hóa), ai tải launcher cũng lấy ra được. Đặt `DUTOAN_KEY` thì chỉ khóa này mở được dữ liệu dự toán; không đặt thì cổng rơi về khóa nhóm chung (không khuyến nghị).
+
+**Thiết lập (một lần, trong thư mục `knowledge-gateway`):**
+
+```
+npx wrangler r2 bucket create dutoan-data
+```
+
+Bỏ dấu `#` ở ba dòng `[[r2_buckets]]` trong `wrangler.toml`, rồi:
+
+```
+npx wrangler secret put DUTOAN_KEY
+npx wrangler deploy
+node tools/upload-dutoan.mjs "<đường-dẫn>/dutoan.db" "2026-11"
+```
+
+Khóa tạo bằng `py -3 -c "import secrets; print(secrets.token_urlsafe(24))"`. Đưa khóa cho từng người trong nhóm qua kênh riêng; họ dán vào launcher, tab Cài đặt, mục Dữ liệu dự toán, ô Khóa dữ liệu. R2 miễn phí 10 GB lưu trữ và không tính phí băng thông ra.
+
+**Cập nhật dữ liệu:** chạy lại `node tools/upload-dutoan.mjs`. Launcher tự thấy bản mới khi mở (và sáu giờ một lần).
+
+**Trước khi tải lên:** xóa dòng tài khoản `admin` còn sót trong DB, và xác nhận giấy phép dữ liệu GXD cho phép chia sẻ trong nhóm.
+
 ## Chạy thử trên máy (không cần tài khoản Cloudflare)
 
 ```
@@ -71,7 +104,7 @@ npm test
 npx wrangler dev --local --var TEAM_KEY:khoa-thu --var GITHUB_TOKEN:khong-dung-that
 ```
 
-`npm test` chạy 10 kiểm tra với GitHub giả. `wrangler dev` chạy cổng trong môi trường Cloudflare cục bộ; đã thử `/health` (200), sai khóa (401), thiếu đầu trang và chứa email (422). Bước ghi vào GitHub thật chưa được thử, vì cần khóa GitHub và repo inbox thật.
+`npm test` chạy 15 kiểm tra với GitHub giả. `wrangler dev` chạy cổng trong môi trường Cloudflare cục bộ; đã thử `/health` (200), sai khóa (401), thiếu đầu trang và chứa email (422). Bước ghi vào GitHub thật chưa được thử, vì cần khóa GitHub và repo inbox thật.
 
 ## Giới hạn cần biết
 

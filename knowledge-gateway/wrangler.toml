@@ -12,3 +12,8 @@ DAILY_LIMIT = "50"
 # [[kv_namespaces]]
 # binding = "RATE"
 # id = "DAN_ID_VAO_DAY"
+
+# Dữ liệu dự toán: bỏ dấu # sau khi chạy `npx wrangler r2 bucket create dutoan-data`
+# [[r2_buckets]]
+# binding = "DATA"
+# bucket_name = "dutoan-data"

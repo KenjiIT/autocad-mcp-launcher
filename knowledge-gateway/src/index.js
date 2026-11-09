@@ -126,11 +126,32 @@ async function propose(request, env) {
   return json(201, { ok: true, id, path });
 }
 
+// Dữ liệu dự toán (dutoan.db) nằm trong R2 (binding DATA), chỉ phát cho người có khóa nhóm.
+//   GET /dutoan/manifest -> { sha256, size, version } do tools/upload-dutoan.mjs ghi.
+//   GET /dutoan/db       -> tệp dutoan.db.
+// Khóa riêng DUTOAN_KEY (nên dùng): khóa nhóm chung nằm sẵn trong launcher công khai nên không đủ bảo vệ dữ liệu thương mại.
+async function dutoan(request, env, pathname) {
+  if (!sameSecret(request.headers.get("x-team-key"), env.DUTOAN_KEY || env.TEAM_KEY)) return json(401, { ok: false, error: "Sai khóa nhóm." });
+  if (!env.DATA) return json(503, { ok: false, error: "Chưa cấu hình kho dữ liệu dự toán." });
+  const object = await env.DATA.get(pathname === "/dutoan/manifest" ? "manifest.json" : "dutoan.db");
+  if (!object) return json(404, { ok: false, error: "Chưa có dữ liệu dự toán trên cổng." });
+  const headers = new Headers({ "cache-control": "private, no-store" });
+  if (pathname === "/dutoan/manifest") {
+    headers.set("content-type", "application/json; charset=utf-8");
+  } else {
+    headers.set("content-type", "application/octet-stream");
+    headers.set("content-length", String(object.size));
+  }
+  return new Response(object.body, { status: 200, headers });
+}
+
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
     if (pathname === "/health" && request.method === "GET") return json(200, { ok: true });
     if (pathname === "/propose" && request.method === "POST") return propose(request, env);
+    if ((pathname === "/dutoan/manifest" || pathname === "/dutoan/db") && request.method === "GET")
+      return dutoan(request, env, pathname);
     return json(404, { ok: false, error: "Không có đường dẫn này." });
   },
 };

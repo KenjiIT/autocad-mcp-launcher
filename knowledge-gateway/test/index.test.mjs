@@ -115,3 +115,52 @@ test("GitHub lỗi thì báo 502", async () => {
   mockGithub(401);
   assert.equal((await worker.fetch(post({ slug: "a", content: GOOD }), env())).status, 502);
 });
+
+function bucket(files) {
+  return {
+    get: async (key) => {
+      const text = files[key];
+      if (text === undefined) return null;
+      return { body: text, size: new TextEncoder().encode(text).length };
+    },
+  };
+}
+
+function get(path, key = "khoa-nhom") {
+  return new Request(`https://gw.test${path}`, { method: "GET", headers: { "x-team-key": key } });
+}
+
+test("dutoan: sai khóa thì 401, không đọc kho", async () => {
+  const e = env({ DATA: bucket({ "manifest.json": "{}" }) });
+  assert.equal((await worker.fetch(get("/dutoan/manifest", "sai"), e)).status, 401);
+  assert.equal((await worker.fetch(get("/dutoan/db", ""), e)).status, 401);
+});
+
+test("dutoan: chưa gắn kho thì 503, chưa tải lên thì 404", async () => {
+  assert.equal((await worker.fetch(get("/dutoan/manifest"), env())).status, 503);
+  assert.equal((await worker.fetch(get("/dutoan/manifest"), env({ DATA: bucket({}) }))).status, 404);
+});
+
+test("dutoan: trả manifest và tệp, không cho cache", async () => {
+  const e = env({ DATA: bucket({ "manifest.json": '{"sha256":"ab"}', "dutoan.db": "DULIEU" }) });
+  const manifest = await worker.fetch(get("/dutoan/manifest"), e);
+  assert.equal(manifest.status, 200);
+  assert.match(manifest.headers.get("content-type"), /json/);
+  assert.equal(await manifest.text(), '{"sha256":"ab"}');
+  const db = await worker.fetch(get("/dutoan/db"), e);
+  assert.equal(db.status, 200);
+  assert.equal(db.headers.get("content-length"), "6");
+  assert.equal(db.headers.get("cache-control"), "private, no-store");
+  assert.equal(await db.text(), "DULIEU");
+});
+
+test("dutoan: POST không được phép", async () => {
+  const r = await worker.fetch(new Request("https://gw.test/dutoan/db", { method: "POST", headers: { "x-team-key": "khoa-nhom" } }), env({ DATA: bucket({}) }));
+  assert.equal(r.status, 404);
+});
+
+test("dutoan: có DUTOAN_KEY thì khóa nhóm chung không mở được", async () => {
+  const e = env({ DUTOAN_KEY: "khoa-du-toan", DATA: bucket({ "manifest.json": "{}" }) });
+  assert.equal((await worker.fetch(get("/dutoan/manifest", "khoa-nhom"), e)).status, 401);
+  assert.equal((await worker.fetch(get("/dutoan/manifest", "khoa-du-toan"), e)).status, 200);
+});

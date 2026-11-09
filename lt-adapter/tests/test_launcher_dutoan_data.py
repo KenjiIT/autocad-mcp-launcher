@@ -72,3 +72,65 @@ def test_describe_reports_presence(tmp_path):
     path = tmp_path / "dutoan.db"
     make_db(path)
     assert dd.describe(path)["present"]
+
+
+def gateway_opener(manifest, data, calls, fail=None):
+    def opener(request, timeout=0):
+        calls.append((request.full_url, request.get_header("X-team-key")))
+        if fail:
+            import urllib.error
+            raise urllib.error.HTTPError(request.full_url, fail, "x", {}, None)
+        if request.full_url.endswith("/dutoan/manifest"):
+            return Response(manifest)
+        return Response(data)
+    return opener
+
+
+def test_sync_downloads_when_missing_and_sends_key(tmp_path):
+    data = make_db(tmp_path / "src.db")
+    manifest = ('{"sha256":"%s"}' % hashlib.sha256(data).hexdigest()).encode()
+    dest = tmp_path / "data" / "dutoan.db"
+    calls = []
+    result = dd.sync("https://gw.test/", "khoa", dest, opener=gateway_opener(manifest, data, calls))
+    assert result["ok"] and result["changed"], result
+    assert dest.read_bytes() == data
+    assert [c[0] for c in calls] == ["https://gw.test/dutoan/manifest", "https://gw.test/dutoan/db"]
+    assert all(c[1] == "khoa" for c in calls)
+
+
+def test_sync_skips_when_hash_matches(tmp_path):
+    data = make_db(tmp_path / "src.db")
+    manifest = ('{"sha256":"%s"}' % hashlib.sha256(data).hexdigest()).encode()
+    dest = tmp_path / "dutoan.db"
+    dest.write_bytes(data)  # copied by hand, no cache file yet
+    calls = []
+    result = dd.sync("https://gw.test", "khoa", dest, opener=gateway_opener(manifest, data, calls))
+    assert result["ok"] and not result["changed"]
+    assert len(calls) == 1  # only the manifest
+
+
+def test_sync_replaces_changed_file_and_keeps_old_on_bad_download(tmp_path):
+    new = make_db(tmp_path / "src.db")
+    dest = tmp_path / "dutoan.db"
+    dest.write_bytes(b"old")
+    good = ('{"sha256":"%s"}' % hashlib.sha256(new).hexdigest()).encode()
+    bad = dd.sync("https://gw.test", "khoa", dest, opener=gateway_opener(good, b"x" * (dd.MIN_BYTES + 5), []))
+    assert not bad["ok"] and dest.read_bytes() == b"old"
+    ok = dd.sync("https://gw.test", "khoa", dest, opener=gateway_opener(good, new, []))
+    assert ok["ok"] and ok["changed"] and dest.read_bytes() == new
+
+
+def test_sync_reports_gateway_problems_without_touching_file(tmp_path):
+    dest = tmp_path / "dutoan.db"
+    dest.write_bytes(b"old")
+    assert "Khóa nhóm" in dd.sync("https://gw.test", "sai", dest, opener=gateway_opener(b"", b"", [], fail=401))["message"]
+    assert "chưa có dữ liệu" in dd.sync("https://gw.test", "k", dest, opener=gateway_opener(b"", b"", [], fail=404))["message"].lower()
+    assert "khóa nhóm" in dd.sync("https://gw.test", "", dest)["message"].lower()
+    assert "https" in dd.sync("http://gw.test", "k", dest)["message"]
+    assert not dd.sync("https://gw.test", "k", dest, opener=gateway_opener(b'{"sha256":"zz"}', b"", []))["ok"]
+    assert dest.read_bytes() == b"old"
+
+
+def test_sync_key_prefers_own_key():
+    assert dd.sync_key({"dutoan_data_key": " rieng "}, "chung") == "rieng"
+    assert dd.sync_key({}, "chung") == "chung"

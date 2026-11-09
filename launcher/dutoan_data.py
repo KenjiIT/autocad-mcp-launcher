@@ -7,8 +7,10 @@ the expected SHA-256; the file is checked and only then put in place.
 """
 
 import hashlib
+import json
 import os
 import sqlite3
+import urllib.error
 import urllib.request
 from contextlib import closing
 from pathlib import Path
@@ -47,7 +49,7 @@ def check_database(path):
     return None
 
 
-def download(url, expected_sha256="", dest=None, progress=None, opener=urllib.request.urlopen):
+def download(url, expected_sha256="", dest=None, progress=None, opener=urllib.request.urlopen, headers=None):
     """Download to a temporary file, verify, then replace dest. Returns {"ok", "message"}."""
     dest = Path(dest) if dest else db_path()
     url = (url or "").strip()
@@ -61,7 +63,7 @@ def download(url, expected_sha256="", dest=None, progress=None, opener=urllib.re
         dest.parent.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha256()
         done = 0
-        request = urllib.request.Request(url, headers={"user-agent": "autocad-mcp-launcher"})
+        request = urllib.request.Request(url, headers={"user-agent": "autocad-mcp-launcher", **(headers or {})})
         with opener(request, timeout=60) as response, part.open("wb") as out:
             total = int(response.headers.get("content-length") or 0)
             while True:
@@ -84,9 +86,78 @@ def download(url, expected_sha256="", dest=None, progress=None, opener=urllib.re
     except (OSError, ValueError) as exc:
         part.unlink(missing_ok=True)
         return {"ok": False, "message": f"Không tải được: {exc}"}
+    _remember(dest, digest.hexdigest())
     return {"ok": True, "message": f"Đã tải dữ liệu dự toán ({done / (1024 * 1024):.0f} MB).", "sha256": digest.hexdigest()}
 
 
 def _fail(part, message):
     Path(part).unlink(missing_ok=True)
     return {"ok": False, "message": message}
+
+
+def _sidecar(dest):
+    return Path(dest).with_name(Path(dest).name + ".sha256")
+
+
+def _remember(dest, sha):
+    try:
+        _sidecar(dest).write_text(sha, encoding="ascii")
+    except OSError:
+        pass  # only a cache; the next sync re-hashes the file
+
+
+def local_sha256(dest=None):
+    """SHA-256 of the installed database, or '' when absent. Cached beside the file."""
+    dest = Path(dest) if dest else db_path()
+    if not dest.is_file():
+        return ""
+    side = _sidecar(dest)
+    try:
+        cached = side.read_text(encoding="ascii").strip().lower()
+        if len(cached) == 64 and side.stat().st_mtime >= dest.stat().st_mtime:
+            return cached
+    except OSError:
+        pass
+    digest = hashlib.sha256()
+    with dest.open("rb") as handle:
+        for block in iter(lambda: handle.read(CHUNK), b""):
+            digest.update(block)
+    _remember(dest, digest.hexdigest())
+    return digest.hexdigest()
+
+
+def sync(gateway_url, team_key, dest=None, progress=None, opener=urllib.request.urlopen):
+    """Bring the database up to date from the team gateway.
+
+    Returns {"ok", "message", "changed"}. Nothing is replaced unless the gateway's
+    manifest differs from the local file and the new file passes every check.
+    """
+    dest = Path(dest) if dest else db_path()
+    base = (gateway_url or "").strip().rstrip("/")
+    if not base.startswith("https://"):
+        return {"ok": False, "changed": False, "message": "Địa chỉ cổng phải bắt đầu bằng https://"}
+    if not team_key:
+        return {"ok": False, "changed": False, "message": "Chưa có khóa nhóm nên chưa tự tải được dữ liệu dự toán."}
+    headers = {"x-team-key": team_key}
+    try:
+        request = urllib.request.Request(base + "/dutoan/manifest", headers={"user-agent": "autocad-mcp-launcher", **headers})
+        with opener(request, timeout=30) as response:
+            manifest = json.loads(response.read(65536).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        reasons = {401: "Khóa nhóm không đúng.", 404: "Cổng chưa có dữ liệu dự toán.", 503: "Cổng chưa cấu hình kho dữ liệu dự toán."}
+        return {"ok": False, "changed": False, "message": reasons.get(exc.code, f"Cổng trả lỗi {exc.code}.")}
+    except (OSError, ValueError) as exc:
+        return {"ok": False, "changed": False, "message": f"Không hỏi được cổng: {exc}"}
+    sha = str(manifest.get("sha256") or "").lower() if isinstance(manifest, dict) else ""
+    if len(sha) != 64 or any(c not in "0123456789abcdef" for c in sha):
+        return {"ok": False, "changed": False, "message": "Cổng trả thông tin dữ liệu không hợp lệ."}
+    if local_sha256(dest) == sha:
+        return {"ok": True, "changed": False, "message": "Dữ liệu dự toán đã là bản mới nhất."}
+    result = download(base + "/dutoan/db", sha, dest=dest, progress=progress, opener=opener, headers=headers)
+    result["changed"] = bool(result["ok"])
+    return result
+
+
+def sync_key(settings, team_key):
+    """Key for the estimating data: its own key when set, else the shared team key."""
+    return str((settings or {}).get("dutoan_data_key") or os.environ.get("DUTOAN_DATA_KEY") or team_key or "").strip()
