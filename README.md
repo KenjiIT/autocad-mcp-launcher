@@ -1,11 +1,14 @@
 # AutoCAD MCP Launcher
 
-Ứng dụng Windows chạy hai MCP server cho Codex, Claude Code, Claude Desktop hoặc Cursor. App khởi động mà không cần AutoCAD. Khi agent gọi tool, gateway ưu tiên AutoCAD và `autocad_beiming`; nếu AutoCAD không chạy, agent hỏi người dùng trước khi chuyển sang tạo DXF bằng `ezdxf`. Nếu agent gọi tool của `autocad_puran`, gateway ngắt MCP cũ trước khi mở MCP mới.
+Ứng dụng Windows chạy ba MCP server cho Codex, Claude Code, Claude Desktop hoặc Cursor: hai MCP AutoCAD qua gateway và công cụ dự toán `dutoan`. App khởi động mà không cần AutoCAD. Khi agent gọi tool, gateway ưu tiên AutoCAD và `autocad_beiming`; nếu AutoCAD không chạy, agent hỏi người dùng trước khi chuyển sang tạo DXF bằng `ezdxf`. Nếu agent gọi tool của `autocad_puran`, gateway ngắt MCP cũ trước khi mở MCP mới.
 
 | MCP | Địa chỉ trong máy |
 | --- | --- |
 | Beiming custom MCP, derived from [beiming183-cloud/AutoCAD-MCP](https://github.com/beiming183-cloud/AutoCAD-MCP) | `http://127.0.0.1:8764/beiming/mcp` |
 | [puran-water/autocad-mcp](https://github.com/puran-water/autocad-mcp) | `http://127.0.0.1:8764/puran/mcp` |
+| `dutoan` (tra đơn giá, định mức, lập dự toán; 12 tool) | Không qua gateway: agent chạy trực tiếp kiểu stdio bằng Python của `du-toan-mcp/.venv` |
+
+Cài máy mới từng bước (kể cả tri thức chung, khóa gửi đề xuất và dữ liệu dự toán) xem [docs/HUONG-DAN-CAI-DAT-MAY-MOI.md](docs/HUONG-DAN-CAI-DAT-MAY-MOI.md). README này tóm tắt phần tải về, chạy app và nối agent.
 
 Puran được gắn dưới dạng Git submodule. Source Beiming đã được tách vào `autocad-beiming-mcp-custom` và tích hợp các tool sao chép theo lô, sao chép theo vùng giữa hai bản vẽ, và xóa theo lô. Skill đi kèm hướng dẫn agent nói rõ phương án trước khi sửa bản vẽ và đọc lại kết quả sau khi dùng tool. Skill là hướng dẫn cho agent; MCP mới là thành phần thao tác với AutoCAD.
 
@@ -16,11 +19,11 @@ Cần Windows, Python 3.10–3.13 có `tkinter`, và Internet cho lần cài th�
 
 ### Cài bằng bộ cài EXE
 
-Trong mục Releases, tải `AutoCAD-MCP-Launcher-Setup-<phiên-bản>.exe` rồi mở file. Chọn thư mục cài đặt; shortcut Start Menu được tạo tự động. Có thể chọn thêm shortcut Desktop ở bước tác vụ bổ sung. Khi hoàn tất, bộ cài mở launcher; lần đầu chạy sẽ cài thư viện MCP rồi mới hiện ứng dụng. Cần cài sẵn Python 3.10–3.13 có `tkinter`.
+Trong mục Releases, tải `AutoCAD-MCP-Launcher-Setup-<phiên-bản>.exe` rồi mở file. Chọn thư mục cài đặt; shortcut Start Menu được tạo tự động. Có thể chọn thêm shortcut Desktop ở bước tác vụ bổ sung. Khi hoàn tất, bộ cài mở launcher; lần đầu chạy sẽ cài thư viện cho ba MCP (môi trường `dutoan` thêm vài phút) rồi mới hiện ứng dụng. Cần cài sẵn Python 3.10–3.13 có `tkinter`. Bộ cài không cần quyền quản trị; thư mục mặc định `%LOCALAPPDATA%\Programs\AutoCAD MCP Launcher`.
 
 ### Máy không có Git
 
-Mở [autocad-mcp-launcher-complete.zip](dist/autocad-mcp-launcher-complete.zip) trên GitHub, bấm **Download raw**, rồi giải nén. ZIP này chứa app, skill và mã nguồn của **cả hai MCP**. Mở thư mục `autocad-mcp-launcher` vừa giải nén và làm tiếp mục **2. Chạy app**. Máy dùng app không cần cài Git.
+Mở [autocad-mcp-launcher-complete.zip](dist/autocad-mcp-launcher-complete.zip) trên GitHub, bấm **Download raw**, rồi giải nén. ZIP này chứa app, skill và mã nguồn của **cả ba MCP** (không chứa dữ liệu `dutoan.db`). Mở thư mục `autocad-mcp-launcher` vừa giải nén và làm tiếp mục **2. Chạy app**. Máy dùng app không cần cài Git.
 
 ### Máy có Git
 
@@ -41,7 +44,7 @@ git submodule update --init --recursive
 
 ## 2. Chạy app
 
-1. Nhấp đúp `Start AutoCAD MCP.vbs` trong thư mục vừa clone hoặc giải nén. App mở mà không hiện cửa sổ CMD. Lần đầu, cửa sổ cài đặt chạy trước và cho biết tiến độ cài hai MCP. File `.cmd` vẫn có trong bộ cài để xem lỗi khởi động khi cần.
+1. Nhấp đúp `Start AutoCAD MCP.vbs` trong thư mục vừa clone hoặc giải nén. App mở mà không hiện cửa sổ CMD. Lần đầu, cửa sổ cài đặt chạy trước và cho biết tiến độ cài ba MCP. File `.cmd` vẫn có trong bộ cài để xem lỗi khởi động khi cần.
 2. Bấm **Bật kết nối cho agent**. Gateway sẵn sàng ngay cả khi AutoCAD chưa chạy; các MCP tool vẫn hiện trong agent.
 3. Khi làm việc, agent thử AutoCAD trước. Nếu AutoCAD không chạy, tool trả `AUTOCAD_UNAVAILABLE` và agent hỏi bạn có muốn xuất DXF thay thế không. Chỉ sau khi bạn đồng ý, agent gọi `launcher_set_backend` để dùng `ezdxf`. Agent cần gọi `drawing.save` để lưu DXF trước khi đổi MCP hoặc quay lại AutoCAD. Tệp `.dwg` chỉ dùng qua AutoCAD.
 4. Thu nhỏ hoặc bấm X để đưa app xuống khay hệ thống; gateway vẫn chạy. Bấm biểu tượng khay hoặc nhấp đúp `Start AutoCAD MCP.vbs` để mở lại app đang chạy. Nhấp phải biểu tượng khay và chọn **Thoát hẳn** để dừng app cùng gateway.
@@ -60,7 +63,7 @@ Trong app, chọn agent ở ô **Agent**, bấm **Sao chép cấu hình**, rồi
 
 ### Codex
 
-Gộp hai mục dưới đây vào `%USERPROFILE%\.codex\config.toml`, rồi mở lại Codex:
+Gộp các mục dưới đây vào `%USERPROFILE%\.codex\config.toml`, rồi mở lại Codex. Bấm **Sao chép cấu hình** trong app để có đúng đường dẫn Python của `dutoan` trên máy bạn:
 
 ```toml
 [mcp_servers.autocad_beiming]
@@ -68,6 +71,10 @@ url = "http://127.0.0.1:8764/beiming/mcp"
 
 [mcp_servers.autocad_puran]
 url = "http://127.0.0.1:8764/puran/mcp"
+
+[mcp_servers.dutoan]
+command = "<thư-mục-cài>\\du-toan-mcp\\.venv\\Scripts\\python.exe"
+args = ["-m", "dutoan_mcp.server"]
 ```
 
 Skill của dự án đã nằm tại `.codex/skills/autocad-agent-coordinator/SKILL.md`. Mở Codex từ thư mục project này để nó có thể tìm skill. MCP và skill được cài riêng: phải có cả hai nếu muốn agent dùng CAD và làm theo quy trình điều phối.
@@ -88,13 +95,14 @@ Mở terminal trong project này và chạy:
 ```powershell
 claude mcp add --transport http autocad_beiming http://127.0.0.1:8764/beiming/mcp
 claude mcp add --transport http autocad_puran http://127.0.0.1:8764/puran/mcp
+claude mcp add dutoan -- "<thư-mục-cài>\du-toan-mcp\.venv\Scripts\python.exe" -m dutoan_mcp.server
 ```
 
-Mở lại phiên Claude Code. Skill đã nằm tại `.claude/skills/autocad-agent-coordinator/SKILL.md`; có thể yêu cầu rõ: `/autocad-agent-coordinator` trước một việc CAD.
+Dòng `dutoan` có đường dẫn đúng của máy bạn khi bấm **Sao chép cấu hình** trong app (chọn Claude Code). Mở lại phiên Claude Code. Skill đã nằm tại `.claude/skills/autocad-agent-coordinator/SKILL.md`; có thể yêu cầu rõ: `/autocad-agent-coordinator` trước một việc CAD.
 
 ### Claude Desktop Chat
 
-Mở hoặc tạo `%APPDATA%\Claude\claude_desktop_config.json`. Trong app chọn **Claude Desktop** và sao chép JSON được tạo theo đường dẫn trên **máy của bạn**. Gộp hai mục vào `mcpServers` hiện có, giữ nguyên các MCP khác. Thoát hẳn Claude Desktop, kể cả biểu tượng khay hệ thống, rồi mở lại. Trong Chat, bấm **+ → Connectors** để kiểm tra hai server và tool.
+Mở hoặc tạo `%APPDATA%\Claude\claude_desktop_config.json`. Trong app chọn **Claude Desktop** và sao chép JSON được tạo theo đường dẫn trên **máy của bạn**. Gộp các mục (`autocad_beiming`, `autocad_puran`, `dutoan`) vào `mcpServers` hiện có, giữ nguyên các MCP khác. Thoát hẳn Claude Desktop, kể cả biểu tượng khay hệ thống, rồi mở lại. Trong Chat, bấm **+ → Connectors** để kiểm tra các server và tool.
 
 Để thêm skill vào Claude Chat: Claude Desktop có kho skill riêng và chỉ nhận skill tải lên dạng zip, không đọc `~\.claude\skills`. Cách nhanh: mở app, tab **Cài đặt**, mục **Cài skill cho agent**, chọn **Claude Desktop (tải zip lên)**, chọn skill (bắt đầu bằng `autocad-agent-coordinator`) rồi bấm cài. App tạo các file zip trong `%USERPROFILE%\AutoCAD-MCP-Skills-Claude-Desktop` và mở thư mục đó. Trong Claude Desktop vào **Customize → Skills**, tải từng zip lên và bật. Có thể lấy sẵn các zip ở thư mục `dist/` (một file cho mỗi skill). Khi skill được cập nhật, tải lại zip tương ứng. Ngoài ra gateway có tool `skills` (chỉ đọc) và gửi lời nhắc khi kết nối: agent có thể tự đọc skill qua MCP mà không cần tải zip; mỗi skill cũng hiện thành một prompt trong menu của Claude Desktop. Việc tải skill không thay thế bước thêm MCP ở trên.
 
@@ -106,10 +114,16 @@ Gộp cấu hình này vào `%USERPROFILE%\.cursor\mcp.json`, rồi mở lại C
 {
   "mcpServers": {
     "autocad_beiming": { "url": "http://127.0.0.1:8764/beiming/mcp" },
-    "autocad_puran": { "url": "http://127.0.0.1:8764/puran/mcp" }
+    "autocad_puran": { "url": "http://127.0.0.1:8764/puran/mcp" },
+    "dutoan": {
+      "command": "<thư-mục-cài>\\du-toan-mcp\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "dutoan_mcp.server"]
+    }
   }
 }
 ```
+
+Ô **Agent** của app chỉ có OpenAI Codex, Claude Code và Claude Desktop, không có Cursor. Muốn lấy đường dẫn Python đúng của `dutoan`, chọn **Claude Desktop**, bấm **Sao chép cấu hình** rồi chép giá trị `command` của mục `dutoan` sang Cursor.
 
 Skill trong repo hiện được đóng gói sẵn cho Codex, Claude Code và Claude Chat. Với Cursor, hãy đưa nội dung skill vào cơ chế hướng dẫn agent mà bạn đang dùng trong Cursor; chỉ thêm MCP sẽ không tự nạp skill.
 
@@ -122,6 +136,11 @@ ChatGPT chạy trên cloud và không truy cập trực tiếp được `127.0.0
 Trong agent đã cấu hình, yêu cầu: “Kiểm tra bản vẽ AutoCAD đang mở, cho tôi biết tên bản vẽ và trạng thái kết nối. Chưa sửa gì.” Tool đọc trạng thái giúp xác nhận kết nối trước khi vẽ. Với yêu cầu thay đổi bản vẽ, skill sẽ hướng dẫn agent trình bày phương án bằng lời dễ hiểu trước khi gọi tool sửa, sau đó kiểm tra kết quả thực tế.
 
 Nếu agent không hiện tool, kiểm tra theo thứ tự: app vẫn đang chạy; `/status` truy cập được; đã thêm cấu hình cho **đúng agent**; agent đã được khởi động lại; Claude Desktop đang ở **Chat**; và nhật ký trong `launcher/logs/` có lỗi hay không. Nếu app không mở khi nhấp `.vbs`, xem `launcher/logs/startup.log` hoặc mở `.cmd` để thấy lỗi. Nếu `autocad_beiming` không kết nối, kiểm tra AutoCAD đang mở với một bản vẽ và không có hộp thoại chặn thao tác.
+
+## 5. Dữ liệu dự toán và tri thức chung
+
+- **`dutoan.db`** (đơn giá, định mức) không đi kèm launcher. Người quản lý gửi tệp (hoặc zip); trong app, tab **Cài đặt**, mục **Dữ liệu dự toán**, bấm **Nhập từ tệp…**. Chưa có tệp thì `dutoan` không tra được. Tệp chuyển từ phần mềm thương mại, không đưa lên chỗ công khai. Tùy chọn khác (tự tải từ cổng nhóm bằng **Khóa dữ liệu**, tải theo địa chỉ) ở [hướng dẫn cài](docs/HUONG-DAN-CAI-DAT-MAY-MOI.md#28-nạp-dữ-liệu-dự-toán-dutoandb).
+- **Tri thức chung** tự tải về máy (mỗi 24 giờ) từ kho công khai; agent tra bằng tool `knowledge` và tự gửi đề xuất bằng `knowledge_propose`. Khóa gửi đã nhúng sẵn trong bản phát hành, không phải nhập. Chi tiết, và phần dành cho người quản lý và người duyệt, nằm trong [hướng dẫn cài](docs/HUONG-DAN-CAI-DAT-MAY-MOI.md).
 
 ## Giới hạn và nguồn
 
