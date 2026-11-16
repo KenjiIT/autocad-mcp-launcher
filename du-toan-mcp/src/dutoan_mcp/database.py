@@ -30,3 +30,14 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_schema():
+    """Create any missing tables (projects, users...) in a downloaded reference-only DB.
+
+    create_all skips tables that already exist, so existing data is untouched.
+    """
+    import dutoan_mcp.models  # noqa: F401  registers the reference/project tables
+    from dutoan_mcp.models import user  # noqa: F401  Project has a foreign key to users
+
+    Base.metadata.create_all(bind=engine, checkfirst=True)

@@ -8,7 +8,7 @@ Rút từ ba tiêu chuẩn, đọc từ bản `.docx` (hình vẽ trong tiêu ch
 | **TCVN 9411:2012** Nhà ở liên kế - Tiêu chuẩn thiết kế | Nhà liên kế mặt phố (nhà phố), nhà liên kế có sân vườn | Số liệu về lô đất, khoảng lùi, chiều cao, ban công, hàng rào. TCVN 13967 (1.2) cho tham khảo thêm tiêu chuẩn này. |
 | **TCVN 4451:2012** Nhà ở - Nguyên tắc cơ bản để thiết kế | **Chung cư** (căn hộ) và ký túc xá | Căn hộ chung cư. Không dùng cho nhà riêng lẻ. |
 
-Hai tiêu chuẩn có số khác nhau cho cùng một đại lượng, chọn theo loại nhà:
+Hai tiêu chuẩn có số khác nhau cho cùng một đại lượng, chọn theo loại nhà. Cột chung cư là số của TCVN 4451 (tham khảo); chung cư còn phải theo QCVN 04:2021/BXD, xem ghi chú ở mục 3.
 
 | Đại lượng | Nhà riêng lẻ (13967) | Chung cư (4451) |
 |---|---|---|
@@ -106,6 +106,8 @@ Các không gian có thể gộp hoặc để riêng theo nhu cầu. Phòng ở,
 - Cháy: hộp vòi chữa cháy ở mỗi sảnh cầu thang; tránh cháy lan qua ô cửa giữa hai nhà; ngăn khói từ buồng thang.
 
 ## 3. TCVN 4451:2012 - Chung cư
+
+> **Chung cư: QCVN 04:2021/BXD là quy chuẩn bắt buộc và có số khác mục này** (ví dụ căn hộ tối thiểu 25 m², chiều cao thông thủy phòng ở ≥ 2,6 m, phòng ở phụ ≥ 2,3 m). Thoát nạn và phòng cháy nhà cao tầng theo QCVN 06:2022/BXD. Số liệu đã đối chiếu văn bản gốc: [qcvn-06-chung-cu.md](../../autocad-apartment-floor-plan/references/qcvn-06-chung-cu.md). Số của TCVN 4451 dưới đây chỉ để tham khảo; khi hai bên khác nhau, quy chuẩn thắng.
 
 **Diện tích và chiều cao**
 - Căn hộ chung cư tối thiểu: 30 m² (nhà ở xã hội), 45 m² (nhà ở thương mại) (6.3). Ký túc xá: 4 m²/người (6.4).

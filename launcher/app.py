@@ -19,8 +19,6 @@ import agentnote
 import dutoan_data
 import knowledge
 import knowledge_propose
-import revit_mcp
-import revit_pyrevit_mcp
 from logfile import RotatingLog, start_logged
 from skillzip import build_skill_zips
 from tray import TrayIcon
@@ -239,12 +237,6 @@ class App(tk.Tk):
         settings = self.scrollable(settings_page)
         pages.add(main, text="Điều khiển")
         pages.add(settings_page, text="Cài đặt")
-        revit_page = ttk.Frame(pages, padding=18)
-        pages.add(revit_page, text="Revit (thử nghiệm)")
-        self.build_revit(revit_page)
-        pyrevit_page = ttk.Frame(pages, padding=18)
-        pages.add(pyrevit_page, text="Revit pyRevit (thử nghiệm)")
-        self.build_pyrevit(pyrevit_page)
         self.build_settings(settings)
         ttk.Label(main, text="AutoCAD MCP", font=("Segoe UI", 20, "bold")).pack(anchor="w")
         ttk.Label(main, text=f"Phiên bản {app_version()}", foreground="#65736f").pack(anchor="w", pady=(0, 5))
@@ -278,187 +270,6 @@ class App(tk.Tk):
         self.config_box = tk.Text(main, height=9, wrap="none", font=("Consolas", 10),
                                   bg="#ffffff", fg="#1b2926", relief="flat", padx=12, pady=12)
         self.config_box.pack(fill="both", expand=True)
-
-    def build_revit(self, page):
-        ttk.Label(page, text="Revit MCP (thử nghiệm)", font=("Segoe UI", 16, "bold")).pack(anchor="w")
-        ttk.Label(page, wraplength=690, justify="left", foreground="#65736f",
-                  text="Chạy máy chủ mcp-servers-for-revit (mã nguồn mở của bên thứ ba) qua cổng "
-                       f"{revit_mcp.PORT}. Máy chủ này nói chuyện với add-in trong Revit; add-in phải được "
-                       "cài riêng và Revit đang mở. Lần bật đầu tiên npx sẽ tải gói về, có thể mất một lúc."
-                  ).pack(anchor="w", pady=(4, 12))
-        self.revit_process = None
-        self.revit_log = None
-        buttons = ttk.Frame(page)
-        buttons.pack(anchor="w")
-        self.revit_start_btn = ttk.Button(buttons, text="▶  Bật Revit MCP", command=self.start_revit)
-        self.revit_start_btn.pack(side="left")
-        self.revit_stop_btn = ttk.Button(buttons, text="■  Dừng", command=self.stop_revit)
-        self.revit_stop_btn.pack(side="left", padx=8)
-        ttk.Button(buttons, text="Trang tải add-in", command=lambda: os.startfile(revit_mcp.RELEASES_URL)
-                   ).pack(side="left")
-        self.revit_state = ttk.Label(page, text="")
-        self.revit_state.pack(anchor="w", pady=(10, 4))
-        self.revit_checks = ttk.Frame(page)
-        self.revit_checks.pack(anchor="w", fill="x")
-        ttk.Label(page, text="Cấu hình cho agent:").pack(anchor="w", pady=(10, 4))
-        box = tk.Text(page, height=10, wrap="none", font=("Consolas", 10), bg="#ffffff", fg="#1b2926",
-                      relief="flat", padx=12, pady=12)
-        box.insert("1.0", revit_mcp.config_text())
-        box.configure(state="disabled")
-        box.pack(fill="both", expand=True)
-        self.refresh_revit()
-
-    def refresh_revit(self):
-        if self.closing:
-            return
-        running = self.revit_process is not None and self.revit_process.poll() is None
-        up = listening(revit_mcp.PORT)
-        if running:
-            text = f"●  Đang chạy tại {revit_mcp.URL}" if up else "◐  Đang khởi động (tải gói lần đầu có thể lâu)…"
-        else:
-            text = "○  Chưa chạy"
-            if self.revit_process is not None:
-                text += f"  (tiến trình đã thoát, mã {self.revit_process.poll()}; xem launcher\\logs\\revit_mcp.log)"
-        self.revit_state.configure(text=text)
-        self.revit_start_btn.configure(state="disabled" if running else "normal")
-        self.revit_stop_btn.configure(state="normal" if running else "disabled")
-        for child in self.revit_checks.winfo_children():
-            child.destroy()
-        for ok, line in revit_mcp.readiness():
-            ttk.Label(self.revit_checks, text=("✓  " if ok else "✗  ") + line,
-                      foreground="#225c53" if ok else "#9a5b00").pack(anchor="w")
-        revit_listening = listening(revit_mcp.PLUGIN_PORT)
-        ttk.Label(self.revit_checks, foreground="#225c53" if revit_listening else "#9a5b00",
-                  text=("✓  " if revit_listening else "✗  ") +
-                       (f"Add-in trong Revit đang lắng nghe cổng {revit_mcp.PLUGIN_PORT}" if revit_listening
-                        else f"Chưa thấy add-in trong Revit lắng nghe cổng {revit_mcp.PLUGIN_PORT} "
-                             "(mở Revit; nếu có hộp thoại hỏi add-in lạ, chọn Always Load)")).pack(anchor="w")
-        self.after(3000, self.refresh_revit)
-
-    def start_revit(self):
-        npx = revit_mcp.find_npx()
-        if not npx:
-            messagebox.showerror("Revit MCP", "Chưa có Node.js (npx). Cài Node.js 20 trở lên rồi thử lại.")
-            return
-        if listening(revit_mcp.PORT):
-            messagebox.showerror("Revit MCP", f"Cổng {revit_mcp.PORT} đã được chương trình khác sử dụng.")
-            return
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
-        self.revit_log = RotatingLog(LOG_DIR / "revit_mcp.log")
-        try:
-            self.revit_process = start_logged(revit_mcp.command(npx), self.revit_log, cwd=ROOT)
-        except OSError as exc:
-            self.revit_log.close()
-            messagebox.showerror("Revit MCP", f"Không chạy được: {exc}")
-            return
-        self.refresh_revit_now()
-
-    def stop_revit(self):
-        kill_tree(self.revit_process)
-        if self.revit_log:
-            self.revit_log.close()
-            self.revit_log = None
-        self.refresh_revit_now()
-
-    def refresh_revit_now(self):
-        # refresh_revit reschedules itself; start the extra pass without doubling the loop
-        running = self.revit_process is not None and self.revit_process.poll() is None
-        self.revit_start_btn.configure(state="disabled" if running else "normal")
-        self.revit_stop_btn.configure(state="normal" if running else "disabled")
-
-    def build_pyrevit(self, page):
-        ttk.Label(page, text="Revit pyRevit MCP (thử nghiệm)", font=("Segoe UI", 16, "bold")).pack(anchor="w")
-        ttk.Label(page, wraplength=690, justify="left", foreground="#65736f",
-                  text="Chạy máy chủ Demolinator/revit-mcp-server (Python, mã nguồn mở của bên thứ ba) qua cổng "
-                       f"{revit_pyrevit_mcp.PORT}. Máy chủ này gọi Revit qua pyRevit Routes (cổng "
-                       f"{revit_pyrevit_mcp.ROUTES_PORT}); cần cài pyRevit, bật Routes Server và mở Revit. "
-                       "Khác với tab Revit bên cạnh (mcp-servers-for-revit), hai máy chủ chạy độc lập."
-                  ).pack(anchor="w", pady=(4, 12))
-        self.pyrevit_process = None
-        self.pyrevit_log = None
-        buttons = ttk.Frame(page)
-        buttons.pack(anchor="w")
-        self.pyrevit_start_btn = ttk.Button(buttons, text="▶  Bật Revit pyRevit MCP", command=self.start_pyrevit)
-        self.pyrevit_start_btn.pack(side="left")
-        self.pyrevit_stop_btn = ttk.Button(buttons, text="■  Dừng", command=self.stop_pyrevit)
-        self.pyrevit_stop_btn.pack(side="left", padx=8)
-        ttk.Button(buttons, text="Trang mã nguồn", command=lambda: os.startfile(revit_pyrevit_mcp.REPO_URL)
-                   ).pack(side="left")
-        self.pyrevit_state = ttk.Label(page, text="")
-        self.pyrevit_state.pack(anchor="w", pady=(10, 4))
-        self.pyrevit_checks = ttk.Frame(page)
-        self.pyrevit_checks.pack(anchor="w", fill="x")
-        ttk.Label(page, text="Cấu hình cho agent:").pack(anchor="w", pady=(10, 4))
-        box = tk.Text(page, height=10, wrap="none", font=("Consolas", 10), bg="#ffffff", fg="#1b2926",
-                      relief="flat", padx=12, pady=12)
-        box.insert("1.0", revit_pyrevit_mcp.config_text())
-        box.configure(state="disabled")
-        box.pack(fill="both", expand=True)
-        self.refresh_pyrevit()
-
-    def refresh_pyrevit(self):
-        if self.closing:
-            return
-        running = self.pyrevit_process is not None and self.pyrevit_process.poll() is None
-        up = listening(revit_pyrevit_mcp.PORT)
-        if running:
-            text = f"●  Đang chạy tại {revit_pyrevit_mcp.URL}" if up else "◐  Đang khởi động…"
-        else:
-            text = "○  Chưa chạy"
-            if self.pyrevit_process is not None:
-                text += f"  (tiến trình đã thoát, mã {self.pyrevit_process.poll()}; xem launcher\\logs\\revit_pyrevit_mcp.log)"
-        self.pyrevit_state.configure(text=text)
-        self.pyrevit_start_btn.configure(state="disabled" if running else "normal")
-        self.pyrevit_stop_btn.configure(state="normal" if running else "disabled")
-        for child in self.pyrevit_checks.winfo_children():
-            child.destroy()
-        for ok, line in revit_pyrevit_mcp.readiness():
-            ttk.Label(self.pyrevit_checks, text=("✓  " if ok else "✗  ") + line,
-                      foreground="#225c53" if ok else "#9a5b00").pack(anchor="w")
-        routes = listening(revit_pyrevit_mcp.ROUTES_PORT)
-        ttk.Label(self.pyrevit_checks, foreground="#225c53" if routes else "#9a5b00",
-                  text=("✓  " if routes else "✗  ") +
-                       (f"pyRevit Routes đang lắng nghe cổng {revit_pyrevit_mcp.ROUTES_PORT}" if routes
-                        else f"Chưa thấy pyRevit Routes ở cổng {revit_pyrevit_mcp.ROUTES_PORT} "
-                             "(mở Revit, bật Routes Server trong cài đặt pyRevit)")).pack(anchor="w")
-        self.after(3000, self.refresh_pyrevit)
-
-    def start_pyrevit(self):
-        uv = revit_pyrevit_mcp.find_uv()
-        if not uv:
-            messagebox.showerror("Revit pyRevit MCP", "Chưa có uv. Cài uv rồi thử lại.")
-            return
-        if not revit_pyrevit_mcp.entry():
-            messagebox.showerror("Revit pyRevit MCP",
-                                 f"Chưa có mã nguồn ở {revit_pyrevit_mcp.repo_dir()}.\n"
-                                 f"Clone {revit_pyrevit_mcp.REPO_URL} vào đó rồi chạy uv sync.")
-            return
-        if listening(revit_pyrevit_mcp.PORT):
-            messagebox.showerror("Revit pyRevit MCP",
-                                 f"Cổng {revit_pyrevit_mcp.PORT} đã được chương trình khác sử dụng.")
-            return
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
-        self.pyrevit_log = RotatingLog(LOG_DIR / "revit_pyrevit_mcp.log")
-        try:
-            self.pyrevit_process = start_logged(revit_pyrevit_mcp.command(uv), self.pyrevit_log,
-                                                cwd=revit_pyrevit_mcp.repo_dir())
-        except OSError as exc:
-            self.pyrevit_log.close()
-            messagebox.showerror("Revit pyRevit MCP", f"Không chạy được: {exc}")
-            return
-        self.refresh_pyrevit_now()
-
-    def stop_pyrevit(self):
-        kill_tree(self.pyrevit_process)
-        if self.pyrevit_log:
-            self.pyrevit_log.close()
-            self.pyrevit_log = None
-        self.refresh_pyrevit_now()
-
-    def refresh_pyrevit_now(self):
-        running = self.pyrevit_process is not None and self.pyrevit_process.poll() is None
-        self.pyrevit_start_btn.configure(state="disabled" if running else "normal")
-        self.pyrevit_stop_btn.configure(state="normal" if running else "disabled")
 
     def scrollable(self, page):
         """Return a padded frame inside ``page`` that scrolls when it grows taller than the window."""
@@ -1270,7 +1081,6 @@ class App(tk.Tk):
 
     def close(self):
         self.closing = True
-        self.stop_revit()
         self.stop()
         if self.tray:
             self.tray.close()

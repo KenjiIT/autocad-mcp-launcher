@@ -7,6 +7,8 @@ description: Tra định mức dự toán xây dựng (TT 38/2026/TT-BXD) và l�
 
 Skill này dẫn đường: tìm đúng công tác trong tập định mức, đọc đúng cột, nhân với đơn giá, và nói rõ chỗ nào chưa có căn cứ. Nguồn giá nội bộ (bảng DMS của công ty): [references/gia-noi-bo-dms.md](references/gia-noi-bo-dms.md); dữ liệu nội bộ, không chia sẻ ra ngoài. Quy trình, bảng mã và các điểm phải kiểm nằm ở [references/quy-trinh-du-toan.md](references/quy-trinh-du-toan.md), [references/cau-truc-tai-lieu.md](references/cau-truc-tai-lieu.md) (định mức, đơn giá nhân công, ca máy) và [references/gia-vat-lieu-tphcm.md](references/gia-vat-lieu-tphcm.md) (giá vật liệu, cạm bẫy khi tra).
 
+**Lập file dự toán Excel (xlsm) thì bắt đầu từ file mẫu GXD:** [references/mau-du-toan-gxd.md](references/mau-du-toan-gxd.md) và `references/MAU_du_toan_GXD_trong.xlsm`. Chép mẫu ra thư mục dự án, nhập khối lượng vào bảng có sẵn, ghi bằng Excel (COM), không dựng bảng mới và không lưu bằng openpyxl. Công tác chưa có trong mẫu thì thêm bằng `scripts/them_cong_tac_gxd.py` (không cần phần mềm GXD). Đọc trang hướng dẫn trước khi mở mẫu.
+
 ## Bộ tài liệu
 
 | Tài liệu | Dùng để | Dạng file |

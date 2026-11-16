@@ -1,0 +1,57 @@
+{
+  "_ghi_chu": "Ví dụ spec cho scripts/them_cong_tac_gxd.py: 3 công tác dầm sàn, hao phí theo TT 38/2026/TT-BXD (CV 9947/BXD-VPB), trang PDF 498 (AF.32300) và 598-599 (AF.83100, AF.83300), cột chiều cao ≤28m. gia = null: chưa có giá, phải nhập từ nguồn giá (niêm yết hoặc DMS), không điền số đoán. MSVT VX./MX. là mã tự đặt. Đổi file_in/file_out và kl theo công trình.",
+  "file_in": "<đường dẫn mẫu MAU_du_toan_GXD_trong.xlsm>",
+  "file_out": "<đường dẫn file dự toán mới .xlsm>",
+  "items": [
+    {
+      "nhom": "D.",
+      "ma_dm": "AF.32300", "ma_dg": "AF.32300",
+      "noi_dung": "Bê tông xà dầm, giằng, sàn mái bằng máy bơm",
+      "dvt": "m³", "kl": null,
+      "vl": [{"msvt": "VX.VBT", "ten": "Vữa bê tông", "dvt": "m³", "dm": 1.015, "gia": null}],
+      "vl_khac": 1,
+      "nc": [{"msvt": "NC2", "dm": 1.66}],
+      "may": [
+        {"msvt": "MX.BOM50", "ten": "Máy bơm bê tông 50 m³/h", "dvt": "ca", "dm": 0.033, "gia": null},
+        {"msvt": "MX.DAMDUI15", "ten": "Máy đầm dùi 1,5 kW", "dvt": "ca", "dm": 0.180, "gia": null}
+      ],
+      "may_khac": 1
+    },
+    {
+      "nhom": "D.",
+      "ma_dm": "AF.83300", "ma_dg": "AF.83300",
+      "noi_dung": "Ván khuôn xà dầm, giằng (ván ép công nghiệp, khung xương nhôm, cột chống thép ống), cao ≤28m",
+      "dvt": "100m²", "kl": null,
+      "vl": [
+        {"msvt": "VX.VANCN", "ten": "Ván công nghiệp", "dvt": "m²", "dm": 21.00, "gia": null},
+        {"msvt": "VX.XUONGNHOM", "ten": "Khung xương (nhôm)", "dvt": "kg", "dm": 15.05, "gia": null},
+        {"msvt": "VX.CHONGTHEP", "ten": "Cột chống thép ống", "dvt": "kg", "dm": 39.61, "gia": null}
+      ],
+      "vl_khac": 5,
+      "nc": [{"msvt": "NC2", "dm": 21.45}],
+      "may": [
+        {"msvt": "MX.VANTHANGLONG3", "ten": "Vận thăng lồng 3 t", "dvt": "ca", "dm": 0.12, "gia": null},
+        {"msvt": "M102.0406", "dm": 0.12}
+      ],
+      "may_khac": 2
+    },
+    {
+      "nhom": "D.",
+      "ma_dm": "AF.83100", "ma_dg": "AF.83100",
+      "noi_dung": "Ván khuôn sàn mái (ván ép công nghiệp, khung xương nhôm, cột chống thép ống), cao ≤28m",
+      "dvt": "100m²", "kl": null,
+      "vl": [
+        {"msvt": "VX.VANCN", "dm": 21.00},
+        {"msvt": "VX.XUONGNHOM", "dm": 12.00},
+        {"msvt": "VX.CHONGTHEP", "dm": 36.15}
+      ],
+      "vl_khac": 5,
+      "nc": [{"msvt": "NC2", "dm": 19.50}],
+      "may": [
+        {"msvt": "MX.VANTHANGLONG3", "dm": 0.12},
+        {"msvt": "M102.0406", "dm": 0.12}
+      ],
+      "may_khac": 2
+    }
+  ]
+}

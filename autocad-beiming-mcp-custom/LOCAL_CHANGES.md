@@ -1,3 +1,53 @@
+# Nguồn gốc và thay đổi của bản này
+
+## Chuỗi nguồn
+
+1. `puran-water/autocad-mcp` (https://github.com/puran-water/autocad-mcp), commit `95476a33a1c246308326eb4709d6379ef2efdbc1`: mã gốc.
+2. `beiming183-cloud/AutoCAD-MCP` (https://github.com/beiming183-cloud/AutoCAD-MCP): phái sinh từ (1), giấy phép MIT.
+3. Thư mục này: phái sinh từ (2) tại commit `11f7c47e5038796a20451b38b23032e625b5aa26` (xem `UPSTREAM_NOTES.md`), giữ nguyên `LICENSE`.
+
+## Cách đọc tệp này
+
+- Phần "Thay đổi của bản này so với Beiming" ngay dưới là của dự án này.
+- Phần từ dòng `# Local installation notes` trở xuống là **nhật ký của upstream Beiming** (kể các thay đổi của Beiming so với Puran, mục 1 đến 80), giữ nguyên để lưu nguồn gốc; "Source" ở đó là Puran chứ không phải Beiming. Mục 81 ở cuối **không có** trong upstream: nó được thêm ở bản này (xem mục "Sửa lõi" bên dưới).
+
+## Thay đổi của bản này so với Beiming `11f7c47`
+
+Lập bằng cách so từng tệp với upstream; chỉ ghi điều thấy trong mã. Trong 154 tệp của upstream, 122 tệp giống hệt, 28 tệp có sửa, 4 tệp không được chép.
+
+### Tool thêm
+
+- **`copy_batching`, `copy_region_between_dwgs`, `delete_batching`, `cad_batch`** trong `src/autocad_mcp/custom_tools/` (4 tệp, khoảng 840 dòng), đăng ký vào server ở cuối `server.py`. Không có trong upstream.
+- **`entity inventory`** (`src/autocad_mcp/inventory.py` và nhánh `_entity_inventory` trong `server.py`): tìm vật thể lặp lại (block theo tên, hình rời theo đường bao và các phần, kể cả xoay, lật) để agent chép thay vì vẽ lại; có bộ nhớ đệm theo bản vẽ, revision và số đối tượng mỗi layer, hết hạn sau 600 giây, `refresh=true` để bỏ qua.
+- **Thêm thao tác entity** `set_layer`, `set_hatch_pattern`, `create_lines_file`, `erase_layers` (trong `server.py` và `backends/file_ipc.py`), cùng hàm đổi màu layer qua COM.
+
+### Sửa lõi
+
+- **`backends/file_ipc.py`** (khoảng +620 dòng): mở bản vẽ qua COM rồi chờ bản vẽ thành hiện hành và xác nhận (`_open_via_com`, `_wait_until_active`, `_finish_drawing_open`); dispatcher theo từng bản vẽ đang hiện hành; cắt bớt bộ nhớ đệm theo tài liệu; tạo HATCH bằng COM (`_create_hatch_com`). Đây là phần thực hiện mục 81 bên dưới.
+- **`backends/base.py`**: khi kiểm hậu điều kiện HATCH, so thêm diện tích và hộp bao của biên; mẫu `SOLID` không bị kiểm góc và tỉ lệ.
+- **`com_sta.py`**: thời hạn của một thao tác COM tính từ lúc nó bắt đầu chạy trên luồng STA, không tính lúc còn xếp hàng sau lệnh khác.
+- **`native_pipe.py`**: kiểm tra tiến trình native còn sống bằng Win32 `OpenProcess` trên Windows (`os.kill(pid, 0)` báo lỗi 87 nên bỏ nhầm tiến trình còn sống).
+- **`audit.py`**: bỏ qua danh sách điểm hỏng thay vì lỗi.
+- **`errors.py`**: thêm `ERROR_HINTS` (gợi ý cho `E_COM_STA_TIMEOUT`, `E_COM_STA_UNAVAILABLE`, `E_POSTCONDITION_MISMATCH`: tra tri thức chung bằng tool `knowledge`, ghi bằng `knowledge_propose`, báo người dùng).
+- **`server.py`**: nhánh lưu bản vẽ cho backend `file_ipc_lt` (chỉ là điểm móc; hỗ trợ AutoCAD LT nằm ở `lt-adapter/`, không nằm trong thư mục này).
+- **Mục 81** của nhật ký bên dưới (HATCH bằng `AddHatch` và `AppendOuterLoop`) là thay đổi của bản này.
+
+### Cấu hình, tài liệu, kiểm thử
+
+- **`pyproject.toml`**: đổi tên gói thành `autocad-beiming-mcp-custom`, đổi mô tả, thêm lệnh `autocad-beiming-mcp`. Phiên bản `4.0.0`.
+- **`README.md`**: viết lại ngắn (bỏ khoảng 640 dòng của upstream); `README.beiming-upstream.md` là README của Beiming có chỉnh nhẹ (bỏ phần worker native), không phải bản gốc nguyên văn.
+- **`UPSTREAM_NOTES.md`** thêm mới; **`docs/LT_TOOL_PLAN.md`**, **`docs/LT_VERIFY.md`**, **`docs/LT_VERIFY_PLAN.md`** thêm mới (nói về AutoCAD LT).
+- **`.gitignore`**: thêm `/output/` và các tệp `.mcp_dispatch_*_runtime_*.lsp`.
+- **Plugin native** (`native/`): chỉnh để dựng cho AutoCAD 2025, 2026 hoặc 2027 (`CadDispatcher.cs` khoảng +64/-30, `build-plugin.ps1` khoảng +33/-4, thêm `UseWPF`, `PluginEntry.cs`, `PipeServer.cs`).
+- **Kiểm thử**: thêm `tests/test_drawing_open.py`, `tests/test_error_hints.py`; bổ sung `tests/test_audit.py`, `tests/test_com_sta.py`.
+- Có sửa nhẹ vài tệp tài liệu và skill của upstream (`docs/ARCHITECTURE-REVIEW-20260718.md`, `docs/INCIDENT-20260718-EXECUTION-HANG.md`, `docs/ROADMAP.md`, `skills/industrial-product-design/`, `README.zh-CN.md`, `uv.lock`); chưa liệt kê chi tiết.
+
+### Không chép từ upstream
+
+`docs/MIGRATION-4.0.md`, `native/README.md`, `tests/golden/basic_shapes.dxf`, `tests/golden/pid_example.dxf`.
+
+---
+
 # Local installation notes
 
 - Source: https://github.com/puran-water/autocad-mcp

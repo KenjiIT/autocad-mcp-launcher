@@ -23,3 +23,30 @@ launcher/team_key.dat
 # Estimating database: compiled from a commercial package, distributed privately (see launcher/dutoan_data.py)
 du-toan-mcp/data/
 du-toan-mcp/*.db
+
+# okf-scan context receipts
+.harness/metrics/context-receipts.jsonl
+harness/metrics/cost-by-session.json
+
+# mem-rank local memory store
+.harness/metrics/memory.jsonl
+
+# Đầu ra làm việc (bảng bóc khối lượng...), không phải mã nguồn
+/output/
+
+# Dữ liệu và ghi chú dự án, không công khai
+/reports/
+/research_notes/
+/review_1852-T3-S-405/
+/ErrorReports/
+/tmp/
+/apartment-viewer/
+/T3_dam_can_xac_nhan_dau_mut.csv
+/luu y thiet ke mat bang chung cu.md
+
+# Công cụ và tri thức nội bộ (overstack), không công khai
+/.llmwiki/
+/.harness/
+
+# Mẫu dự toán GXD có dữ liệu bản quyền, chỉ dùng nội bộ, không đưa vào repo công khai
+**/MAU_du_toan_GXD_trong.xlsm

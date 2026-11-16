@@ -11,7 +11,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from dutoan_mcp.database import SessionLocal
+from dutoan_mcp.database import SessionLocal, ensure_schema
 from dutoan_mcp.models.don_gia import DonGia, TuDienVatTu
 from dutoan_mcp.models.project import (
     Project,
@@ -539,6 +539,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 def main():
+    ensure_schema()
     async def _run():
         async with stdio_server() as (read_stream, write_stream):
             await server.run(read_stream, write_stream, server.create_initialization_options())
