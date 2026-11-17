@@ -63,7 +63,14 @@ Tool `copy_region_between_dwgs` chọn đối tượng trong một vùng chữ n
 
 ## 3. Thêm MCP vào agent
 
-Trong app, chọn agent ở ô **Agent**, bấm **Sao chép cấu hình**, rồi làm theo mục tương ứng dưới đây. Địa chỉ `127.0.0.1` chỉ dùng được trên chính máy đang chạy app.
+**Cách nhanh: tự thêm.** Trong app, chọn agent ở ô **Agent** (OpenAI Codex, Claude Code, Claude Desktop hoặc Cursor), bấm **Tự thêm vào agent**. App cho bạn xem sẽ đổi gì ở tệp nào, hỏi xác nhận, sao lưu tệp cũ vào `launcher/state/config-backups/`, rồi thêm ba mục `autocad_puran`, `autocad_beiming`, `dutoan`. Các MCP khác của bạn giữ nguyên, và các bảng con bạn tự đặt ở Codex (ví dụ `approval_mode` từng tool) cũng giữ nguyên. Bấm **Gỡ khỏi agent** để bỏ ba mục đó. Bấm lại khi đã đúng thì không ghi gì.
+- **Claude Code:** app chạy `claude mcp add --transport http --scope user …` (phạm vi user, dùng được ở mọi project; cần lệnh `claude` trên PATH). Nếu một project có `.mcp.json` riêng khai báo cùng tên, cấu hình của project đó được ưu tiên.
+- **Codex:** sửa `%USERPROFILE%\.codex\config.toml`; mục mới nằm trong vùng đánh dấu `# >>> AutoCAD MCP Launcher`.
+- **Claude Desktop:** gộp vào `claude_desktop_config.json`, tự chọn tệp của bản cài thường (`%APPDATA%\Claude`) hoặc bản Store (`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude`); xong phải thoát hẳn và mở lại Claude Desktop.
+- **Cursor:** gộp vào `%USERPROFILE%\.cursor\mcp.json`.
+- Tệp cấu hình không đọc được hoặc không hợp lệ thì app **không sửa** và báo lý do. Sau khi thêm, mở phiên agent mới (agent chỉ lấy danh sách tool một lần lúc kết nối).
+
+**Cách thủ công.** Bấm **Sao chép cấu hình**, rồi làm theo mục tương ứng dưới đây. Địa chỉ `127.0.0.1` chỉ dùng được trên chính máy đang chạy app.
 
 ### Codex
 

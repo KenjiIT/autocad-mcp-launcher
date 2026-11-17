@@ -1,6 +1,6 @@
 # Hướng dẫn cài đặt trên máy mới: launcher, tri thức chung và dữ liệu dự toán
 
-Tài liệu này dành cho thành viên nhóm cài máy mới, và cho người quản lý dựng phần cổng nhận đề xuất và phát dữ liệu dự toán. Áp dụng cho launcher **v0.4.4 trở lên**. Riêng việc `dutoan` chạy **qua gateway HTTP** (mục 2.3, 2.8) và cổng buộc đọc skill (mục 3) có từ v0.4.4; các bản 0.4.0 đến 0.4.3 vẫn chạy `dutoan` kiểu stdio và không chặn tool CAD. Bản cũ hơn có chỗ khác; xem mục 8.
+Tài liệu này dành cho thành viên nhóm cài máy mới, và cho người quản lý dựng phần cổng nhận đề xuất và phát dữ liệu dự toán. Áp dụng cho launcher **v0.4.5 trở lên** (nút tự thêm cấu hình ở mục 2.3 có từ v0.4.5). Riêng việc `dutoan` chạy **qua gateway HTTP** (mục 2.3, 2.8) và cổng buộc đọc skill (mục 3) có từ v0.4.4; các bản 0.4.0 đến 0.4.3 vẫn chạy `dutoan` kiểu stdio và không chặn tool CAD. Bản cũ hơn có chỗ khác; xem mục 8.
 
 ## 1. Tổng quan
 
@@ -43,7 +43,7 @@ Launcher phục vụ ba MCP cho agent, đều qua gateway HTTP: `autocad_beiming
 - Không cần Git hay tài khoản GitHub.
 
 ### 2.2 Cài launcher
-1. Vào `https://github.com/KenjiIT/autocad-mcp-launcher/releases`, tải `AutoCAD-MCP-Launcher-Setup-<phiên-bản>.exe` của bản mới nhất (hiện là 0.4.4). Cạnh đó có tệp `.sha256` để đối chiếu nếu cần.
+1. Vào `https://github.com/KenjiIT/autocad-mcp-launcher/releases`, tải `AutoCAD-MCP-Launcher-Setup-<phiên-bản>.exe` của bản mới nhất (hiện là 0.4.5). Cạnh đó có tệp `.sha256` để đối chiếu nếu cần.
 2. Mở file, chọn thư mục cài (mặc định `%LOCALAPPDATA%\Programs\AutoCAD MCP Launcher`), hoàn tất. Shortcut Start Menu được tạo tự động; shortcut Desktop là lựa chọn thêm.
 3. Bộ cài chưa có chữ ký, nên Windows có thể cảnh báo. Chọn **More info**, rồi **Run anyway**.
 4. Khi bộ cài mở launcher, **lần đầu** launcher tự cài thư viện cho ba MCP (`autocad_beiming`, `autocad_puran`, `dutoan`) rồi mới hiện giao diện. Cần mạng; môi trường `dutoan` thêm vài phút.
@@ -58,10 +58,18 @@ Cách khác: tải `autocad-mcp-launcher-complete.zip` (gói di động, kèm `.
 Sau khi nâng cấp từ bản cũ: **Thoát hẳn** launcher (chuột phải biểu tượng khay, chọn Thoát hẳn) rồi mở lại, để gateway nhận tool mới. Sau đó **mở phiên agent mới**: agent chỉ lấy danh sách tool và lời hướng dẫn một lần lúc kết nối, nên phiên đang mở vẫn dùng bản cũ.
 
 ### 2.3 Nối launcher với agent
-Tab **Điều khiển**, chọn agent, bấm **Sao chép cấu hình**, làm theo gợi ý hiện ngay dưới ô. Cấu hình gồm các dòng `autocad_beiming`, `autocad_puran` và `dutoan`:
-- **Claude Code:** chạy lệnh được sao chép trong terminal của project.
+**Cách nhanh (từ v0.4.5): tự thêm bằng một nút.** Tab **Điều khiển**, chọn agent trong ô **Agent** (OpenAI Codex, Claude Code, Claude Desktop, Cursor), bấm **Tự thêm vào agent**. Launcher hiện tệp sẽ sửa và từng mục sẽ làm gì (thêm mới, đã đúng, hay đang khác nên thay), hỏi xác nhận, sao lưu tệp cũ vào `launcher\state\config-backups\`, rồi thêm ba mục `autocad_puran`, `autocad_beiming`, `dutoan`. Bấm **Gỡ khỏi agent** để bỏ lại. Chỉ ba mục đó bị đụng tới; MCP khác của bạn giữ nguyên.
+- **Claude Code:** chạy `claude mcp add --transport http --scope user …` (cần lệnh `claude` trên PATH; phạm vi user nên dùng được ở mọi project). Project nào có `.mcp.json` khai báo cùng tên thì cấu hình của project đó được ưu tiên, nên cần sửa ở đó.
+- **Codex:** sửa `%USERPROFILE%\.codex\config.toml`. Chỉ thay bảng chính của ba mục (và bảng con `.env`); các bảng con khác của bạn như `[mcp_servers.<tên>.tools.<tool>]` với `approval_mode` được giữ. **Gỡ** thì bỏ cả bảng chính lẫn bảng con của ba mục đó, vì bảng con đứng một mình không hợp lệ. Mục mới thêm nằm trong vùng `# >>> AutoCAD MCP Launcher … # <<< AutoCAD MCP Launcher`.
+- **Claude Desktop:** gộp vào `claude_desktop_config.json`, tự chọn tệp của bản cài thường (`%APPDATA%\Claude`) hoặc bản Store (`%LOCALAPPDATA%\Packages\Claude_*\LocalCache\Roaming\Claude`); xong thoát hẳn và mở lại Claude Desktop.
+- **Cursor:** gộp vào `%USERPROFILE%\.cursor\mcp.json`.
+- Tệp cấu hình không đọc được hoặc không hợp lệ (JSON, TOML) thì launcher **không sửa** và báo lý do. Bấm lại khi đã đúng thì không ghi gì. Sau khi thêm, **mở phiên agent mới** (agent chỉ lấy danh sách tool một lần lúc kết nối).
+
+**Cách thủ công.** Tab **Điều khiển**, chọn agent, bấm **Sao chép cấu hình**, làm theo gợi ý hiện ngay dưới ô. Cấu hình gồm các dòng `autocad_beiming`, `autocad_puran` và `dutoan`:
+- **Claude Code:** chạy các lệnh được sao chép trong terminal.
 - **Codex:** gộp vào `%USERPROFILE%\.codex\config.toml`.
-- **Claude Desktop:** gộp vào `%APPDATA%\Claude\claude_desktop_config.json`, rồi thoát hẳn và mở lại.
+- **Claude Desktop:** gộp vào `claude_desktop_config.json`, rồi thoát hẳn và mở lại.
+- **Cursor:** gộp vào `%USERPROFILE%\.cursor\mcp.json`.
 
 Cả ba MCP nay đều qua gateway HTTP (`http://127.0.0.1:8764/<tên>/mcp`), nên **launcher phải đang chạy và đã Bật kết nối cho agent** thì agent mới dùng được, kể cả `dutoan`. Khác với hai MCP AutoCAD (gateway chỉ chạy một MCP AutoCAD tại một thời điểm và cần AutoCAD), `dutoan` không dùng AutoCAD: gateway chạy riêng một tiến trình `dutoan` (môi trường `du-toan-mcp\.venv`, cổng nội bộ 8877) cho mọi agent, tự khởi động ở lần gọi đầu tiên.
 
@@ -256,6 +264,9 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 | `dutoan` báo "Connection closed" (bản trước 0.4.0) | Thư viện `mcp` bản 2 đổi API | Cập nhật lên 0.4.0 trở lên (đã ghim `mcp<2`) |
 | `dutoan` chạy nhưng không tra được | Chưa có `dutoan.db` | Làm mục 2.8; trang chủ launcher phải hiện "Sẵn sàng" |
 | Nhập dữ liệu báo tệp đang bị giữ | Gateway cũ chưa có đường thả `dutoan`, `dutoan` kiểu stdio còn chạy trong một phiên agent cũ, hoặc chương trình khác đang mở tệp | Thoát hẳn launcher và mở lại (bản mới), đóng các phiên agent cũ, nhập lại |
+| Nút **Tự thêm vào agent** báo không tìm thấy lệnh `claude` | Claude Code CLI không nằm trên PATH của launcher | Mở terminal chạy được `claude --version`; hoặc dùng **Sao chép cấu hình** và chạy tay các lệnh |
+| Nút **Tự thêm vào agent** báo tệp không phải JSON/TOML hợp lệ | Tệp cấu hình của agent đang hỏng | Sửa tệp đó (launcher cố ý không đụng); bản sao lưu cũ nằm trong `launcher\state\config-backups\` nếu cần khôi phục |
+| Đã tự thêm nhưng agent không thấy tool | Phiên agent mở trước khi thêm, hoặc Claude Desktop chưa thoát hẳn, hoặc project có `.mcp.json` cùng tên (Claude Code) | Mở phiên agent mới; thoát hẳn Claude Desktop (cả khay) rồi mở lại; kiểm `.mcp.json` của project |
 | `dutoan` không kết nối sau khi cập nhật launcher | Agent vẫn cấu hình `dutoan` kiểu stdio cũ | Cấu hình lại bằng địa chỉ `http://127.0.0.1:8764/dutoan/mcp` (mục 2.3), mở phiên agent mới |
 | Tool CAD trả `SKILL_NOT_READ` | Phiên chưa đọc skill `autocad-agent-coordinator` (hoặc gateway vừa khởi động lại, hoặc đây là phiên mới) | Bình thường: agent gọi `skills` với `operation=get`, `name=autocad-agent-coordinator` rồi gọi lại. Lỗi lặp lại dù đã đọc: agent chưa dùng tool `skills` (đọc tệp bằng công cụ khác không tính), hoặc máy khách không giữ mã phiên; thử mở phiên mới, hoặc tắt ô chặn ở tab Cài đặt |
 | `dutoan` trả lỗi 503 | Thiếu môi trường `du-toan-mcp\.venv`, hoặc cổng nội bộ 8877 bị chiếm, hoặc tiến trình thoát khi khởi động | Mở `launcher\logs\dutoan.log`; mở app để cài lại thư viện; đóng chương trình đang dùng cổng 8877 |
@@ -277,6 +288,7 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 ## 7. Giới hạn đã biết
 - Khóa nhóm nhúng sẵn chỉ là che giấu, không phải bảo mật; ai tải launcher công khai cũng lấy lại được.
 - Lời dặn agent tự ghi và gửi là hướng dẫn cho mô hình, không có gì ép buộc; chưa kiểm chứng đầy đủ trong nhiều phiên thật.
+- Nút **Tự thêm vào agent** (v0.4.5): mới thử bằng test trên tệp tạm, trên bản sao `config.toml` của Codex, và với lệnh `claude mcp` thật dùng thư mục cấu hình tạm. **Đã ghi thật một lần** vào Claude Desktop bản Store (tệp hợp lệ, Claude Desktop liệt kê ba connector); **chưa ghi thật** vào Cursor, Codex, Claude Code, và chưa thử kết nối thật tới gateway sau khi ghi. Trên Python 3.10 không có bước kiểm TOML sau khi sửa Codex.
 - Gateway chỉ buộc **một bước**: đọc skill `autocad-agent-coordinator` trước khi dùng tool CAD. Nó không kiểm được agent có làm theo skill, hay có nạp thêm các skill chuyên biệt khớp yêu cầu hay không. Mới thử với client MCP của Python; Claude Code, Codex và Claude Desktop thật chưa thử (chúng cần gửi lại `Mcp-Session-Id`, nếu không thì dùng chung cửa sổ 30 phút).
 - Chưa có giới hạn số đề xuất mỗi ngày cho tới khi gắn KV (mục 4.6), trong khi agent tự gửi.
 - Duyệt thủ công; chưa có công cụ hỗ trợ.
@@ -295,3 +307,4 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 - **Trước 0.4.2:** chưa có nút **Nhập từ tệp…**.
 - **0.4.3:** gỡ hai tab Revit thử nghiệm khỏi launcher (không ảnh hưởng cài đặt, tri thức hay dữ liệu dự toán).
 - **Từ 0.4.4:** gateway chặn tool CAD (`SKILL_NOT_READ`) cho tới khi phiên đã đọc skill điều phối; `dutoan` chạy qua gateway HTTP (`/dutoan/mcp`) thay vì stdio; cấu hình agent đổi sang `url`, và launcher tự thả tiến trình `dutoan` trước khi thay `dutoan.db`.
+- **Từ 0.4.5:** có nút **Tự thêm vào agent** / **Gỡ khỏi agent** (Codex, Claude Code, Claude Desktop, Cursor); Cursor có trong ô Agent.

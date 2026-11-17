@@ -15,6 +15,7 @@ import zipfile
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+import agentconfig
 import agentnote
 import dutoan_data
 import knowledge
@@ -159,30 +160,25 @@ def kill_tree(process):
             pass
 
 
+def agent_context():
+    """Đường dẫn và lựa chọn của máy này, dùng cho cấu hình agent (xem agentconfig.py)."""
+    return agentconfig.Context(
+        backup_dir=ROOT / "launcher" / "state" / "config-backups",
+        bridge_python=str(python_in(REPOS["puran"])),
+        bridge_script=str(ROOT / "launcher" / "stdio_bridge.py"),
+        # dutoan cũng qua gateway (HTTP) nhưng không dùng AutoCAD.
+        dutoan=(DUTOAN_DIR / "src" / "dutoan_mcp" / "server.py").is_file())
+
+
 def config_for(agent):
-    urls = {NAMES[key]: f"http://127.0.0.1:8764/{key}/mcp" for key in REPOS}
-    # dutoan also goes through the gateway (HTTP), but it has no AutoCAD session of its own.
-    if (DUTOAN_DIR / "src" / "dutoan_mcp" / "server.py").is_file():
-        urls["dutoan"] = "http://127.0.0.1:8764/dutoan/mcp"
-    bridge_keys = {NAMES[key]: key for key in REPOS}
-    bridge_keys["dutoan"] = "dutoan"
-    if agent == "OpenAI Codex":
-        return "\n\n".join(f'[mcp_servers.{name}]\nurl = "{url}"' for name, url in urls.items())
-    if agent == "Claude Code":
-        return "\n".join(f"claude mcp add --transport http {name} {url}" for name, url in urls.items())
-    if agent == "Claude Desktop":
-        python = str(python_in(REPOS["puran"]))
-        bridge = str(ROOT / "launcher" / "stdio_bridge.py")
-        servers = {name: {"command": python, "args": [bridge, bridge_keys[name]]} for name in urls}
-        return json.dumps({"mcpServers": servers}, indent=2)
-    raise ValueError(agent)
+    return agentconfig.snippet(agent, agent_context())
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("AutoCAD MCP Launcher")
-        self.geometry("760x590")
-        self.minsize(650, 490)
+        self.geometry("760x700")
+        self.minsize(650, 620)
         self.gateway = None
         self.log = None
         self.events = queue.Queue()
@@ -253,10 +249,18 @@ class App(tk.Tk):
         row.pack(fill="x")
         ttk.Label(row, text="Agent:").pack(side="left")
         agents = ttk.Combobox(row, textvariable=self.agent, state="readonly", width=21,
-                              values=("OpenAI Codex", "Claude Code", "Claude Desktop"))
+                              values=agentconfig.AGENTS)
         agents.pack(side="left", padx=10)
         agents.bind("<<ComboboxSelected>>", lambda _: self.refresh_config())
         ttk.Button(row, text="Sao chép cấu hình", command=self.copy).pack(side="right")
+        actions = ttk.Frame(main)
+        actions.pack(fill="x", pady=(8, 0))
+        self.auto_btn = ttk.Button(actions, text="Tự thêm vào agent", command=self.auto_configure)
+        self.auto_btn.pack(side="left")
+        self.unauto_btn = ttk.Button(actions, text="Gỡ khỏi agent", command=lambda: self.auto_configure(remove=True))
+        self.unauto_btn.pack(side="left", padx=8)
+        self.agentcfg_status = ttk.Label(main, text="", wraplength=690, justify="left", foreground="#225c53")
+        self.agentcfg_status.pack(fill="x", pady=(6, 0))
         self.hint = ttk.Label(main, wraplength=690, justify="left")
         self.hint.pack(fill="x", pady=(10, 7))
         self.config_box = tk.Text(main, height=9, wrap="none", font=("Consolas", 10),
@@ -795,14 +799,63 @@ class App(tk.Tk):
             self.refresh_knowledge_status(result["message"] if result["state"] == "updated" else None)
 
     def refresh_config(self):
-        hints = {
-            "OpenAI Codex": "Gộp các mục (autocad_beiming, autocad_puran, dutoan) vào %USERPROFILE%\\.codex\\config.toml rồi mở lại Codex. Launcher phải đang chạy và đã bật kết nối.",
-            "Claude Code": "Chạy các lệnh trong terminal của project cần dùng. Launcher phải đang chạy và đã bật kết nối.",
-            "Claude Desktop": "Gộp mcpServers vào %APPDATA%\\Claude\\claude_desktop_config.json rồi thoát hẳn và mở lại Claude Desktop. Launcher phải tiếp tục chạy.",
+        steps = {
+            "OpenAI Codex": "Thủ công: gộp các mục trong ô dưới vào cấu hình Codex, rồi mở lại Codex.",
+            "Claude Code": "Thủ công: chạy các lệnh trong ô dưới, rồi mở phiên Claude Code mới.",
+            "Claude Desktop": "Thủ công: gộp ô dưới vào cấu hình Claude Desktop, rồi thoát hẳn và mở lại Claude Desktop.",
+            "Cursor": "Thủ công: gộp ô dưới vào cấu hình Cursor, rồi mở lại Cursor.",
         }
-        self.hint.configure(text=hints[self.agent.get()])
+        self.hint.configure(text=steps[self.agent.get()])
         self.config_box.delete("1.0", "end")
         self.config_box.insert("1.0", config_for(self.agent.get()))
+
+    def auto_configure(self, remove=False):
+        """Tự thêm (hoặc gỡ) ba mục của launcher trong agent đang chọn, sau khi người dùng xác nhận."""
+        if getattr(self, "agentcfg_busy", False):
+            return
+        agent = self.agent.get()
+        ctx = agent_context()
+        plan = agentconfig.describe_plan(agent, ctx, remove=remove)
+        if plan["problem"]:
+            self.agentcfg_status.configure(text=plan["problem"], foreground="#a12622")
+            return
+        if not plan["changes"]:
+            self.agentcfg_status.configure(
+                text="Không có gì phải đổi: " + ("chưa có mục nào của launcher." if remove else "cấu hình đã đúng sẵn."),
+                foreground="#225c53")
+            return
+        title = "Gỡ cấu hình khỏi agent" if remove else "Tự thêm cấu hình vào agent"
+        if not messagebox.askyesno(title, plan["text"] + "\n\nTiếp tục?"):
+            return
+        self.agentcfg_busy = True
+        self.auto_btn.configure(state="disabled")
+        self.unauto_btn.configure(state="disabled")
+        self.agentcfg_status.configure(text="Đang ghi cấu hình…", foreground="#225c53")
+        self.agentcfg_result = {"value": None}
+
+        def worker():
+            try:
+                self.agentcfg_result["value"] = agentconfig.apply(agent, ctx, remove=remove)
+            except Exception as exc:  # không để luồng nền chết im lặng
+                self.agentcfg_result["value"] = {"ok": False, "message": f"Lỗi không mong đợi: {exc}", "backup": None, "next": ""}
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(200, self.poll_auto_configure)
+
+    def poll_auto_configure(self):
+        result = self.agentcfg_result["value"]
+        if result is None:
+            self.after(200, self.poll_auto_configure)
+            return
+        self.agentcfg_busy = False
+        self.auto_btn.configure(state="normal")
+        self.unauto_btn.configure(state="normal")
+        text = result["message"]
+        if result.get("backup"):
+            text += " Đã sao lưu bản cũ."
+        if result.get("next"):
+            text += " " + result["next"]
+        self.agentcfg_status.configure(text=text, foreground="#225c53" if result["ok"] else "#a12622")
 
     def copy(self):
         self.clipboard_clear()

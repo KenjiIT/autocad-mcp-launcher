@@ -94,7 +94,9 @@ def test_agent_config_uses_http_for_dutoan():
     codex = app.config_for("OpenAI Codex")
     assert f'[mcp_servers.dutoan]\nurl = "{url}"' in codex and "dutoan_mcp.server" not in codex
     code = app.config_for("Claude Code")
-    assert f"claude mcp add --transport http dutoan {url}" in code and "dutoan_mcp.server" not in code
+    assert f"claude mcp add --transport http --scope user dutoan {url}" in code and "dutoan_mcp.server" not in code
+    cursor = json.loads(app.config_for("Cursor"))["mcpServers"]
+    assert cursor["dutoan"] == {"url": url} and cursor["autocad_puran"] == {"url": "http://127.0.0.1:8764/puran/mcp"}
     servers = json.loads(app.config_for("Claude Desktop"))["mcpServers"]
     assert set(servers) == {"autocad_puran", "autocad_beiming", "dutoan"}
     assert servers["dutoan"]["args"][-1] == "dutoan" and servers["dutoan"]["args"][0].endswith("stdio_bridge.py")
