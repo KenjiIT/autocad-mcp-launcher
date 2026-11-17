@@ -83,7 +83,7 @@ def download(url, expected_sha256="", dest=None, progress=None, opener=urllib.re
         reason = check_database(part)
         if reason:
             return _fail(part, reason)
-        os.replace(part, dest)
+        _swap_in(part, dest)
     except (OSError, ValueError) as exc:
         part.unlink(missing_ok=True)
         return {"ok": False, "message": f"Không tải được: {exc}"}
@@ -94,6 +94,38 @@ def download(url, expected_sha256="", dest=None, progress=None, opener=urllib.re
 def _fail(part, message):
     Path(part).unlink(missing_ok=True)
     return {"ok": False, "message": message}
+
+
+GATEWAY_STOP_URL = "http://127.0.0.1:8764/dutoan/stop"
+
+
+def release_gateway_hold(dest, opener=urllib.request.urlopen):
+    """Ask the local gateway to drop its dutoan process, which keeps the database open.
+
+    Only for the real database: a test or a custom ``dest`` never reaches the gateway.
+    The process restarts by itself on the next tool call. Returns True when the gateway answered.
+    """
+    try:
+        if Path(dest).resolve() != db_path().resolve():
+            return False
+        request = urllib.request.Request(GATEWAY_STOP_URL, data=b"", method="POST")
+        with opener(request, timeout=5):
+            return True
+    except (OSError, ValueError):
+        return False
+
+
+def _swap_in(part, dest):
+    """Put a checked file in place of the database.
+
+    SQLite's write-ahead files belong to the old database; left behind they would be
+    applied to the new one, so they are removed once nothing holds the database open.
+    """
+    release_gateway_hold(dest)
+    dest = Path(dest)
+    for suffix in ("-wal", "-shm"):
+        dest.with_name(dest.name + suffix).unlink(missing_ok=True)
+    os.replace(part, dest)
 
 
 def _sidecar(dest):
@@ -210,10 +242,10 @@ def import_file(source, dest=None):
         reason = check_database(part)
         if reason:
             return _fail(part, reason)
-        os.replace(part, dest)
+        _swap_in(part, dest)
     except PermissionError:
         part.unlink(missing_ok=True)
-        return {"ok": False, "message": "Tệp dữ liệu đang được dùng. Đóng các phiên agent (Claude, Codex) đang mở công cụ dutoan rồi nhập lại."}
+        return {"ok": False, "message": "Tệp dữ liệu đang được dùng. Thoát hẳn launcher, đóng chương trình đang mở công cụ dutoan (nếu có) rồi nhập lại."}
     except (OSError, zipfile.BadZipFile) as exc:
         part.unlink(missing_ok=True)
         return {"ok": False, "message": f"Không nhập được: {exc}"}

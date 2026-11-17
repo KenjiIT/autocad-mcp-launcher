@@ -22,15 +22,25 @@ import acad_pid
 from logfile import RotatingLog, start_logged
 import knowledge_propose
 import knowledge_read
+import skillgate
 import skillserve
 from cad_adapter import find_lt_window, prove_connection, prove_offline
 SERVERS = {
     "puran": ("autocad_puran", ROOT / "puran-water-autocad-mcp", 8875),
     "beiming": ("autocad_beiming", ROOT / "autocad-beiming-mcp-custom", 8876),
 }
+DUTOAN_DIR = ROOT / "du-toan-mcp"
+DUTOAN_PORT = 8877
 LOG_DIR = ROOT / "launcher" / "logs"
 SKILLS_ROOT = ROOT / ".claude" / "skills"
-HOP_HEADERS = {"connection", "transfer-encoding", "content-length", "host", "keep-alive"}
+HOP_HEADERS = {"connection", "transfer-encoding", "content-length", "host", "keep-alive", skillgate.HEADER}
+gate = skillgate.SkillGate()
+
+
+def gate_active():
+    """Chặn khi đã bật VÀ skill điều phối có trên máy này (không có thì agent không mở khóa được)."""
+    return (skillgate.enabled(knowledge_propose.load_settings())
+            and (SKILLS_ROOT / skillgate.REQUIRED_SKILL / "SKILL.md").is_file())
 TOOL_CACHE = {}
 BACKEND_TOOL = {
     "name": "launcher_set_backend",
@@ -316,6 +326,98 @@ class Switchboard:
 board = Switchboard()
 
 
+class DutoanService:
+    """The estimating MCP. It never touches AutoCAD, so it bypasses the switchboard.
+
+    One process serves every agent; it starts on the first call and can be stopped
+    (``/dutoan/stop``) so the launcher can replace dutoan.db while nobody holds it.
+    """
+
+    def __init__(self, repo=DUTOAN_DIR, port=DUTOAN_PORT):
+        self.repo = repo
+        self.port = port
+        self.lock = asyncio.Lock()
+        self.process = None
+        self.log = None
+        self.error = None
+
+    def python(self):
+        return self.repo / ".venv" / "Scripts" / "python.exe"
+
+    def available(self):
+        return (self.repo / "src" / "dutoan_mcp" / "server.py").is_file() and self.python().is_file()
+
+    def running(self):
+        return bool(self.process and self.process.poll() is None)
+
+    async def ensure(self):
+        async with self.lock:
+            if self.running() and listening(self.port):
+                return
+            await self._stop_locked()
+            if not self.available():
+                raise RuntimeError(f"Thiếu môi trường Python của dutoan: {self.python()}. Mở app để cài thư viện.")
+            if listening(self.port):
+                raise RuntimeError(f"Cổng nội bộ {self.port} đã được sử dụng")
+            LOG_DIR.mkdir(parents=True, exist_ok=True)
+            self.log = RotatingLog(LOG_DIR / "dutoan.log")
+            self.process = start_logged(
+                [str(self.python()), str(ROOT / "launcher" / "serve_dutoan.py"), str(self.repo), str(self.port)],
+                self.log, cwd=self.repo, env=os.environ.copy())
+            for _ in range(300):
+                if self.process.poll() is not None:
+                    await self._stop_locked()
+                    raise RuntimeError("dutoan thoát khi khởi động; xem launcher/logs/dutoan.log")
+                if listening(self.port):
+                    self.error = None
+                    return
+                await asyncio.sleep(0.1)
+            await self._stop_locked()
+            raise RuntimeError(f"dutoan chưa mở cổng nội bộ {self.port}")
+
+    async def proxy(self, request):
+        # No standalone event stream: the server is stateless, and a GET would hang.
+        if request.method == "GET":
+            return Response(status_code=405)
+        if request.method == "DELETE":
+            return Response(status_code=200)
+        try:
+            await self.ensure()
+        except Exception as exc:
+            self.error = str(exc)
+            return JSONResponse({"error": str(exc)}, status_code=503)
+        headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_HEADERS}
+        try:
+            timeout = httpx.Timeout(connect=10, read=120, write=30, pool=10)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.request(
+                    request.method, f"http://127.0.0.1:{self.port}/mcp",
+                    headers=headers, content=await request.body())
+            outbound = {k: v for k, v in response.headers.items() if k.lower() not in HOP_HEADERS}
+            return Response(response.content, status_code=response.status_code, headers=outbound)
+        except Exception as exc:
+            self.error = str(exc)
+            return JSONResponse({"error": str(exc)}, status_code=502)
+
+    async def _stop_locked(self):
+        if self.process:
+            await asyncio.to_thread(kill_tree, self.process)
+        self.process = None
+        if self.log:
+            self.log.close()
+            self.log = None
+
+    async def stop(self):
+        async with self.lock:
+            await self._stop_locked()
+
+    def status(self):
+        return {"available": self.available(), "running": self.running(), "error": self.error}
+
+
+dutoan = DutoanService()
+
+
 
 
 async def tool_schema(key):
@@ -360,6 +462,7 @@ async def mcp_route(request: Request):
     if request.method == "GET":
         return Response(status_code=405)
     if request.method == "DELETE":
+        gate.end_session(request.headers.get(skillgate.HEADER))
         return Response(status_code=200)
     try:
         message = await request.json()
@@ -369,12 +472,18 @@ async def mcp_route(request: Request):
     request_id = message.get("id")
     if method == "initialize":
         requested = message.get("params", {}).get("protocolVersion", "2025-03-26")
-        return rpc_result(request_id, {
+        gated = gate_active()
+        skill_text = skillserve.INSTRUCTIONS + (" " + skillgate.NOTE if gated else "")
+        response = rpc_result(request_id, {
             "protocolVersion": requested,
             "capabilities": {"tools": {"listChanged": False}, "prompts": {"listChanged": False}},
             "serverInfo": {"name": SERVERS[key][0], "version": "1.0.0"},
-            "instructions": skillserve.INSTRUCTIONS + chr(10) * 2 + knowledge_read.INSTRUCTIONS,
+            "instructions": skill_text + chr(10) * 2 + knowledge_read.INSTRUCTIONS,
         })
+        if gated:
+            # Mã phiên để biết phiên nào đã đọc skill điều phối (xem skillgate.py).
+            response.headers["Mcp-Session-Id"] = gate.new_session()
+        return response
     if method == "notifications/initialized":
         return Response(status_code=202)
     if method == "ping":
@@ -407,6 +516,8 @@ async def mcp_route(request: Request):
     params = message.get("params") or {}
     if params.get("name") == "skills":
         payload, is_error = skills_call(params.get("arguments") or {})
+        if not is_error and skillgate.counts_as_read("skills", params.get("arguments")):
+            gate.mark_read(request.headers.get(skillgate.HEADER))
         return rpc_tool_result(request_id, payload, is_error)
     if params.get("name") == "knowledge":
         payload, is_error = await asyncio.to_thread(knowledge_read.call, params.get("arguments") or {})
@@ -444,6 +555,8 @@ async def mcp_route(request: Request):
 
 async def queued_mcp_route(request: Request):
     """Serialize tool calls across agents through the active CAD process."""
+    if request.path_params["key"] == "dutoan":
+        return await dutoan.proxy(request)
     if request.method != "POST":
         return await mcp_route(request)
     try:
@@ -456,6 +569,9 @@ async def queued_mcp_route(request: Request):
     tool_name = (message.get("params") or {}).get("name", "")
     if tool_name in ("skills", "knowledge", "knowledge_propose"):  # no CAD involved; never wait behind a CAD request
         return await mcp_route(request)
+    # Refuse before queueing, so a blocked call never waits behind CAD work.
+    if key in SERVERS and gate_active() and gate.blocks(tool_name, request.headers.get(skillgate.HEADER)):
+        return rpc_tool_result(message.get("id"), skillgate.refusal(tool_name), True)
     async with board.request_slot(key, tool_name):
         return await mcp_route(request)
 
@@ -466,7 +582,14 @@ async def status_route(request: Request):
                          "error": board.error,
                          "acad_pid": board.acad_pid,
                          "queued_requests": board.queued_requests,
-                         "active_request": board.active_request})
+                         "active_request": board.active_request,
+                         "dutoan": dutoan.status()})
+
+
+async def dutoan_stop_route(request: Request):
+    """Drop the dutoan process (it restarts on the next call) so dutoan.db can be replaced."""
+    await dutoan.stop()
+    return JSONResponse({"stopped": True})
 
 
 async def select_route(request: Request):
@@ -483,11 +606,13 @@ async def select_route(request: Request):
 @asynccontextmanager
 async def lifespan(_app):
     yield
+    await dutoan.stop()
     await board.shutdown()
 
 
 app = Starlette(routes=[
     Route("/status", status_route),
+    Route("/dutoan/stop", dutoan_stop_route, methods=["POST"]),
     Route("/{key}/select", select_route, methods=["POST"]),
     Route("/{key}/mcp", queued_mcp_route, methods=["GET", "POST", "DELETE"]),
 ], lifespan=lifespan)

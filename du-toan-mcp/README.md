@@ -7,13 +7,15 @@ MCP server cho phần mềm dự toán xây dựng. Agent (Claude, Codex, v.v.) 
 ```
 Agent (Claude Code / Claude Desktop / Codex)
   │
-  │  MCP stdio
+  │  MCP HTTP  (http://127.0.0.1:8764/dutoan/mcp, qua gateway của launcher)
   ▼
-dutoan-mcp (Python)
+dutoan-mcp (Python, launcher/serve_dutoan.py)
   │
   ▼
 SQLite (data/dutoan.db)
 ```
+
+Qua launcher, `dutoan` chạy kiểu HTTP stateless và một tiến trình phục vụ mọi agent. Dùng riêng, ngoài launcher, vẫn chạy được kiểu stdio bằng `python -m dutoan_mcp.server` (xem cuối tệp).
 
 ## Cài đặt
 
@@ -53,7 +55,7 @@ pip install -e .
 dutoan-mcp
 ```
 
-Launcher tự tạo môi trường `du-toan-mcp/.venv` và cấu hình agent dùng `python -m dutoan_mcp.server` trong đó. Server cần `mcp` bản 1.x (`mcp>=1.0.0,<2`); bản 2 đổi API nên server không khởi động.
+Launcher tự tạo môi trường `du-toan-mcp/.venv`, chạy `dutoan` trong đó và đưa ra địa chỉ `http://127.0.0.1:8764/dutoan/mcp` cho agent. Server cần `mcp` bản 1.x (`mcp>=1.0.0,<2`); bản 2 đổi API nên server không khởi động.
 
 ## Cấu hình MCP cho client khác
 

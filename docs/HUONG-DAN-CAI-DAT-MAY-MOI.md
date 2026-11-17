@@ -1,6 +1,6 @@
 # Hướng dẫn cài đặt trên máy mới: launcher, tri thức chung và dữ liệu dự toán
 
-Tài liệu này dành cho thành viên nhóm cài máy mới, và cho người quản lý dựng phần cổng nhận đề xuất và phát dữ liệu dự toán. Áp dụng cho launcher **v0.4.2 trở lên**. Bản cũ hơn có chỗ khác; xem mục 8.
+Tài liệu này dành cho thành viên nhóm cài máy mới, và cho người quản lý dựng phần cổng nhận đề xuất và phát dữ liệu dự toán. Áp dụng cho launcher **v0.4.4 trở lên**. Riêng việc `dutoan` chạy **qua gateway HTTP** (mục 2.3, 2.8) và cổng buộc đọc skill (mục 3) có từ v0.4.4; các bản 0.4.0 đến 0.4.3 vẫn chạy `dutoan` kiểu stdio và không chặn tool CAD. Bản cũ hơn có chỗ khác; xem mục 8.
 
 ## 1. Tổng quan
 
@@ -17,7 +17,7 @@ Máy bạn (agent + launcher) ──đọc──▶ autocad-knowledge (công kha
 - **Dữ liệu dự toán** (`dutoan.db`) **không đi kèm** launcher và không bao giờ được đưa lên chỗ công khai. Mỗi máy nhận tệp từ người quản lý (mục 2.8).
 - Thông tin riêng của dự án (số liệu, tên khách hàng, quyết định) **không** đi qua đường gửi đề xuất.
 
-Launcher chạy ba MCP cho agent: `autocad_beiming` (bản vẽ xây dựng), `autocad_puran` (bản vẽ MEP) và `dutoan` (đơn giá, định mức, dự toán).
+Launcher phục vụ ba MCP cho agent, đều qua gateway HTTP: `autocad_beiming` (bản vẽ xây dựng), `autocad_puran` (bản vẽ MEP) và `dutoan` (đơn giá, định mức, dự toán).
 
 | Vai trò | Làm phần |
 |---|---|
@@ -43,7 +43,7 @@ Launcher chạy ba MCP cho agent: `autocad_beiming` (bản vẽ xây dựng), `a
 - Không cần Git hay tài khoản GitHub.
 
 ### 2.2 Cài launcher
-1. Vào `https://github.com/KenjiIT/autocad-mcp-launcher/releases`, tải `AutoCAD-MCP-Launcher-Setup-<phiên-bản>.exe` của bản mới nhất (hiện là 0.4.2). Cạnh đó có tệp `.sha256` để đối chiếu nếu cần.
+1. Vào `https://github.com/KenjiIT/autocad-mcp-launcher/releases`, tải `AutoCAD-MCP-Launcher-Setup-<phiên-bản>.exe` của bản mới nhất (hiện là 0.4.4). Cạnh đó có tệp `.sha256` để đối chiếu nếu cần.
 2. Mở file, chọn thư mục cài (mặc định `%LOCALAPPDATA%\Programs\AutoCAD MCP Launcher`), hoàn tất. Shortcut Start Menu được tạo tự động; shortcut Desktop là lựa chọn thêm.
 3. Bộ cài chưa có chữ ký, nên Windows có thể cảnh báo. Chọn **More info**, rồi **Run anyway**.
 4. Khi bộ cài mở launcher, **lần đầu** launcher tự cài thư viện cho ba MCP (`autocad_beiming`, `autocad_puran`, `dutoan`) rồi mới hiện giao diện. Cần mạng; môi trường `dutoan` thêm vài phút.
@@ -63,7 +63,9 @@ Tab **Điều khiển**, chọn agent, bấm **Sao chép cấu hình**, làm the
 - **Codex:** gộp vào `%USERPROFILE%\.codex\config.toml`.
 - **Claude Desktop:** gộp vào `%APPDATA%\Claude\claude_desktop_config.json`, rồi thoát hẳn và mở lại.
 
-Dòng `dutoan` trỏ thẳng tới Python trong môi trường riêng `du-toan-mcp\.venv` mà launcher đã cài. `dutoan` do agent khởi chạy trực tiếp, **không đi qua gateway** 8764, nên khác hai MCP AutoCAD (chúng cần launcher đang chạy và đã **Bật kết nối cho agent**). Chép đường dẫn từ nút **Sao chép cấu hình**, đừng tự gõ.
+Cả ba MCP nay đều qua gateway HTTP (`http://127.0.0.1:8764/<tên>/mcp`), nên **launcher phải đang chạy và đã Bật kết nối cho agent** thì agent mới dùng được, kể cả `dutoan`. Khác với hai MCP AutoCAD (gateway chỉ chạy một MCP AutoCAD tại một thời điểm và cần AutoCAD), `dutoan` không dùng AutoCAD: gateway chạy riêng một tiến trình `dutoan` (môi trường `du-toan-mcp\.venv`, cổng nội bộ 8877) cho mọi agent, tự khởi động ở lần gọi đầu tiên.
+
+**Đã cấu hình `dutoan` kiểu cũ (stdio, từ bản 0.4.0 đến 0.4.3)** thì phải đổi: Claude Code chạy `claude mcp remove dutoan` rồi thêm lại bằng lệnh mới; Codex xóa mục `command = ...` và thay bằng `url`; Claude Desktop thay mục `dutoan` bằng mục mới trong cấu hình sao chép. Sau đó thoát hẳn launcher, mở lại, và mở phiên agent mới.
 
 ### 2.4 Cài skill
 **Cách 1: bằng launcher** (Claude Code, Codex). Tab **Cài đặt**, mục **Cài skill cho agent**: chọn agent và các skill (hoặc **Chọn tất cả**), bấm **Cài / cập nhật skill đã chọn**. Skill được chép vào thư mục dùng chung của tài khoản Windows. Nên có:
@@ -114,7 +116,7 @@ Tên Khách Hàng
 ### 2.8 Nạp dữ liệu dự toán (`dutoan.db`)
 Công cụ `dutoan` cần tệp `dutoan.db` (đơn giá, định mức, từ điển vật tư). Chưa có tệp thì trang chủ launcher báo chưa có dữ liệu và công cụ không tra được. Tệp này chuyển từ phần mềm dự toán thương mại, **không đưa lên chỗ công khai** và không chia sẻ ngoài nhóm khi chưa rõ giấy phép.
 
-Tab **Cài đặt**, mục **Dữ liệu dự toán**. Chọn **một** cách:
+Tab **Cài đặt**, mục **Dữ liệu dự toán**. Khi nhập hoặc tải tệp mới, launcher tự nhờ gateway **thả tiến trình `dutoan`** (đang giữ tệp) và xóa các tệp phụ `-wal`/`-shm` của bản cũ rồi mới thay; tiến trình tự khởi động lại ở lần gọi kế tiếp. Chọn **một** cách:
 
 1. **Nhập từ tệp… (đơn giản nhất, nên dùng).** Người quản lý gửi `dutoan.db` hoặc bản zip (bản 109 MB nén còn khoảng 18 MB). Bấm **Nhập từ tệp…**, chọn tệp. Launcher kiểm tra (kích thước, có đủ bảng `don_gia`, `dinh_muc`, `tu_dien_vat_tu`) rồi mới thay bản cũ; lỗi thì giữ nguyên bản đang dùng. Zip phải có đúng một tệp `.db` và không được giải nén quá 2 GB.
 2. **Tự tải từ cổng nhóm.** Dán **Khóa dữ liệu** do người quản lý cấp (khóa riêng, không nhúng sẵn), bấm **Cập nhật từ cổng nhóm**. Hộp **Tự cập nhật dữ liệu dự toán từ cổng nhóm khi mở launcher** bật thì launcher hỏi cổng khi mở và sáu giờ một lần, chỉ tải khi SHA-256 khác bản trên máy.
@@ -122,7 +124,7 @@ Tab **Cài đặt**, mục **Dữ liệu dự toán**. Chọn **một** cách:
 
 Nút **Mở thư mục dữ liệu** mở chỗ lưu để chép tay. Mặc định tệp nằm ở `du-toan-mcp\data\dutoan.db` trong thư mục cài; biến môi trường `DUTOAN_DB_PATH` đổi chỗ này. Tệp chép tay vẫn được nhận.
 
-Nếu công cụ `dutoan` đang chạy và giữ tệp, launcher báo cần **đóng phiên agent rồi nhập lại**. Làm đúng như vậy.
+Nếu vẫn báo tệp đang được dùng (ví dụ launcher đang chạy bản cũ chưa có gateway mới, hoặc một chương trình khác mở tệp), **thoát hẳn launcher**, đóng chương trình đang mở tệp (kể cả `dutoan` kiểu stdio còn sót trong phiên agent cũ) rồi nhập lại.
 
 ### 2.9 Thư viện block và AutoCAD LT (nếu dùng)
 - Tab **Cài đặt**, mục **Thư viện block** có nút **Mở thư mục thư viện**: nơi lưu block dựng sẵn (nội thất, cây, thiết bị vệ sinh) dạng `.dwg` hoặc `.dxf`. Agent chèn bằng tên file; đơn vị mỗi file phải là mm. Quy ước đặt tên nằm trong `README.md` của thư mục.
@@ -145,6 +147,8 @@ Nếu công cụ `dutoan` đang chạy và giữ tệp, launcher báo cần **đ
 | Ghi điều vừa học | "Ghi lại kiến thức này vào kho chung" |
 | Chuyển từ ghi chú riêng của dự án | "Chuyển trang này thành tri thức chung" |
 | Kiểm tra kho | "Lint kho tri thức chung" |
+
+**Gateway buộc agent đọc skill trước khi dùng tool CAD.** Ở lệnh CAD đầu tiên của mỗi phiên, nếu agent chưa đọc skill `autocad-agent-coordinator` qua tool `skills`, gateway trả lỗi `SKILL_NOT_READ` kèm đúng việc cần làm; agent đọc skill rồi gọi lại là chạy. Không cần bạn làm gì. Chỉ việc đọc thân skill điều phối bằng tool `skills` được tính. Các tool `skills`, `knowledge`, `knowledge_propose`, `launcher_set_backend` và `dutoan` không bị chặn. Tắt/bật ở tab **Cài đặt**, ô "Buộc agent đọc skill điều phối trước khi dùng tool CAD" (có hiệu lực ngay, mặc định bật). Áp dụng từ v0.4.4.
 
 **Agent tự ghi và gửi, không hỏi trước.** Lời dặn này nằm trong hướng dẫn mà launcher gửi cho mọi agent khi kết nối (từ v0.3.5), nên áp dụng ở mọi dự án và mọi máy. Khi có lỗi mà tìm ra cách sửa, tool cư xử khác mô tả, bạn chỉnh lại agent, hoặc gặp quy ước chưa ai ghi: agent đối chiếu bản công khai (tránh trùng) → gỡ tên dự án, tên khách hàng, mã dự án, số liệu thật, đường dẫn máy → viết vào `proposals/` → kiểm tra (lint) → gọi `knowledge_propose` → báo bạn **một dòng**. Lint còn lỗi hoặc còn nghi ngờ một chi tiết nhạy cảm thì agent **không gửi**, giữ lại và hỏi bạn. Bạn dặn đừng gửi thì không gửi. Đây là lời dặn cho mô hình, không có gì ép buộc; chỗ chặn thật là người duyệt, nên đọc kỹ từng trang trong hàng chờ trước khi đóng tag, vì trang được duyệt sẽ **công khai**.
 
@@ -251,7 +255,10 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 | Agent không thấy `knowledge`, `knowledge_propose` hoặc `dutoan` | Gateway chạy bản cũ, hoặc phiên agent mở trước khi cập nhật | Thoát hẳn launcher, mở lại, **Bật kết nối cho agent**, rồi **mở phiên agent mới** |
 | `dutoan` báo "Connection closed" (bản trước 0.4.0) | Thư viện `mcp` bản 2 đổi API | Cập nhật lên 0.4.0 trở lên (đã ghim `mcp<2`) |
 | `dutoan` chạy nhưng không tra được | Chưa có `dutoan.db` | Làm mục 2.8; trang chủ launcher phải hiện "Sẵn sàng" |
-| Nhập dữ liệu báo tệp đang bị giữ | Công cụ `dutoan` đang chạy trong một phiên agent | Đóng các phiên agent, nhập lại |
+| Nhập dữ liệu báo tệp đang bị giữ | Gateway cũ chưa có đường thả `dutoan`, `dutoan` kiểu stdio còn chạy trong một phiên agent cũ, hoặc chương trình khác đang mở tệp | Thoát hẳn launcher và mở lại (bản mới), đóng các phiên agent cũ, nhập lại |
+| `dutoan` không kết nối sau khi cập nhật launcher | Agent vẫn cấu hình `dutoan` kiểu stdio cũ | Cấu hình lại bằng địa chỉ `http://127.0.0.1:8764/dutoan/mcp` (mục 2.3), mở phiên agent mới |
+| Tool CAD trả `SKILL_NOT_READ` | Phiên chưa đọc skill `autocad-agent-coordinator` (hoặc gateway vừa khởi động lại, hoặc đây là phiên mới) | Bình thường: agent gọi `skills` với `operation=get`, `name=autocad-agent-coordinator` rồi gọi lại. Lỗi lặp lại dù đã đọc: agent chưa dùng tool `skills` (đọc tệp bằng công cụ khác không tính), hoặc máy khách không giữ mã phiên; thử mở phiên mới, hoặc tắt ô chặn ở tab Cài đặt |
+| `dutoan` trả lỗi 503 | Thiếu môi trường `du-toan-mcp\.venv`, hoặc cổng nội bộ 8877 bị chiếm, hoặc tiến trình thoát khi khởi động | Mở `launcher\logs\dutoan.log`; mở app để cài lại thư viện; đóng chương trình đang dùng cổng 8877 |
 | Nhập dữ liệu báo thiếu bảng hoặc sai kích thước | Tệp hỏng hoặc không phải `dutoan.db` | Xin lại tệp; bản đang dùng không bị đổi |
 | Tải dữ liệu theo địa chỉ không được | Link là trang đăng nhập (SharePoint) | Dùng link tải trực tiếp, hoặc **Nhập từ tệp…** |
 | Cập nhật dữ liệu từ cổng báo chưa có khóa | Chưa dán **Khóa dữ liệu** | Xin khóa từ người quản lý, hoặc dùng **Nhập từ tệp…** |
@@ -270,6 +277,7 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 ## 7. Giới hạn đã biết
 - Khóa nhóm nhúng sẵn chỉ là che giấu, không phải bảo mật; ai tải launcher công khai cũng lấy lại được.
 - Lời dặn agent tự ghi và gửi là hướng dẫn cho mô hình, không có gì ép buộc; chưa kiểm chứng đầy đủ trong nhiều phiên thật.
+- Gateway chỉ buộc **một bước**: đọc skill `autocad-agent-coordinator` trước khi dùng tool CAD. Nó không kiểm được agent có làm theo skill, hay có nạp thêm các skill chuyên biệt khớp yêu cầu hay không. Mới thử với client MCP của Python; Claude Code, Codex và Claude Desktop thật chưa thử (chúng cần gửi lại `Mcp-Session-Id`, nếu không thì dùng chung cửa sổ 30 phút).
 - Chưa có giới hạn số đề xuất mỗi ngày cho tới khi gắn KV (mục 4.6), trong khi agent tự gửi.
 - Duyệt thủ công; chưa có công cụ hỗ trợ.
 - Kiểm tra nhạy cảm chỉ bắt mẫu đã biết (email, điện thoại, đường dẫn máy, khóa) và thuật ngữ bạn tự điền. Người duyệt là lớp cuối cùng.
@@ -285,3 +293,5 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 - **Trước 0.4.0:** không có MCP `dutoan` và mục Dữ liệu dự toán.
 - **Trước 0.4.1:** không tự tải dữ liệu dự toán từ cổng, và cài skill chưa ghi khối chỉ dẫn vào `CLAUDE.md`/`AGENTS.md`.
 - **Trước 0.4.2:** chưa có nút **Nhập từ tệp…**.
+- **0.4.3:** gỡ hai tab Revit thử nghiệm khỏi launcher (không ảnh hưởng cài đặt, tri thức hay dữ liệu dự toán).
+- **Từ 0.4.4:** gateway chặn tool CAD (`SKILL_NOT_READ`) cho tới khi phiên đã đọc skill điều phối; `dutoan` chạy qua gateway HTTP (`/dutoan/mcp`) thay vì stdio; cấu hình agent đổi sang `url`, và launcher tự thả tiến trình `dutoan` trước khi thay `dutoan.db`.

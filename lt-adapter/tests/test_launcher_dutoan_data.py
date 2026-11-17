@@ -35,6 +35,49 @@ def opener_for(data):
     return lambda request, timeout=0: Response(data)
 
 
+def test_swap_in_discards_stale_wal_files(tmp_path):
+    # SQLite's -wal/-shm belong to the old database; applied to a new one they would corrupt it.
+    dest = tmp_path / "dutoan.db"
+    dest.write_bytes(b"old")
+    for suffix in ("-wal", "-shm"):
+        (tmp_path / ("dutoan.db" + suffix)).write_bytes(b"stale")
+    part = tmp_path / "dutoan.db.part"
+    part.write_bytes(b"new")
+    dd._swap_in(part, dest)
+    assert dest.read_bytes() == b"new"
+    assert not part.exists() and not (tmp_path / "dutoan.db-wal").exists() and not (tmp_path / "dutoan.db-shm").exists()
+
+
+def test_release_gateway_hold_ignores_other_destinations(tmp_path):
+    def opener(*args, **kwargs):
+        raise AssertionError("gateway must not be contacted for a custom destination")
+
+    assert dd.release_gateway_hold(tmp_path / "x.db", opener=opener) is False
+
+
+def test_release_gateway_hold_posts_for_the_real_database(tmp_path, monkeypatch):
+    real = tmp_path / "dutoan.db"
+    monkeypatch.setenv("DUTOAN_DB_PATH", str(real))
+    seen = []
+
+    def opener(request, timeout=0):
+        seen.append((request.full_url, request.get_method()))
+        return Response(b"")
+
+    assert dd.release_gateway_hold(real, opener=opener) is True
+    assert seen == [("http://127.0.0.1:8764/dutoan/stop", "POST")]
+
+
+def test_release_gateway_hold_tolerates_a_stopped_gateway(tmp_path, monkeypatch):
+    real = tmp_path / "dutoan.db"
+    monkeypatch.setenv("DUTOAN_DB_PATH", str(real))
+
+    def opener(*args, **kwargs):
+        raise OSError("connection refused")
+
+    assert dd.release_gateway_hold(real, opener=opener) is False
+
+
 def test_good_download_is_verified_and_installed(tmp_path):
     data = make_db(tmp_path / "src.db")
     dest = tmp_path / "data" / "dutoan.db"

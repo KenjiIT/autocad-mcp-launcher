@@ -161,28 +161,19 @@ def kill_tree(process):
 
 def config_for(agent):
     urls = {NAMES[key]: f"http://127.0.0.1:8764/{key}/mcp" for key in REPOS}
-    dutoan_available = (DUTOAN_DIR / "src" / "dutoan_mcp" / "server.py").is_file()
-    dutoan_python = str(python_in(DUTOAN_DIR)) if python_in(DUTOAN_DIR).is_file() else "python"
+    # dutoan also goes through the gateway (HTTP), but it has no AutoCAD session of its own.
+    if (DUTOAN_DIR / "src" / "dutoan_mcp" / "server.py").is_file():
+        urls["dutoan"] = "http://127.0.0.1:8764/dutoan/mcp"
+    bridge_keys = {NAMES[key]: key for key in REPOS}
+    bridge_keys["dutoan"] = "dutoan"
     if agent == "OpenAI Codex":
-        lines = [f'[mcp_servers.{name}]\nurl = "{url}"' for name, url in urls.items()]
-        if dutoan_available:
-            lines.append("[mcp_servers.dutoan]" + chr(10) + "command = " + json.dumps(dutoan_python)
-                         + chr(10) + 'args = ["-m", "dutoan_mcp.server"]')
-        return "\n\n".join(lines)
+        return "\n\n".join(f'[mcp_servers.{name}]\nurl = "{url}"' for name, url in urls.items())
     if agent == "Claude Code":
-        lines = [f"claude mcp add --transport http {name} {url}" for name, url in urls.items()]
-        if dutoan_available:
-            lines.append(f'claude mcp add dutoan -- "{dutoan_python}" -m dutoan_mcp.server')
-        return "\n".join(lines)
+        return "\n".join(f"claude mcp add --transport http {name} {url}" for name, url in urls.items())
     if agent == "Claude Desktop":
         python = str(python_in(REPOS["puran"]))
         bridge = str(ROOT / "launcher" / "stdio_bridge.py")
-        servers = {NAMES[key]: {"command": python, "args": [bridge, key]} for key in REPOS}
-        if dutoan_available:
-            servers["dutoan"] = {
-                "command": dutoan_python,
-                "args": ["-m", "dutoan_mcp.server"],
-            }
+        servers = {name: {"command": python, "args": [bridge, bridge_keys[name]]} for name in urls}
         return json.dumps({"mcpServers": servers}, indent=2)
     raise ValueError(agent)
 
@@ -204,6 +195,7 @@ class App(tk.Tk):
         self.agent = tk.StringVar(value="OpenAI Codex")
         self.startup_var = tk.BooleanVar(value=startup_enabled())
         self.autostart_mcp_var = tk.BooleanVar(value=bool(load_settings().get("autostart_mcp")))
+        self.skill_gate_var = tk.BooleanVar(value=load_settings().get("skill_gate", True) is not False)
         self.status = tk.StringVar(value="Sẵn sàng")
         self.knowledge_checking = False
         self.knowledge_auto_var = tk.BooleanVar(value=load_settings().get("knowledge_auto_update", True) is not False)
@@ -251,7 +243,7 @@ class App(tk.Tk):
             label = ttk.Label(main, text=f"○  {NAMES[key]}  ·  Chưa khởi chạy")
             label.pack(anchor="w", pady=3)
             self.labels[key] = label
-        dutoan_status = ("●  dutoan  ·  Sẵn sàng (MCP stdio)" if dutoan_data.describe()["present"]
+        dutoan_status = ("●  dutoan  ·  Sẵn sàng (HTTP qua gateway)" if dutoan_data.describe()["present"]
                          else "○  dutoan  ·  Chưa có dữ liệu (xem Cài đặt, mục Dữ liệu dự toán)")
         self.dutoan_label = ttk.Label(main, text=dutoan_status)
         self.dutoan_label.pack(anchor="w", pady=3)
@@ -308,6 +300,12 @@ class App(tk.Tk):
                         command=self.save_autostart_mcp_setting).pack(anchor="w", pady=(4, 0))
         ttk.Label(frame,
                   text="Khi bật, gateway MCP tự chạy ngay khi launcher mở, không cần bấm Bắt đầu. AutoCAD vẫn chỉ được kết nối khi agent gọi tool.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", padx=(24, 0), pady=(6, 12))
+        ttk.Checkbutton(frame, text="Buộc agent đọc skill điều phối trước khi dùng tool CAD",
+                        variable=self.skill_gate_var,
+                        command=self.save_skill_gate_setting).pack(anchor="w", pady=(4, 0))
+        ttk.Label(frame,
+                  text="Khi bật (khuyên bật), gateway từ chối tool CAD cho tới khi phiên agent đã đọc skill autocad-agent-coordinator qua tool skills; lời từ chối nói rõ phải làm gì. Có hiệu lực ngay, không cần mở lại launcher. Các tool skills, knowledge, knowledge_propose và dutoan không bị chặn.",
                   foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", padx=(24, 0), pady=(6, 12))
         self.settings_status = ttk.Label(frame, text="")
         self.settings_status.pack(anchor="w", padx=(24, 0))
@@ -520,6 +518,18 @@ class App(tk.Tk):
             self.autostart_mcp_var.set(not enabled)
             self.settings_status.configure(text=f"Không lưu được cài đặt: {exc}")
 
+    def save_skill_gate_setting(self):
+        enabled = self.skill_gate_var.get()
+        try:
+            save_setting("skill_gate", enabled)
+            self.settings_status.configure(
+                text="Đã bật: tool CAD chỉ chạy sau khi agent đọc skill điều phối." if enabled
+                else "Đã tắt: gateway không còn chặn tool CAD khi chưa đọc skill."
+            )
+        except OSError as exc:
+            self.skill_gate_var.set(not enabled)
+            self.settings_status.configure(text=f"Không lưu được cài đặt: {exc}")
+
     @staticmethod
     def knowledge_dir():
         saved = load_settings().get("knowledge_dir")
@@ -607,7 +617,7 @@ class App(tk.Tk):
         self.dutoan_button.configure(state="normal")
         self.dutoan_status.configure(text=result["message"], foreground="#225c53" if result["ok"] else "#a12622")
         if result["ok"] and hasattr(self, "dutoan_label"):
-            self.dutoan_label.configure(text="●  dutoan  ·  Sẵn sàng (MCP stdio)")
+            self.dutoan_label.configure(text="●  dutoan  ·  Sẵn sàng (HTTP qua gateway)")
 
     def save_dutoan_auto_setting(self):
         enabled = bool(self.dutoan_auto_var.get())
@@ -673,7 +683,7 @@ class App(tk.Tk):
         if self.dutoan_progress.get("manual") or result.get("changed") or (not result["ok"] and not dutoan_data.describe()["present"]):
             self.dutoan_status.configure(text=result["message"], foreground="#225c53" if result["ok"] else "#a12622")
         if result["ok"] and hasattr(self, "dutoan_label"):
-            self.dutoan_label.configure(text="●  dutoan  ·  Sẵn sàng (MCP stdio)")
+            self.dutoan_label.configure(text="●  dutoan  ·  Sẵn sàng (HTTP qua gateway)")
 
     def import_dutoan_file(self):
         if self.dutoan_busy:
@@ -786,8 +796,8 @@ class App(tk.Tk):
 
     def refresh_config(self):
         hints = {
-            "OpenAI Codex": "Gộp hai mục vào %USERPROFILE%\\.codex\\config.toml rồi mở lại Codex.",
-            "Claude Code": "Chạy hai lệnh trong terminal của project cần dùng.",
+            "OpenAI Codex": "Gộp các mục (autocad_beiming, autocad_puran, dutoan) vào %USERPROFILE%\\.codex\\config.toml rồi mở lại Codex. Launcher phải đang chạy và đã bật kết nối.",
+            "Claude Code": "Chạy các lệnh trong terminal của project cần dùng. Launcher phải đang chạy và đã bật kết nối.",
             "Claude Desktop": "Gộp mcpServers vào %APPDATA%\\Claude\\claude_desktop_config.json rồi thoát hẳn và mở lại Claude Desktop. Launcher phải tiếp tục chạy.",
         }
         self.hint.configure(text=hints[self.agent.get()])

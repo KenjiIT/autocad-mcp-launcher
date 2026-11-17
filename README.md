@@ -1,12 +1,14 @@
 # AutoCAD MCP Launcher
 
-Ứng dụng Windows chạy ba MCP server cho Codex, Claude Code, Claude Desktop hoặc Cursor: hai MCP AutoCAD qua gateway và công cụ dự toán `dutoan`. App khởi động mà không cần AutoCAD. Khi agent gọi tool, gateway ưu tiên AutoCAD và `autocad_beiming`; nếu AutoCAD không chạy, agent hỏi người dùng trước khi chuyển sang tạo DXF bằng `ezdxf`. Nếu agent gọi tool của `autocad_puran`, gateway ngắt MCP cũ trước khi mở MCP mới.
+Ứng dụng Windows chạy ba MCP server cho Codex, Claude Code, Claude Desktop hoặc Cursor: hai MCP AutoCAD và công cụ dự toán `dutoan`, cả ba đều qua gateway HTTP. App khởi động mà không cần AutoCAD. Khi agent gọi tool, gateway ưu tiên AutoCAD và `autocad_beiming`; nếu AutoCAD không chạy, agent hỏi người dùng trước khi chuyển sang tạo DXF bằng `ezdxf`. Nếu agent gọi tool của `autocad_puran`, gateway ngắt MCP cũ trước khi mở MCP mới.
 
 | MCP | Địa chỉ trong máy |
 | --- | --- |
 | Beiming custom MCP, derived from [beiming183-cloud/AutoCAD-MCP](https://github.com/beiming183-cloud/AutoCAD-MCP) | `http://127.0.0.1:8764/beiming/mcp` |
 | [puran-water/autocad-mcp](https://github.com/puran-water/autocad-mcp) | `http://127.0.0.1:8764/puran/mcp` |
-| `dutoan` (tra đơn giá, định mức, lập dự toán; 12 tool) | Không qua gateway: agent chạy trực tiếp kiểu stdio bằng Python của `du-toan-mcp/.venv` |
+| `dutoan` (tra đơn giá, định mức, lập dự toán; 12 tool) | `http://127.0.0.1:8764/dutoan/mcp` |
+
+`dutoan` không dùng AutoCAD nên gateway chạy riêng, không qua bộ chọn MCP AutoCAD: một tiến trình (`du-toan-mcp/.venv`, cổng nội bộ 8877) phục vụ mọi agent, tự khởi động ở lần gọi đầu tiên.
 
 Cài máy mới từng bước (kể cả tri thức chung, khóa gửi đề xuất và dữ liệu dự toán) xem [docs/HUONG-DAN-CAI-DAT-MAY-MOI.md](docs/HUONG-DAN-CAI-DAT-MAY-MOI.md). README này tóm tắt phần tải về, chạy app và nối agent.
 
@@ -49,6 +51,8 @@ git submodule update --init --recursive
 3. Khi làm việc, agent thử AutoCAD trước. Nếu AutoCAD không chạy, tool trả `AUTOCAD_UNAVAILABLE` và agent hỏi bạn có muốn xuất DXF thay thế không. Chỉ sau khi bạn đồng ý, agent gọi `launcher_set_backend` để dùng `ezdxf`. Agent cần gọi `drawing.save` để lưu DXF trước khi đổi MCP hoặc quay lại AutoCAD. Tệp `.dwg` chỉ dùng qua AutoCAD.
 4. Thu nhỏ hoặc bấm X để đưa app xuống khay hệ thống; gateway vẫn chạy. Bấm biểu tượng khay hoặc nhấp đúp `Start AutoCAD MCP.vbs` để mở lại app đang chạy. Nhấp phải biểu tượng khay và chọn **Thoát hẳn** để dừng app cùng gateway.
 
+**Buộc agent đọc skill điều phối.** Lời dặn trong hướng dẫn MCP và trong `CLAUDE.md`/`AGENTS.md` chỉ là nhắc, nên gateway chặn thật: gateway phát `Mcp-Session-Id` lúc `initialize`, và mọi tool CAD của `autocad_beiming`/`autocad_puran` trả lỗi `SKILL_NOT_READ` (kèm bước kế tiếp: gọi `skills` với `operation=get`, `name=autocad-agent-coordinator`) cho tới khi phiên đó đã đọc skill. Các tool `skills`, `knowledge`, `knowledge_propose`, `launcher_set_backend` và toàn bộ `dutoan` không bị chặn. Chỉ việc đọc thân skill điều phối mới được tính; liệt kê skill, đọc skill khác, hay đọc tệp `SKILL.md` bằng công cụ khác thì không. Máy khách không gửi lại mã phiên dùng chung một cửa sổ 30 phút. Gateway khởi động lại thì mọi phiên phải đọc lại. Tắt ở tab **Cài đặt** (ô "Buộc agent đọc skill điều phối trước khi dùng tool CAD", có hiệu lực ngay), hoặc đặt biến môi trường `AUTOCAD_MCP_SKILL_GATE=off`.
+
 Bạn có thể xem trạng thái gateway tại `http://127.0.0.1:8764/status`. Nhật ký nằm trong `launcher/logs/`. Khi làm việc với AutoCAD, app giữ AutoCAD mở lúc đổi MCP hoặc tắt gateway.
 
 Với Beiming, launcher cho các thao tác đọc bản vẽ lớn (`drawing.audit`, `entity.collect`) tối đa **600 giây** thay vì 60 giây (`AUTOCAD_MCP_READ_TIMEOUT`); File IPC chờ tối đa 300 giây và gateway chờ phản hồi tối đa 720 giây. Các thao tác đọc khác vẫn giữ hạn riêng (khoảng 30 đến 60 giây): lệnh nào chạy quá hạn sẽ khóa luồng COM (`poisoned`) cho tới khi gọi `system init` hoặc khởi động lại MCP, nên với DWG lớn hãy đọc từng layer. Các giới hạn này chỉ có hiệu lực sau khi thoát hẳn và mở lại app.
@@ -63,7 +67,7 @@ Trong app, chọn agent ở ô **Agent**, bấm **Sao chép cấu hình**, rồi
 
 ### Codex
 
-Gộp các mục dưới đây vào `%USERPROFILE%\.codex\config.toml`, rồi mở lại Codex. Bấm **Sao chép cấu hình** trong app để có đúng đường dẫn Python của `dutoan` trên máy bạn:
+Gộp các mục dưới đây vào `%USERPROFILE%\.codex\config.toml`, rồi mở lại Codex:
 
 ```toml
 [mcp_servers.autocad_beiming]
@@ -73,9 +77,10 @@ url = "http://127.0.0.1:8764/beiming/mcp"
 url = "http://127.0.0.1:8764/puran/mcp"
 
 [mcp_servers.dutoan]
-command = "<thư-mục-cài>\\du-toan-mcp\\.venv\\Scripts\\python.exe"
-args = ["-m", "dutoan_mcp.server"]
+url = "http://127.0.0.1:8764/dutoan/mcp"
 ```
+
+Đã cấu hình `dutoan` kiểu cũ (`command = ...python.exe`, `-m dutoan_mcp.server`) thì xóa mục đó và thay bằng mục `url` ở trên.
 
 Skill của dự án đã nằm tại `.codex/skills/autocad-agent-coordinator/SKILL.md`. Mở Codex từ thư mục project này để nó có thể tìm skill. MCP và skill được cài riêng: phải có cả hai nếu muốn agent dùng CAD và làm theo quy trình điều phối.
 
@@ -95,10 +100,10 @@ Mở terminal trong project này và chạy:
 ```powershell
 claude mcp add --transport http autocad_beiming http://127.0.0.1:8764/beiming/mcp
 claude mcp add --transport http autocad_puran http://127.0.0.1:8764/puran/mcp
-claude mcp add dutoan -- "<thư-mục-cài>\du-toan-mcp\.venv\Scripts\python.exe" -m dutoan_mcp.server
+claude mcp add --transport http dutoan http://127.0.0.1:8764/dutoan/mcp
 ```
 
-Dòng `dutoan` có đường dẫn đúng của máy bạn khi bấm **Sao chép cấu hình** trong app (chọn Claude Code). Mở lại phiên Claude Code. Skill đã nằm tại `.claude/skills/autocad-agent-coordinator/SKILL.md`; có thể yêu cầu rõ: `/autocad-agent-coordinator` trước một việc CAD.
+Đã thêm `dutoan` kiểu cũ (stdio) thì chạy `claude mcp remove dutoan` trước rồi thêm lại bằng lệnh trên. Mở lại phiên Claude Code. Skill đã nằm tại `.claude/skills/autocad-agent-coordinator/SKILL.md`; có thể yêu cầu rõ: `/autocad-agent-coordinator` trước một việc CAD.
 
 ### Claude Desktop Chat
 
@@ -115,15 +120,12 @@ Gộp cấu hình này vào `%USERPROFILE%\.cursor\mcp.json`, rồi mở lại C
   "mcpServers": {
     "autocad_beiming": { "url": "http://127.0.0.1:8764/beiming/mcp" },
     "autocad_puran": { "url": "http://127.0.0.1:8764/puran/mcp" },
-    "dutoan": {
-      "command": "<thư-mục-cài>\\du-toan-mcp\\.venv\\Scripts\\python.exe",
-      "args": ["-m", "dutoan_mcp.server"]
-    }
+    "dutoan": { "url": "http://127.0.0.1:8764/dutoan/mcp" }
   }
 }
 ```
 
-Ô **Agent** của app chỉ có OpenAI Codex, Claude Code và Claude Desktop, không có Cursor. Muốn lấy đường dẫn Python đúng của `dutoan`, chọn **Claude Desktop**, bấm **Sao chép cấu hình** rồi chép giá trị `command` của mục `dutoan` sang Cursor.
+Ô **Agent** của app chỉ có OpenAI Codex, Claude Code và Claude Desktop, không có Cursor; cấu hình Cursor ở trên tự viết tay.
 
 Skill trong repo hiện được đóng gói sẵn cho Codex, Claude Code và Claude Chat. Với Cursor, hãy đưa nội dung skill vào cơ chế hướng dẫn agent mà bạn đang dùng trong Cursor; chỉ thêm MCP sẽ không tự nạp skill.
 
@@ -144,7 +146,7 @@ Nếu agent không hiện tool, kiểm tra theo thứ tự: app vẫn đang ch�
 
 ## Giới hạn và nguồn
 
-Gateway dùng backend `file_ipc` để làm việc với AutoCAD. App tạm thêm thư mục LISP vào `TRUSTEDPATHS` khi tải dispatcher rồi khôi phục giá trị cũ; `SECURELOAD` không bị tắt. Skill hướng dẫn agent nhưng chưa phải một cơ chế bắt buộc ở gateway: agent có thể gọi thẳng MCP tool nếu không nạp hoặc không làm theo skill.
+Gateway dùng backend `file_ipc` để làm việc với AutoCAD. App tạm thêm thư mục LISP vào `TRUSTEDPATHS` khi tải dispatcher rồi khôi phục giá trị cũ; `SECURELOAD` không bị tắt. Skill hướng dẫn agent; gateway chỉ buộc **một bước**: tool CAD bị từ chối (`SKILL_NOT_READ`) cho tới khi phiên đã đọc skill `autocad-agent-coordinator` qua tool `skills` (xem mục 2). Gateway không kiểm được agent có làm theo skill hay có nạp thêm các skill chuyên biệt hay không.
 
 ### AutoCAD LT trên Windows
 
