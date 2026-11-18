@@ -31,6 +31,7 @@ Lập bằng cách so từng tệp với upstream; chỉ ghi điều thấy tron
 - **`errors.py`**: thêm `ERROR_HINTS` (gợi ý cho `E_COM_STA_TIMEOUT`, `E_COM_STA_UNAVAILABLE`, `E_POSTCONDITION_MISMATCH`: tra tri thức chung bằng tool `knowledge`, ghi bằng `knowledge_propose`, báo người dùng).
 - **`server.py`**: nhánh lưu bản vẽ cho backend `file_ipc_lt` (chỉ là điểm móc; hỗ trợ AutoCAD LT nằm ở `lt-adapter/`, không nằm trong thư mục này).
 - **Mục 81** của nhật ký bên dưới (HATCH bằng `AddHatch` và `AppendOuterLoop`) là thay đổi của bản này.
+- **`backends/file_ipc.py`, đọc `Application.HWND` chịu được AutoCAD đang bận** (`_read_com_hwnd`, hằng `_HWND_READ_ATTEMPTS`, `_HWND_READ_DELAY`; vòng `_send_command_via_com` thử lại với lỗi này như với lỗi "bận"). Lỗi cũ: với pywin32 gọi muộn, lời gọi AutoCAD từ chối lúc bận (`RPC_E_CALL_REJECTED`) trong bước tra tên thuộc tính bị đổi thành `AttributeError` (`pythoncom.ole_error` chính là `com_error`), nên `getattr(app, "HWND", 0)` trả 0 trên một AutoCAD vẫn khỏe và báo sai `E_AUTOCAD_INSTANCE_UNVERIFIED: COM application has no HWND for expected PID …` sau chỉ vài lệnh vẽ; đường dự phòng bằng thông điệp cửa sổ sau đó cũng hỏng khi cửa sổ thu nhỏ. Kiểm thử: `tests/test_com_busy_hwnd.py`.
 
 ### Cấu hình, tài liệu, kiểm thử
 

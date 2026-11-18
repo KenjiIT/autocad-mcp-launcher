@@ -8,6 +8,19 @@ from typing import Any
 MAX_OPERATIONS = 100
 
 
+def normalize_params(item: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+    """Merge parameters placed beside "op" into ``params`` and accept "handle" for "entity_id".
+
+    Agents often write {"op": "get", "entity_id": "2A3F"} instead of putting the
+    parameters under "params"; the batch used to fail that with a bare KeyError.
+    Values inside "params" win on conflict.
+    """
+    merged = {**{key: value for key, value in item.items() if key not in {"op", "params"}}, **params}
+    if "entity_id" not in merged and "handle" in merged:
+        merged["entity_id"] = merged.pop("handle")
+    return merged
+
+
 def register(mcp) -> None:
     from autocad_mcp.backends.file_ipc import FileIPCBackend
     from autocad_mcp.backends.base import CommandResult
@@ -38,6 +51,12 @@ def register(mcp) -> None:
         An entity_id may use "$<step>.handle" to reference a handle returned
         by an earlier step (for example "$0.handle"). Mutating batches use
         an AutoCAD undo transaction and roll back on the first failure.
+
+        Each operation is {"op": <name>, "params": {...}}, for example
+        {"op": "get", "params": {"entity_id": "2A3F"}} or
+        {"op": "move", "params": {"entity_id": "2A3F", "dx": 100, "dy": 0}}.
+        Parameters given beside "op" instead of inside "params" are accepted,
+        and "handle" is accepted as an alias of "entity_id".
         """
         if not isinstance(operations, list) or not operations or len(operations) > MAX_OPERATIONS:
             return tool_error(f"Provide 1 to {MAX_OPERATIONS} operations", code="E_PARAMETER_REJECTED")
@@ -56,7 +75,7 @@ def register(mcp) -> None:
             params = item.get("params", {})
             if not isinstance(params, dict):
                 return tool_error(f"Operation {index} params must be an object", code="E_PARAMETER_REJECTED")
-            validated.append({"op": item["op"], "params": params})
+            validated.append({"op": item["op"], "params": normalize_params(item, params)})
 
         backend = await get_backend()
         if not isinstance(backend, FileIPCBackend):
@@ -148,6 +167,13 @@ def register(mcp) -> None:
                     call = backend.entity_list(p.get("layer"))
                 response = await call
                 payload = response.to_dict()
+            except KeyError as exc:
+                payload = {
+                    "ok": False,
+                    "error": f"Operation {op} is missing parameter {exc}; give it inside \"params\", "
+                             f"e.g. {{\"op\": \"{op}\", \"params\": {{{exc}: ...}}}}",
+                    "error_code": "E_PARAMETER_REJECTED",
+                }
             except Exception as exc:
                 payload = {"ok": False, "error": str(exc), "error_code": "E_BATCH_OPERATION_FAILED"}
             entry = {"index": index, "op": op, "result": payload}

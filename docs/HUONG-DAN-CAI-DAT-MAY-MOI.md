@@ -138,7 +138,17 @@ Nếu vẫn báo tệp đang được dùng (ví dụ launcher đang chạy bả
 - Tab **Cài đặt**, mục **Thư viện block** có nút **Mở thư mục thư viện**: nơi lưu block dựng sẵn (nội thất, cây, thiết bị vệ sinh) dạng `.dwg` hoặc `.dxf`. Agent chèn bằng tên file; đơn vị mỗi file phải là mm. Quy ước đặt tên nằm trong `README.md` của thư mục.
 - AutoCAD LT: LT gửi lệnh qua cửa sổ AutoCAD và dispatcher AutoLISP, nên phải thêm thư mục `autocad-beiming-mcp-custom\lisp-code` vào `TRUSTEDPATHS` của LT. Chi tiết ở `README.md` của repo, mục LT.
 
-### 2.10 Kiểm tra cài đặt xong
+### 2.10 Kết nối ra server (tùy chọn, từ v0.4.6)
+Chỉ cần khi một web hoặc server ở máy khác phải dùng MCP trên máy này. Launcher chủ động kết nối **ra** server (`wss://`), không mở cổng nào ở máy local. Tắt mặc định; tắt thì mọi thứ chạy như cũ.
+
+1. Xin người quản lý server **địa chỉ** (`wss://…`), **mã máy** và **token** của máy này.
+2. Tab **Cài đặt**, mục **Kết nối ra server (agent từ xa)**: tick **Bật kết nối ra server**, nhập ba giá trị, bấm **Lưu cấu hình kết nối ra server**. Lần đầu launcher tự cài thư viện `websockets` (cần mạng). Token không hiện lại sau khi lưu.
+3. Cần gateway đang chạy: bấm **Bật kết nối cho agent**. Máy dùng lâu dài nên bật cả **Tự bật MCP khi mở launcher** và **Khởi động cùng Windows**.
+4. Xem trạng thái: tab Cài đặt (dòng "Trạng thái"), dòng trạng thái ở tab Điều khiển ("Server: đã kết nối tới …"), hoặc `http://127.0.0.1:8764/status` (mục `remote_agent`).
+
+Server chỉ gọi được ba đường `/beiming/mcp`, `/puran/mcp`, `/dutoan/mcp`; tool `launcher_set_backend` bị chặn với server; cổng buộc đọc skill vẫn áp dụng. Đặc tả giao thức đầy đủ: [GIAO-THUC-AGENT-KET-NOI-RA.md](GIAO-THUC-AGENT-KET-NOI-RA.md). Ảnh chụp từ `view get_screenshot` (kèm `include_image`) được trả trực tiếp khi chế độ này bật, áp dụng khi tiến trình Beiming khởi động lại.
+
+### 2.11 Kiểm tra cài đặt xong
 1. `http://127.0.0.1:8764/status` trả trạng thái JSON. Trang chủ launcher hiện trạng thái `dutoan` (sẵn sàng hoặc chưa có dữ liệu).
 2. Trong agent mới, hỏi: "Liệt kê tool MCP bạn có." Phải thấy `knowledge` (đọc tri thức chung), `knowledge_propose` (gửi đề xuất), `skills`, `launcher_set_backend`, các tool CAD của `autocad_beiming`/`autocad_puran`, và 12 tool của `dutoan` (`search_don_gia`, `phan_tich_don_gia`, `create_project`, `add_project_item`, `get_project_summary`, `search_vat_tu`, `calculate_cvc`, `lookup_svdt`, `calculate_svdt`, `compare_prices`, `get_thvt`, `list_projects`).
 3. Hỏi agent: "Tra tri thức chung về cách đọc mặt bằng kết cấu Revit." Nó phải gọi tool `knowledge` (hoặc skill `knowledge-query`) và nêu trang nó dựa vào. Tool `knowledge` đọc thư mục tri thức của launcher nên hoạt động cả khi agent không được cấp quyền vào thư mục đó; chưa tải tri thức thì nó báo `KNOWLEDGE_NOT_DOWNLOADED`.
@@ -268,6 +278,10 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 | Nút **Tự thêm vào agent** báo tệp không phải JSON/TOML hợp lệ | Tệp cấu hình của agent đang hỏng | Sửa tệp đó (launcher cố ý không đụng); bản sao lưu cũ nằm trong `launcher\state\config-backups\` nếu cần khôi phục |
 | Đã tự thêm nhưng agent không thấy tool | Phiên agent mở trước khi thêm, hoặc Claude Desktop chưa thoát hẳn, hoặc project có `.mcp.json` cùng tên (Claude Code) | Mở phiên agent mới; thoát hẳn Claude Desktop (cả khay) rồi mở lại; kiểm `.mcp.json` của project |
 | `dutoan` không kết nối sau khi cập nhật launcher | Agent vẫn cấu hình `dutoan` kiểu stdio cũ | Cấu hình lại bằng địa chỉ `http://127.0.0.1:8764/dutoan/mcp` (mục 2.3), mở phiên agent mới |
+| Trạng thái kết nối ra server là "token bị từ chối" | Server trả 401/403 hoặc đóng kết nối vì token sai hoặc bị thu hồi | Xin token mới, nhập lại và lưu; launcher chỉ thử lại khi cấu hình đổi |
+| Trạng thái "mất kết nối, nối lại sau …" kéo dài | Mất mạng, server khởi động lại, hoặc địa chỉ sai | Kiểm Internet và địa chỉ `wss://`; launcher tự nối lại (1 đến 60 giây); xem `launcher\logs\remote_agent.log` |
+| Trạng thái "chưa cài thư viện websockets" | Cài tự động lần đầu chưa xong hoặc thất bại (không có mạng) | Có mạng rồi bấm Lưu lại; hoặc chạy `puran-water-autocad-mcp\.venv\Scripts\python.exe -m pip install "websockets>=13"` |
+| Server báo `TOOL_BLOCKED` | Tool đó nằm trong `remote_blocked_tools` (mặc định `launcher_set_backend`) | Bình thường; muốn cho phép thì sửa khóa đó trong `launcher\state\settings.json` |
 | Tool CAD trả `SKILL_NOT_READ` | Phiên chưa đọc skill `autocad-agent-coordinator` (hoặc gateway vừa khởi động lại, hoặc đây là phiên mới) | Bình thường: agent gọi `skills` với `operation=get`, `name=autocad-agent-coordinator` rồi gọi lại. Lỗi lặp lại dù đã đọc: agent chưa dùng tool `skills` (đọc tệp bằng công cụ khác không tính), hoặc máy khách không giữ mã phiên; thử mở phiên mới, hoặc tắt ô chặn ở tab Cài đặt |
 | `dutoan` trả lỗi 503 | Thiếu môi trường `du-toan-mcp\.venv`, hoặc cổng nội bộ 8877 bị chiếm, hoặc tiến trình thoát khi khởi động | Mở `launcher\logs\dutoan.log`; mở app để cài lại thư viện; đóng chương trình đang dùng cổng 8877 |
 | Nhập dữ liệu báo thiếu bảng hoặc sai kích thước | Tệp hỏng hoặc không phải `dutoan.db` | Xin lại tệp; bản đang dùng không bị đổi |
@@ -289,6 +303,7 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 - Khóa nhóm nhúng sẵn chỉ là che giấu, không phải bảo mật; ai tải launcher công khai cũng lấy lại được.
 - Lời dặn agent tự ghi và gửi là hướng dẫn cho mô hình, không có gì ép buộc; chưa kiểm chứng đầy đủ trong nhiều phiên thật.
 - Nút **Tự thêm vào agent** (v0.4.5): mới thử bằng test trên tệp tạm, trên bản sao `config.toml` của Codex, và với lệnh `claude mcp` thật dùng thư mục cấu hình tạm. **Đã ghi thật một lần** vào Claude Desktop bản Store (tệp hợp lệ, Claude Desktop liệt kê ba connector); **chưa ghi thật** vào Cursor, Codex, Claude Code, và chưa thử kết nối thật tới gateway sau khi ghi. Trên Python 3.10 không có bước kiểm TOML sau khi sửa Codex.
+- Kết nối ra server (mục 2.10): đã thử bằng 39 test với server WebSocket giả và một lượt chạy toàn tuyến trên gateway thật (cổng thử, `dutoan` thật, `ws://` localhost). **Chưa thử** với server `wss://` thật và chứng chỉ TLS thật, với lệnh AutoCAD thật đi qua kênh này, và chạy nhiều giờ. Danh sách đầy đủ trong `GIAO-THUC-AGENT-KET-NOI-RA.md` mục 12.
 - Gateway chỉ buộc **một bước**: đọc skill `autocad-agent-coordinator` trước khi dùng tool CAD. Nó không kiểm được agent có làm theo skill, hay có nạp thêm các skill chuyên biệt khớp yêu cầu hay không. Mới thử với client MCP của Python; Claude Code, Codex và Claude Desktop thật chưa thử (chúng cần gửi lại `Mcp-Session-Id`, nếu không thì dùng chung cửa sổ 30 phút).
 - Chưa có giới hạn số đề xuất mỗi ngày cho tới khi gắn KV (mục 4.6), trong khi agent tự gửi.
 - Duyệt thủ công; chưa có công cụ hỗ trợ.
@@ -307,4 +322,5 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 - **Trước 0.4.2:** chưa có nút **Nhập từ tệp…**.
 - **0.4.3:** gỡ hai tab Revit thử nghiệm khỏi launcher (không ảnh hưởng cài đặt, tri thức hay dữ liệu dự toán).
 - **Từ 0.4.4:** gateway chặn tool CAD (`SKILL_NOT_READ`) cho tới khi phiên đã đọc skill điều phối; `dutoan` chạy qua gateway HTTP (`/dutoan/mcp`) thay vì stdio; cấu hình agent đổi sang `url`, và launcher tự thả tiến trình `dutoan` trước khi thay `dutoan.db`.
+- **Từ 0.4.6:** chế độ agent kết nối ra server (tùy chọn, tắt mặc định; mục 2.10); agent tự lấy và nạp skill chuyên biệt vào kho skill của mình; dim giữ đúng tỉ lệ; phát hiện bản vẽ bị sửa tay.
 - **Từ 0.4.5:** có nút **Tự thêm vào agent** / **Gỡ khỏi agent** (Codex, Claude Code, Claude Desktop, Cursor); Cursor có trong ô Agent.

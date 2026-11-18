@@ -138,7 +138,17 @@ Skill trong repo hiện được đóng gói sẵn cho Codex, Claude Code và Cl
 
 ### ChatGPT trên web
 
-ChatGPT chạy trên cloud và không truy cập trực tiếp được `127.0.0.1` của máy bạn. Cần một endpoint HTTPS có xác thực và có thể truy cập từ Internet trước khi cấu hình MCP này trên ChatGPT web. App chưa tự tạo endpoint đó.
+ChatGPT chạy trên cloud và không truy cập trực tiếp được `127.0.0.1` của máy bạn, và app **không** mở cổng ra Internet (MCP không có xác thực và sửa được bản vẽ). Muốn một web hoặc server ở máy khác dùng các MCP này, dùng **chế độ agent** ở mục dưới: launcher chủ động kết nối ra server.
+
+### Chế độ agent: kết nối ra server (tùy chọn, tắt mặc định)
+
+Dùng khi web, đăng nhập và dịch vụ chạy trên một server, còn MCP và AutoCAD chạy ở máy local (sau NAT). Launcher mở một kết nối WebSocket (`wss://`) **đi ra** tới server và chuyển các lời gọi MCP server gửi xuống vào gateway nội bộ `127.0.0.1:8764`. Không mở cổng nào ở máy local; tắt thì mọi thứ chạy như cũ.
+
+- **Bật:** tab **Cài đặt**, mục **Kết nối ra server (agent từ xa)**: tick **Bật kết nối ra server**, nhập **Địa chỉ server** (`wss://…`), **Mã máy** và **Token** do người quản lý server cấp, bấm **Lưu**. Lần đầu launcher tự cài thư viện `websockets` (cần mạng). Token không hiện lại sau khi lưu và không vào log.
+- Chạy trong gateway nên cần gateway đang chạy (**Bật kết nối cho agent**); máy dùng lâu dài nên bật **Tự bật MCP khi mở launcher** và **Khởi động cùng Windows**. Trạng thái (đã kết nối, đang nối lại, token bị từ chối) hiện ở tab Cài đặt, ở dòng trạng thái của tab Điều khiển và trong `/status`.
+- Server chỉ gọi được `/beiming/mcp`, `/puran/mcp`, `/dutoan/mcp` (không gọi được `/status`, `/…/select`, `/dutoan/stop`). Tool `launcher_set_backend` bị chặn với server (đổi bằng khóa `remote_blocked_tools` trong `launcher/state/settings.json`). Cổng chặn skill vẫn áp dụng cho từng phiên.
+- Ảnh từ `view get_screenshot` (gọi kèm `include_image`) được trả trực tiếp trong kết quả khi chế độ này bật; áp dụng khi tiến trình Beiming khởi động lại.
+- Đặc tả giao thức (khung, giới hạn, mã lỗi, ý nghĩa của `cancel`, phần đã và chưa kiểm): [docs/GIAO-THUC-AGENT-KET-NOI-RA.md](docs/GIAO-THUC-AGENT-KET-NOI-RA.md).
 
 ## 4. Dùng thử
 

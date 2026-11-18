@@ -7,6 +7,19 @@ description: Điểm vào BẮT BUỘC cho mọi việc AutoCAD qua MCP autocad_
 
 Đây là điểm vào của mọi công việc AutoCAD thực hiện qua ứng dụng kết nối MCP của dự án: nạp skill này trước khi gọi bất kỳ tool CAD nào. Skill hướng dẫn agent; các công cụ MCP mới thực hiện thao tác CAD. Không nói rằng việc nạp skill đã mở AutoCAD hoặc kết nối MCP.
 
+## Bước 0: tự lấy và nạp skill chuyên biệt (bắt buộc, agent tự làm, không chờ người dùng nhắc)
+
+Nạp xong skill này chưa đủ. Trước khi gọi tool CAD đầu tiên **làm đủ bốn việc**:
+
+1. Gọi `skills` `operation=list` để lấy danh sách skill hiện có và đọc mô tả (bảng bên dưới có thể chưa kịp cập nhật skill mới).
+2. Đối chiếu yêu cầu của người dùng với bảng bên dưới **và** với mô tả trong danh sách; chọn **mọi** skill khớp, kể cả khi chỉ khớp một phần.
+3. Nạp từng skill bằng `skills` `operation=get` `name=<tên>`. Skill có tệp `references/` thì đọc tệp liên quan bằng `operation=get`, `name`, `path`. Không đọc `SKILL.md` bằng công cụ khác; gateway không tính.
+4. Nói một dòng: đã nạp skill nào, vì sao. Không có skill nào khớp thì nói rõ "không có skill khớp" và nêu từ khóa đã đối chiếu.
+
+**Không tự bỏ skill vì lý do chủ quan.** Các lý do sau không được chấp nhận: "vẽ sơ bộ", "việc nhỏ", "chỉ vẽ nháp", "người dùng chưa yêu cầu", "tôi đã biết cách làm". Chỉ bỏ khi skill thực sự không liên quan tới việc đang làm, và khi đó ghi lý do trong dòng thông báo. Việc **tạo hoặc sửa bản vẽ** luôn cần ít nhất `autocad-start-construction-drawing` (đơn vị, layer, hệ trục, chữ và kích thước) và, nếu có cửa, nội thất, cây, xe, thiết bị, thì cả `autocad-block-library` (chèn block có sẵn, không vẽ tay bằng nét rời).
+
+Bảng dưới là gợi ý theo lời người dùng, không phải danh sách đầy đủ. Yêu cầu không khớp hàng nào thì vẫn làm bước 1 và 2.
+
 ## Chọn skill theo yêu cầu (đọc trước khi gọi tool CAD)
 
 Skill chỉ có tác dụng khi được nạp. Ngay sau khi nhận yêu cầu AutoCAD, đối chiếu bảng dưới, **nạp bằng công cụ Skill mọi skill khớp** rồi mới thao tác; không làm theo trí nhớ. Skill không có trong danh sách của môi trường thì đọc thẳng tệp `skills/<tên>/SKILL.md` (thư mục `.claude`, `.codex` hoặc `.agents` của dự án hoặc của tài khoản). Yêu cầu khớp nhiều hàng thì nạp các skill theo thứ tự từ trên xuống.
@@ -28,6 +41,7 @@ Skill chỉ có tác dụng khi được nạp. Ngay sau khi nhận yêu cầu A
 | "bố trí phòng", "thiết kế nhà", "WC khách", "tiền sảnh", "hành lang", "phòng ngủ", "gầm cầu thang", "áp mái", "riêng tư", "tầm nhìn" | `thiet-ke-phong-nha`, kèm `autocad-start-construction-drawing` |
 | "định mức", "dự toán", "đơn giá", "hao phí", "bóc tách khối lượng", "giá ca máy", "TT 38/2026" | `tra-dinh-muc-du-toan`; đo khối lượng thì thêm `autocad-identify-and-measure` |
 | bắt đầu bản vẽ xây dựng mới, layer, đơn vị, hệ trục, Layout, in | `autocad-start-construction-drawing` |
+| "dựng trục", "vẽ trục", "nhãn trục", "dim giữa các trục", "kích thước trục", "vẽ dim", chuỗi dim | `autocad-start-construction-drawing` (đọc `references/truc-va-dim.md`), `construction-drawing-tcvn5570`, `construction-boundaries-grids` |
 | "nét vẽ", "đường trục", "TCVN 5570", kiểu và bề rộng nét | `construction-drawing-tcvn5570` |
 | thiết kế cơ sở, thiết kế kỹ thuật, bản vẽ thi công, chưa rõ đang ở bước nào | `construction-document-router`, rồi `construction-design-stages` |
 | bản vẽ phát hành, cập nhật theo hiện trường, thay đổi khi thi công | `construction-drawing-records` |
@@ -155,6 +169,17 @@ Từ khoảng 100 đối tượng trở lên, hoặc khi cần diện tích hatc
 - **Độ tin cậy:** LibreDWG đọc DWG đời mới chưa hoàn chỉnh (cảnh báo `Unstable Class` là bình thường). Đối chiếu số lượng đối tượng và vài chi tiết với bản vẽ đang mở bằng MCP trước khi dùng số làm căn cứ. MCP chỉ để xem trực tiếp bản đang mở hoặc đối chiếu một chi tiết.
 - **Chia việc nhỏ, hỏi trước:** gom mọi điểm mơ hồ (ranh vùng loại ra, chiều cao tính tới đâu, cote đáy, phòng không tag, thư mục chứa mặt đứng và mặt bằng dầm sàn) thành **một lượt hỏi ở đầu**, trước khi mở bản vẽ. Không mở bản vẽ rồi mới hỏi từng câu. Mỗi agent một nhóm việc (tường, dầm, sàn), kết quả trung gian ghi ra file, không chép tay từ ngữ cảnh.
 - **Không có LibreOffice** trên máy chuẩn: công thức Excel không tính lại được ngoài Excel; dùng Excel COM (xem `tra-dinh-muc-du-toan/references/mau-du-toan-gxd.md`).
+
+## Vẽ khối lượng lớn (hàng trăm đến hàng nghìn đối tượng): chia lô, đếm, vẽ tiếp
+
+Mỗi đối tượng trong `entity create_batch` đi qua một lượt gọi riêng tới AutoCAD, tuần tự. Gửi cả nghìn đối tượng một mạch thì dễ đứt giữa chừng (từng gặp: vẽ được 145 trên 5.160) và khó biết đã vẽ tới đâu.
+
+- **Nhận ra đối tượng lặp trước khi vẽ.** Nhiều đối tượng giống nhau (ô đỗ, cột, cửa, căn hộ) thì vẽ một mẫu rồi `copy_batching` hoặc `block insert`, không tạo từng cái (xem `autocad-copy-similar-objects`).
+- **Chia lô nhỏ.** `create_batch` cho phép tối đa 500 trên mọi backend. Trên AutoCAD LT, ~70 đối tượng mỗi lệnh đã chạy ổn (mất khoảng 2 phút) nên dùng 50–70 mỗi lô; AutoCAD đầy đủ chưa đo, bắt đầu từ lô nhỏ rồi tăng dần nếu ổn. `copy_batching` tối đa 100 bản sao mỗi lần gọi. Tool không tự chia lô: agent tự chia.
+- **Đếm sau mỗi lô.** Gọi `entity count` (lọc theo layer đang vẽ) hoặc đọc `created_handles` trong kết quả, đối chiếu với số đã gửi cộng số đã có. Không sang lô sau khi số chưa khớp. Ghi vào file trung gian: số lô, đối tượng đầu và cuối, số đếm.
+- **Vẽ tiếp từ chỗ đứt, không vẽ lại từ đầu.** Gặp lỗi hoặc hết thời gian chờ: đếm lại trước, rồi chỉ gửi phần còn thiếu. `copy_batching` dùng `idempotency_key` mỗi lô để không dán hai lần. Báo hết thời gian chờ chưa chắc là chưa chạy.
+- **Lỗi `E_AUTOCAD_INSTANCE_UNVERIFIED` giữa chừng** (AutoCAD đang bận, đọc HWND thất bại): dừng, đợi vài giây, đếm lại, rồi gửi tiếp lô nhỏ hơn. Không gửi lặp nguyên lô đã gửi.
+- **Báo người dùng** số đã vẽ trên tổng số sau mỗi mốc lớn; chưa đủ thì nói rõ "chưa xong", không báo hoàn thành.
 
 ## Tri thức chung: tra và ghi
 

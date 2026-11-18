@@ -17,7 +17,8 @@ Mọi việc liên quan đến AutoCAD (vẽ, sửa, đọc, đo, kiểm tra, ch
 1. Nạp skill `autocad-agent-coordinator` trước khi gọi bất kỳ tool CAD nào, rồi nạp tiếp các skill chuyên biệt khớp trong bảng của skill đó. Không có công cụ Skill thì đọc thẳng tệp `SKILL.md` trong thư mục skill của tài khoản.
 2. Yêu cầu mơ hồ hoặc thiếu số liệu: hỏi người dùng một lần, đưa hai lựa chọn "bạn cung cấp số liệu" hoặc "tôi tự vẽ theo giả định nêu rõ".
 3. Cần nội thất, cây, cửa, thiết bị: tra skill `autocad-block-library` trước khi vẽ tay.
-4. Chưa thấy tool CAD: báo người dùng bật launcher (AutoCAD MCP Launcher) rồi mới tiếp tục, không tự đoán kết quả.
+4. Kho skill của tài khoản (Claude Code: `~/.claude/skills`; Codex CLI: `~/.codex/skills`; agent khác: thư mục skills theo tài liệu của chính agent đó, không rõ thì dùng `~/.agents/skills` và nói với người dùng đã chọn đâu) chưa có hoặc thiếu skill so với danh sách của MCP (tool `skills`, `operation=list`): hỏi người dùng một lần có muốn thêm không; đồng ý thì lấy từng skill thiếu bằng `operation=get` (SKILL.md và mọi tệp tham chiếu) rồi ghi vào `<kho skill>/<tên skill>/`, không ghi đè skill người dùng đã sửa.
+5. Chưa thấy tool CAD: báo người dùng bật launcher (AutoCAD MCP Launcher) rồi mới tiếp tục, không tự đoán kết quả.
 {END}
 """
 

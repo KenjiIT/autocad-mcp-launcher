@@ -220,6 +220,11 @@ def find_autocad_window(preferred_process_id: int | None = None) -> int | None:
         return None
 
 
+# Reading Application.HWND over COM can fail transiently while AutoCAD is busy (see _read_com_hwnd).
+_HWND_READ_ATTEMPTS = 8
+_HWND_READ_DELAY = 0.25
+
+
 def _window_process_id(hwnd: int | None) -> int | None:
     if sys.platform != "win32" or not hwnd:
         return None
@@ -646,6 +651,27 @@ class FileIPCBackend(AutoCADBackend):
         mode = os.environ.get("AUTOCAD_MCP_NATIVE_PLUGIN", "auto").strip().lower()
         return mode if mode in {"auto", "required", "off"} else "auto"
 
+    def _read_com_hwnd(self, application) -> int:
+        """Read ``Application.HWND``, tolerating an AutoCAD that is busy for a moment.
+
+        With late-bound pywin32 a call that AutoCAD rejects while busy (RPC_E_CALL_REJECTED)
+        during the property-name lookup is turned into ``AttributeError`` (``pythoncom.ole_error``
+        is ``com_error``), so ``getattr(app, "HWND", 0)`` reports 0 although the instance is
+        healthy. That used to surface as a false "no HWND for expected PID" after only a few
+        drawing commands, after which the window-message fallback failed too. Retry briefly
+        before declaring the HWND missing.
+        """
+        for attempt in range(_HWND_READ_ATTEMPTS):
+            try:
+                hwnd = int(application.HWND or 0)
+            except Exception:
+                hwnd = 0
+            if hwnd:
+                return hwnd
+            if attempt + 1 < _HWND_READ_ATTEMPTS:
+                self._com_executor.cooperative_sleep(_HWND_READ_DELAY)
+        return 0
+
     def _get_autocad_application(self):
         """Bind COM to the same AutoCAD process selected during preflight.
 
@@ -659,12 +685,13 @@ class FileIPCBackend(AutoCADBackend):
         application = win32com.client.GetActiveObject("AutoCAD.Application")
         expected_pid = int(self._acad_process_id or 0)
         expected_hwnd = int(self._hwnd or 0)
-        actual_hwnd = int(getattr(application, "HWND", 0) or 0)
+        actual_hwnd = self._read_com_hwnd(application)
         if expected_pid:
             if not actual_hwnd:
                 raise RuntimeError(
                     "E_AUTOCAD_INSTANCE_UNVERIFIED: COM application has no HWND "
-                    f"for expected PID {expected_pid}"
+                    f"for expected PID {expected_pid} (AutoCAD may be busy; HWND read retried "
+                    f"{_HWND_READ_ATTEMPTS} times)"
                 )
             actual_pid = _window_process_id(actual_hwnd)
             if actual_pid != expected_pid:
@@ -1266,6 +1293,55 @@ class FileIPCBackend(AutoCADBackend):
         )
         return {**self._session.context(lease), "backend": self.name}
 
+    @staticmethod
+    def _document_fingerprint(document) -> tuple | None:
+        """Cheap summary of the drawing: next handle, model-space count and extents.
+
+        Returns None when any part cannot be read (for example AutoCAD is busy), so a
+        transient COM failure never looks like a change.
+        """
+        try:
+            handseed = str(document.GetVariable("HANDSEED"))
+            count = int(document.ModelSpace.Count)
+            extmin = tuple(round(float(v), 6) for v in document.GetVariable("EXTMIN"))
+            extmax = tuple(round(float(v), 6) for v in document.GetVariable("EXTMAX"))
+        except Exception:
+            return None
+        return (handseed, count, extmin, extmax)
+
+    def _detect_external_change(self, document, payload: dict) -> None:
+        """Advance the document revision when the drawing changed outside this MCP session.
+
+        The revision normally moves only with this session's own mutations, so a manual
+        edit by the user was invisible and the agent kept working from a stale picture.
+        Comparing a fingerprint taken at each context read with the one stored after the
+        last read or own mutation lets the existing revision fencing reject the agent's
+        next change with ``E_DOCUMENT_REVISION_MISMATCH`` until it re-reads the drawing.
+        Edits that leave HANDSEED, the entity count and the extents unchanged (a recolour,
+        a move inside the old extents) are not detected; agents re-read with
+        ``drawing audit changed_only=true`` for those.
+        """
+        if os.environ.get("AUTOCAD_MCP_DETECT_EXTERNAL_CHANGES", "1").strip().lower() in {"0", "off", "false", "no"}:
+            return
+        doc_id = payload.get("doc_id")
+        if not doc_id:
+            return
+        fingerprint = self._document_fingerprint(document)
+        if fingerprint is None:
+            return
+        baselines = self.__dict__.setdefault("_external_baselines", {})
+        previous = baselines.get(doc_id)
+        baselines[doc_id] = fingerprint
+        if previous is None or previous == fingerprint or self.__dict__.get("_suppress_external_check", 0):
+            return
+        lease = self._session.record_mutation(doc_id)
+        if lease is None:
+            return
+        self.__dict__.setdefault("_external_changed_docs", set()).add(doc_id)
+        payload.update(self._session.context(lease))
+        payload["external_change"] = True
+        log.info("document_changed_outside_mcp", doc_id=doc_id, revision=lease.revision)
+
     async def document_context(self) -> CommandResult:
         if self._native_client is not None:
             result = await self._native_client.request("document.context")
@@ -1310,6 +1386,7 @@ class FileIPCBackend(AutoCADBackend):
             else:
                 count_warning = False
             payload = self._bind_document(document)
+            self._detect_external_change(document, payload)
             if count_warning:
                 payload["warnings"] = [
                     "AutoCAD.Documents.Count was unavailable; ActiveDocument was used"
@@ -1378,9 +1455,13 @@ class FileIPCBackend(AutoCADBackend):
                 "E_DOCUMENT_LEASE_MISMATCH": "The AutoCAD document lease is stale",
                 "E_DOCUMENT_REVISION_MISMATCH": "The active AutoCAD document revision is stale or missing",
             }
+            external = str(doc_id) in self.__dict__.get("_external_changed_docs", set())
+            message = messages.get(error_code, "The AutoCAD document lease is invalid")
+            if external and error_code == "E_DOCUMENT_REVISION_MISMATCH":
+                message += "; the drawing was changed outside this MCP session (manual edit), re-read it before continuing"
             return CommandResult(
                 ok=False,
-                error=messages.get(error_code, "The AutoCAD document lease is invalid"),
+                error=message,
                 error_code=error_code,
                 recoverable=False,
                 recommended_action="read_latest_document_context_and_retry",
@@ -1388,16 +1469,24 @@ class FileIPCBackend(AutoCADBackend):
                     "expected_revision": expected_revision,
                     "lease_token_supplied": lease_token is not None,
                     "worker_generation": worker_generation,
+                    "external_change_detected": external,
                     "actual": lease_actual or actual,
                 },
             )
+        self.__dict__.get("_external_changed_docs", set()).discard(str(doc_id))
         return CommandResult(ok=True, payload=actual)
 
     async def record_document_mutation(self, doc_id: str) -> CommandResult:
         if self._native_client is not None:
             # Native database events are the sole revision authority.
             return await self.document_context()
-        context = await self.document_context()
+        # Our own mutation changes the fingerprint; take it as the new baseline instead of
+        # treating it as an outside edit (that would advance the revision twice).
+        self.__dict__["_suppress_external_check"] = self.__dict__.get("_suppress_external_check", 0) + 1
+        try:
+            context = await self.document_context()
+        finally:
+            self.__dict__["_suppress_external_check"] -= 1
         if not context.ok:
             return context
         if str(doc_id) != str(context.payload["active_doc_id"]):
@@ -2329,7 +2418,8 @@ class FileIPCBackend(AutoCADBackend):
                 log.debug("command_sent_via_com")
                 return True
             except Exception as exc:
-                if com_hresult(exc) in {-2147418111, -2147417846} and time.time() < deadline:
+                busy = com_hresult(exc) in {-2147418111, -2147417846} or "E_AUTOCAD_INSTANCE_UNVERIFIED" in str(exc)
+                if busy and time.time() < deadline:
                     self._com_executor.cooperative_sleep(0.25)
                     continue
                 log.debug("com_command_unavailable", error=str(exc))
@@ -5918,52 +6008,89 @@ class FileIPCBackend(AutoCADBackend):
             {**params, "text": encode_autocad_text(text), "layer": layer},
         )
 
-    async def create_dimension_linear(self, x1, y1, x2, y2, dim_x, dim_y) -> CommandResult:
+    async def create_dimension_linear(
+        self, x1, y1, x2, y2, dim_x, dim_y, text=None, layer=None
+    ) -> CommandResult:
         try:
             return CommandResult(
                 ok=True,
                 payload=self._create_dimension_via_com(
-                    "linear", x1=x1, y1=y1, x2=x2, y2=y2, dim_x=dim_x, dim_y=dim_y
+                    "linear", x1=x1, y1=y1, x2=x2, y2=y2, dim_x=dim_x, dim_y=dim_y,
+                    text=text, layer=layer,
                 ),
             )
         except Exception:
             return await self._dispatch("create-dimension-linear", {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "dim_x": dim_x, "dim_y": dim_y})
 
-    async def create_dimension_aligned(self, x1, y1, x2, y2, offset) -> CommandResult:
+    async def create_dimension_aligned(
+        self, x1, y1, x2, y2, offset, text=None, layer=None
+    ) -> CommandResult:
         try:
             return CommandResult(
                 ok=True,
                 payload=self._create_dimension_via_com(
-                    "aligned", x1=x1, y1=y1, x2=x2, y2=y2, offset=offset
+                    "aligned", x1=x1, y1=y1, x2=x2, y2=y2, offset=offset,
+                    text=text, layer=layer,
                 ),
             )
         except Exception:
             return await self._dispatch("create-dimension-aligned", {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "offset": offset})
 
-    async def create_dimension_angular(self, cx, cy, x1, y1, x2, y2) -> CommandResult:
+    async def create_dimension_angular(
+        self, cx, cy, x1, y1, x2, y2, text=None, layer=None
+    ) -> CommandResult:
         try:
             return CommandResult(
                 ok=True,
                 payload=self._create_dimension_via_com(
-                    "angular", cx=cx, cy=cy, x1=x1, y1=y1, x2=x2, y2=y2
+                    "angular", cx=cx, cy=cy, x1=x1, y1=y1, x2=x2, y2=y2,
+                    text=text, layer=layer,
                 ),
             )
         except Exception:
             return await self._dispatch("create-dimension-angular", {"cx": cx, "cy": cy, "x1": x1, "y1": y1, "x2": x2, "y2": y2})
 
-    async def create_dimension_radius(self, cx, cy, radius, angle) -> CommandResult:
+    async def create_dimension_radius(
+        self, cx, cy, radius, angle, text=None, layer=None
+    ) -> CommandResult:
         try:
             return CommandResult(
                 ok=True,
                 payload=self._create_dimension_via_com(
-                    "radius", cx=cx, cy=cy, radius=radius, angle=angle
+                    "radius", cx=cx, cy=cy, radius=radius, angle=angle,
+                    text=text, layer=layer,
                 ),
             )
         except Exception:
             return await self._dispatch("create-dimension-radius", {"cx": cx, "cy": cy, "radius": radius, "angle": angle})
 
+    @staticmethod
+    def _finish_dimension(document, entity, text, layer) -> None:
+        """Apply the layer, text override and DIMSCALE that ``AddDim*`` ignores.
+
+        A dimension made through COM takes its sizes from the dimension style, so a
+        DIMSCALE of 100 set beforehand left the text and arrows at paper size (2.5 mm in a
+        metre-sized model).  Copy the current DIMSCALE onto the new dimension's
+        ``ScaleFactor`` so it reads like one drawn with the DIM command.
+        """
+        if layer:
+            entity.Layer = str(layer)
+        else:
+            try:
+                entity.Layer = "DIM"
+            except Exception:
+                pass
+        if text:
+            entity.TextOverride = str(text)
+        try:
+            scale = float(document.GetVariable("DIMSCALE"))
+            if scale > 0 and abs(scale - float(entity.ScaleFactor)) > 1e-9:
+                entity.ScaleFactor = scale
+        except Exception:
+            pass
+
     @sta_sync_method("dimension.create")
-    def _create_dimension_via_com(self, kind: str, **data) -> dict:
+    def _create_dimension_via_com(self, kind: str, text=None, layer=None, **data) -> dict:
         import pythoncom
         import win32com.client
 
@@ -6020,10 +6147,7 @@ class FileIPCBackend(AutoCADBackend):
         else:
             raise ValueError(f"Unsupported COM dimension kind: {kind}")
 
-        try:
-            entity.Layer = "DIM"
-        except Exception:
-            pass
+        self._finish_dimension(application.ActiveDocument, entity, text, layer)
         entity.Update()
         self._auto_fit_view()
         return {

@@ -22,6 +22,7 @@ import acad_pid
 from logfile import RotatingLog, start_logged
 import knowledge_propose
 import knowledge_read
+import remote_agent
 import skillgate
 import skillserve
 from cad_adapter import find_lt_window, prove_connection, prove_offline
@@ -209,6 +210,8 @@ class Switchboard:
                 env["AUTOCAD_MCP_READ_TIMEOUT"] = "600"
                 env["AUTOCAD_MCP_IPC_TIMEOUT"] = "300"
                 env["AUTOCAD_MCP_DOCUMENT_TIMEOUT"] = "120"
+                # Chế độ agent từ xa: cho view get_screenshot (include_image=true) trả ảnh trực tiếp; tắt thì không đổi.
+                env.update(remote_agent.inline_image_env(knowledge_propose.load_settings()))
             self.process = start_logged(
                 [str(python), str(ROOT / "launcher" / "serve.py"), str(repo), str(port)],
                 self.log, cwd=repo, env=env)
@@ -583,7 +586,8 @@ async def status_route(request: Request):
                          "acad_pid": board.acad_pid,
                          "queued_requests": board.queued_requests,
                          "active_request": board.active_request,
-                         "dutoan": dutoan.status()})
+                         "dutoan": dutoan.status(),
+                         "remote_agent": remote_agent.STATE.snapshot()})
 
 
 async def dutoan_stop_route(request: Request):
@@ -603,9 +607,28 @@ async def select_route(request: Request):
     return JSONResponse({"active": board.active, "state": board.state})
 
 
+def launcher_version():
+    try:
+        return (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+async def remote_status():
+    """Cho khung hello của chế độ agent: MCP nào đang hoạt động và chế độ backend."""
+    servers = list(SERVERS) + (["dutoan"] if dutoan.available() else [])
+    return {"active": board.active, "mode": board.mode, "servers": servers}
+
+
 @asynccontextmanager
 async def lifespan(_app):
+    # Chế độ agent (kết nối ra server) chạy như tác vụ nền; tắt mặc định nên không ảnh hưởng gì khi chưa cấu hình.
+    remote_agent.configure_logging(LOG_DIR)
+    remote_task = asyncio.ensure_future(remote_agent.run_forever(
+        knowledge_propose.load_settings, status_source=remote_status, version=launcher_version()))
     yield
+    remote_task.cancel()
+    await asyncio.gather(remote_task, return_exceptions=True)
     await dutoan.stop()
     await board.shutdown()
 

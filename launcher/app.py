@@ -18,6 +18,8 @@ from tkinter import filedialog, messagebox, ttk
 import agentconfig
 import agentnote
 import dutoan_data
+import install_ui
+import remote_agent
 import knowledge
 import knowledge_propose
 from logfile import RotatingLog, start_logged
@@ -79,6 +81,9 @@ def save_setting(name, value):
     temporary = SETTINGS_FILE.with_suffix(".tmp")
     temporary.write_text(json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8")
     temporary.replace(SETTINGS_FILE)
+    if settings.get("remote_machine_token"):
+        # Tệp có token của chế độ agent: chỉ chủ tài khoản đọc được (cố gắng, không bắt buộc).
+        remote_agent.restrict_to_owner(SETTINGS_FILE)
 
 
 def app_version():
@@ -192,6 +197,11 @@ class App(tk.Tk):
         self.startup_var = tk.BooleanVar(value=startup_enabled())
         self.autostart_mcp_var = tk.BooleanVar(value=bool(load_settings().get("autostart_mcp")))
         self.skill_gate_var = tk.BooleanVar(value=load_settings().get("skill_gate", True) is not False)
+        saved = load_settings()
+        self.remote_enabled_var = tk.BooleanVar(value=saved.get("remote_agent_enabled") is True)
+        self.remote_url_var = tk.StringVar(value=str(saved.get("remote_server_url") or ""))
+        self.remote_id_var = tk.StringVar(value=str(saved.get("remote_machine_id") or ""))
+        self.remote_token_var = tk.StringVar(value="")  # không bao giờ điền lại token đã lưu
         self.status = tk.StringVar(value="Sẵn sàng")
         self.knowledge_checking = False
         self.knowledge_auto_var = tk.BooleanVar(value=load_settings().get("knowledge_auto_update", True) is not False)
@@ -383,6 +393,26 @@ class App(tk.Tk):
         ttk.Checkbutton(frame, text="Tự cập nhật dữ liệu dự toán từ cổng nhóm khi mở launcher",
                         variable=self.dutoan_auto_var, command=self.save_dutoan_auto_setting).pack(anchor="w", pady=(4, 0))
         ttk.Separator(frame).pack(fill="x", pady=12)
+        ttk.Label(frame, text="Kết nối ra server (agent từ xa)", font=("Segoe UI", 13, "bold")).pack(anchor="w")
+        ttk.Label(frame,
+                  text="Dùng khi web hoặc server nằm ở máy khác: launcher chủ động kết nối ra server (wss://), server gọi MCP của máy này qua kết nối đó. Không mở cổng nào ở máy này. Tắt mặc định; tắt thì mọi thứ chạy như cũ. Token là bí mật và sẽ không hiện lại sau khi lưu. Tool launcher_set_backend bị chặn với server. Cần gateway đang chạy (Bật kết nối cho agent); máy dùng lâu dài nên bật Tự bật MCP khi mở launcher.",
+                  foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
+        ttk.Checkbutton(frame, text="Bật kết nối ra server", variable=self.remote_enabled_var).pack(anchor="w", pady=(0, 4))
+        for caption, variable, hidden in (("Địa chỉ server", self.remote_url_var, False), ("Mã máy", self.remote_id_var, False),
+                                          ("Token", self.remote_token_var, True)):
+            row = ttk.Frame(frame)
+            row.pack(fill="x", pady=2)
+            ttk.Label(row, text=caption, width=14).pack(side="left")
+            ttk.Entry(row, textvariable=variable, show="•" if hidden else "").pack(side="left", fill="x", expand=True)
+        self.remote_token_note = ttk.Label(frame, text="", foreground="#65736f")
+        self.remote_token_note.pack(anchor="w", pady=(2, 0))
+        self.refresh_remote_token_note()
+        ttk.Button(frame, text="Lưu cấu hình kết nối ra server", command=self.save_remote_settings).pack(anchor="w", pady=(6, 0))
+        self.remote_status = ttk.Label(frame, text="", wraplength=650, justify="left")
+        self.remote_status.pack(anchor="w", pady=(6, 0))
+        self.remote_live = ttk.Label(frame, text="Trạng thái: đang tắt.", foreground="#225c53", wraplength=650, justify="left")
+        self.remote_live.pack(anchor="w", pady=(2, 0))
+        ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Thư viện block", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
                   text="Nơi lưu các block dựng sẵn (nội thất, cây cối, thiết bị vệ sinh) dạng .dwg hoặc .dxf. Agent chèn chúng bằng tên file; đơn vị mỗi file phải là mm. Thư mục con có file index.json là một kho riêng (ví dụ dwgshare), agent tra theo loại và kích thước. Quy ước đặt tên có trong README.md của thư mục.",
@@ -521,6 +551,68 @@ class App(tk.Tk):
         except OSError as exc:
             self.autostart_mcp_var.set(not enabled)
             self.settings_status.configure(text=f"Không lưu được cài đặt: {exc}")
+
+    def refresh_remote_token_note(self):
+        saved = bool(load_settings().get("remote_machine_token"))
+        self.remote_token_note.configure(
+            text="Token đã lưu (ẩn). Để trống ô Token nếu không muốn đổi." if saved else "Chưa có token.")
+
+    def save_remote_settings(self):
+        enabled = self.remote_enabled_var.get()
+        entered = self.remote_token_var.get().strip()
+        values = {
+            "remote_agent_enabled": enabled,
+            "remote_server_url": self.remote_url_var.get().strip(),
+            "remote_machine_id": self.remote_id_var.get().strip(),
+            "remote_machine_token": entered or str(load_settings().get("remote_machine_token") or ""),
+        }
+        problem = remote_agent.read_config(values).problem if enabled else ""
+        if problem:
+            self.remote_status.configure(text=problem, foreground="#a12622")
+            return
+        try:
+            for name, value in values.items():
+                save_setting(name, value)
+        except OSError as exc:
+            self.remote_status.configure(text=f"Không lưu được cài đặt: {exc}", foreground="#a12622")
+            return
+        self.remote_token_var.set("")
+        self.refresh_remote_token_note()
+        self.remote_status.configure(
+            text="Đã lưu. Gateway nhận cấu hình trong vài giây." if enabled else "Đã lưu; kết nối ra server đang tắt.",
+            foreground="#225c53")
+        if enabled:
+            self.ensure_remote_deps()
+
+    def ensure_remote_deps(self):
+        """Cài thư viện websockets vào môi trường của gateway khi bật lần đầu (chỉ khi thiếu)."""
+        self.remote_install = {"result": None}
+
+        def worker():
+            repo = REPOS["puran"]
+            try:
+                if install_ui.installed(repo, "import websockets"):
+                    self.remote_install["result"] = (True, "")
+                    return
+                done = subprocess.run([str(python_in(repo)), "-m", "pip", "install", "websockets>=13"],
+                                      capture_output=True, text=True, timeout=300,
+                                      creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                tail = (done.stdout + done.stderr).strip().splitlines()[-1:] or [""]
+                self.remote_install["result"] = (done.returncode == 0, tail[0])
+            except Exception as exc:
+                self.remote_install["result"] = (False, str(exc))
+
+        threading.Thread(target=worker, daemon=True).start()
+        self.after(500, self.poll_remote_install)
+
+    def poll_remote_install(self):
+        result = self.remote_install["result"]
+        if result is None:
+            self.after(500, self.poll_remote_install)
+            return
+        ok, detail = result
+        if not ok:
+            self.remote_status.configure(text=f"Không cài được thư viện websockets: {detail}", foreground="#a12622")
 
     def save_skill_gate_setting(self):
         enabled = self.skill_gate_var.get()
@@ -1137,7 +1229,11 @@ class App(tk.Tk):
                     status_text += f" · Đang xử lý {active_request.get('tool', 'yêu cầu')}"
                 if waiting:
                     status_text += f" · {waiting} yêu cầu đang chờ"
+                remote_text = remote_agent.describe(state.get("remote_agent"))
+                if remote_text:
+                    status_text += f" · Server: {remote_text}"
                 self.status.set(status_text)
+                self.remote_live.configure(text="Trạng thái: " + (remote_text or "đang tắt."))
             except (OSError, ValueError, KeyError):
                 pass
         self.after(500, self.tick)

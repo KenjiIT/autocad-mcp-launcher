@@ -9,8 +9,14 @@ MAX_BYTES = 200_000
 INSTRUCTIONS = (
     "Dự án AutoCAD này có bộ skill hướng dẫn quy trình và quy tắc. Trước khi gọi bất kỳ tool CAD nào, "
     "gọi tool `skills` với operation=get, name=autocad-agent-coordinator và làm theo; skill đó có bảng chọn "
-    "skill chuyên biệt theo yêu cầu (operation=list liệt kê tất cả). Skill dài có tệp tham chiếu: đọc bằng "
-    "operation=get, name, path."
+    "skill chuyên biệt theo yêu cầu (operation=list liệt kê tất cả). Đọc xong skill điều phối, tự gọi "
+    "operation=list, chọn rồi nạp (operation=get) mọi skill chuyên biệt khớp yêu cầu trước khi vẽ hoặc sửa; "
+    "không tự bỏ skill vì lý do như vẽ sơ bộ hay việc nhỏ. Skill dài có tệp tham chiếu: đọc bằng "
+    "operation=get, name, path. Kho skill riêng của agent (thư mục skills của tài khoản: Claude Code dùng ~/.claude/skills, "
+    "Codex CLI dùng ~/.codex/skills; agent khác dùng thư mục skills theo tài liệu của chính nó, "
+    "không rõ thì ~/.agents/skills và báo người dùng đã chọn đâu; ghi vào kho của chính agent đang chạy) chưa có hoặc đang thiếu skill nào trong operation=list thì hỏi người dùng một lần "
+    "có muốn thêm không; đồng ý thì với từng skill thiếu, lấy SKILL.md và mọi tệp tham chiếu bằng operation=get "
+    "rồi ghi vào <kho skill>/<tên skill>/ giữ nguyên cấu trúc thư mục, không ghi đè skill người dùng đã sửa."
 )
 
 
