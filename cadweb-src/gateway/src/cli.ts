@@ -11,6 +11,13 @@ import { attachLocalImages, roots } from "./localImages.js";
 import { claudeBin } from "./claudeSetup.js";
 import { recordClaudeRate } from "./planUsage.js";
 
+// Bạn đang chạy trong CAD Studio (web), KHÔNG phải Claude Code: người dùng không gõ được /permissions hay lệnh "/" nào.
+const SHELL_OFF = "Bạn đang chạy trong CAD Studio, không có công cụ chạy lệnh (Bash/PowerShell/Python). " +
+  "Nếu việc cần chạy script hay lệnh, ĐỪNG bảo người dùng gõ /permissions hay lệnh / nào (CAD Studio không có). " +
+  "Hãy nói: chuột phải vào dự án ở cột trái > bật \"Cho agent chạy lệnh\", rồi nhắn lại để bạn làm tiếp; hoặc làm bằng tool MCP nếu được. " +
+  "Chạy lệnh chỉ có khi đang mở một dự án có thư mục.";
+const SHELL_ON = "Dự án này đã bật \"Cho agent chạy lệnh\": bạn có công cụ Bash, thư mục làm việc là thư mục dự án. " +
+  "Chỉ đọc/ghi trong thư mục dự án; dữ liệu nằm ngoài thì nhờ người dùng chép vào dự án. Không cài phần mềm, không xóa file ngoài dự án.";
 const SYSTEM = process.env.CHAT_SYSTEM ??
   "Bạn là trợ lý điều khiển AutoCAD qua các tool MCP. Trả lời bằng tiếng Việt, ngắn gọn. " +
   "Trước khi sửa bản vẽ hãy đọc/đo để chắc chắn, và nói rõ bạn đã thay đổi gì. " +
@@ -85,7 +92,7 @@ export type CliArgs = {
   ask?: { run: Run; url: string };
   serverList?: McpServer[];                 // MCP trên máy CAD của tài khoản; không có MCP chung của gateway
   att?: { dir: string; files: string[] };   // ảnh người dùng đính kèm (file tạm của lượt này)
-  project?: { name: string; dir: string };
+  project?: { name: string; dir: string; shell?: boolean };
   effort?: string;                          // --effort của Claude CLI (low|medium|high|xhigh|max)  // dự án: CLI chạy trong thư mục này và được đọc file trong đó
 };
 
@@ -115,16 +122,19 @@ export function runCliLocal(a: CliArgs): Promise<string | undefined> {
   if (att) allow.push(`Read(${att.dir.replace(/\\/g, "/")}/**)`);   // đúng thư mục tạm của lượt này, không rộng hơn
   const proj = a.project;
   if (proj) for (const t of ["Read", "Glob", "Grep", "Write", "Edit"]) allow.push(`${t}(${proj.dir.replace(/\\/g, "/")}/**)`);
+  if (proj?.shell) allow.push("Bash");   // người dùng đã bật "Cho agent chạy lệnh" cho dự án này
   if (att) prompt += `\n\n[Người dùng đã đính kèm ${att.files.length} ảnh. Hãy dùng công cụ Read mở từng file dưới đây để xem trước khi trả lời:\n${att.files.map(f => `- ${f}`).join("\n")}]`;
 
   const args = [
     "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
     "--mcp-config", mcpFile, "--strict-mcp-config",
-    "--tools", proj ? "Read,Glob,Grep,Write,Edit" : imageRoots.length || att ? "Read" : "",    // chỉ có Read (giới hạn ở thư mục ảnh); khóa mọi công cụ sửa file/chạy lệnh
+    "--tools", proj ? `Read,Glob,Grep,Write,Edit${proj.shell ? ",Bash" : ""}` : imageRoots.length || att ? "Read" : "",    // chỉ có Read (giới hạn ở thư mục ảnh); khóa mọi công cụ sửa file/chạy lệnh
     "--allowedTools", allow.join(","),
     "--disable-slash-commands",
     "--append-system-prompt", proj ? `${SYSTEM}
-Đang làm việc trong dự án "${proj.name}", thư mục ${proj.dir}. Hồ sơ, bản vẽ tham chiếu của dự án nằm trong thư mục này; dùng Glob/Grep/Read để tìm và đọc khi cần. File bạn tạo ra (báo cáo, bảng tính, DXF, ảnh xuất…) phải lưu trong thư mục này, không lưu nơi khác.` : SYSTEM,
+Đang làm việc trong dự án "${proj.name}", thư mục ${proj.dir}. Hồ sơ, bản vẽ tham chiếu của dự án nằm trong thư mục này; dùng Glob/Grep/Read để tìm và đọc khi cần. File bạn tạo ra (báo cáo, bảng tính, DXF, ảnh xuất…) phải lưu trong thư mục này, không lưu nơi khác.
+${proj.shell ? SHELL_ON : SHELL_OFF}` : `${SYSTEM}
+${SHELL_OFF}`,
     "--model", model,
     ...(a.effort ? ["--effort", a.effort] : []),
     ...(sessionId ? ["--resume", sessionId] : []),

@@ -16,6 +16,7 @@ import { claudeStatus, startInstall, startLogin } from "./claudeSetup.js";
 import { createEntry, moveEntry, pasteEntry, relPath, renameEntry, searchEntries, uploadTarget, createProject, deleteProject, getProject, importFiles, inside, listFiles, listProjects, updateProject, scopeOf, PROJECTS_ROOT } from "./projects.js";
 import { openWithDialog, pickFiles, pickFolder, toRecycleBin } from "./pick.js";
 import { planUsage, probeClaude } from "./planUsage.js";
+import { toast } from "./toast.js";
 import { spawn } from "node:child_process";
 import { createReadStream, createWriteStream, existsSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { pipeline } from "node:stream/promises";
@@ -105,6 +106,15 @@ app.put("/api/config", async c => {
 });
 
 // Cài và đăng nhập Claude CLI ngay trên máy này (chế độ Claude CLI cần cả hai).
+// Thông báo Windows khi agent xong / cần trả lời. Chỉ khi trang được mở NGAY TRÊN máy này (localhost):
+// mở qua tunnel từ máy khác thì thông báo sẽ hiện nhầm ở máy này, nên từ chối để web dùng thông báo của trình duyệt.
+app.post("/api/notify", async c => {
+  const host = (c.req.header("x-forwarded-host") ?? c.req.header("host") ?? "").replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+  if (!["localhost", "127.0.0.1", "::1"].includes(host)) return c.json({ error: "Chỉ dùng khi mở CAD Studio trên chính máy này." }, 403);
+  const b = await c.req.json().catch(() => ({}));
+  const r = toast(String(b?.title ?? "CAD Studio"), String(b?.body ?? ""), String(b?.url ?? ""));
+  return r.ok ? c.json({ ok: true }) : c.json({ error: r.error }, 501);
+});
 // Hạn mức gói tài khoản Claude/Codex (thanh "Đã sử dụng" ở đáy trang).
 app.get("/api/plan-usage", async c => c.json(await planUsage()));
 app.post("/api/plan-usage/refresh", async c => { await probeClaude(); return c.json(await planUsage()); });
@@ -142,7 +152,7 @@ app.post("/api/projects", async c => {
 });
 app.patch("/api/projects/:id", async c => {
   const b = await c.req.json().catch(() => ({}));
-  const r = updateProject(c.req.param("id"), { name: b?.name, pinned: b?.pinned });
+  const r = updateProject(c.req.param("id"), { name: b?.name, pinned: b?.pinned, shell: b?.shell });
   return "error" in r ? c.json(r, 400) : c.json(r);
 });
 app.delete("/api/projects/:id", c => {
@@ -317,7 +327,7 @@ app.post("/api/chat", async c => {
         const ask = { run, url: ASK_URL };
         const sessionId = engine === "codex"
           ? await runCodex(prompt, resume, ALLOWED, emit, ac.signal, modelFor(body.model), ask, routed, staged?.files, workDir, effortFor(body.effort))
-          : await runCliLocal({ prompt, sessionId: resume, allowed: ALLOWED, emit, signal: ac.signal, model: modelFor(body.model), ask, serverList: routed, att: staged, project: project.dir ? { name: project.name, dir: project.dir } : undefined, effort: effortFor(body.effort) });
+          : await runCliLocal({ prompt, sessionId: resume, allowed: ALLOWED, emit, signal: ac.signal, model: modelFor(body.model), ask, serverList: routed, att: staged, project: project.dir ? { name: project.name, dir: project.dir, shell: !!project.shell } : undefined, effort: effortFor(body.effort) });
         if (sessionId) rememberCliSession(SCOPE, tag + sessionId);
         await emit("done", { messages: [], sessionId });
       } else {

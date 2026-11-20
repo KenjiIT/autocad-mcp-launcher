@@ -13,7 +13,7 @@ const FILE = join(DATA, "projects.json");
 export const PROJECTS_ROOT = process.env.CAD_PROJECTS_DIR ?? join(homedir(), "CAD Studio", "projects");
 export const STARTER_TITLE = "Phiên chat mới";
 
-export type Project = { id: string; name: string; dir: string | null; createdAt: number; pinned?: boolean };
+export type Project = { id: string; name: string; dir: string | null; createdAt: number; pinned?: boolean; shell?: boolean };   // shell: cho agent chạy lệnh (Bash) trong thư mục dự án
 
 const load = (): Project[] => { try { return JSON.parse(readFileSync(FILE, "utf8")); } catch { return []; } };
 const save = (list: Project[]) => { mkdirSync(DATA, { recursive: true }); writeFileSync(FILE + ".tmp", JSON.stringify(list, null, 2)); renameSync(FILE + ".tmp", FILE); };
@@ -80,7 +80,7 @@ export function createProject(name: unknown, dir: unknown): { project: Project }
 }
 
 /** Đổi tên và/hoặc ghim/bỏ ghim (trường nào không gửi thì giữ nguyên). */
-export function updateProject(id: string, b: { name?: unknown; pinned?: unknown }): { project: Project } | { error: string } {
+export function updateProject(id: string, b: { name?: unknown; pinned?: unknown; shell?: unknown }): { project: Project } | { error: string } {
   const list = load(), p = list.find(x => x.id === id);
   if (!p) return { error: "Không có dự án này." };
   if (b.name !== undefined) {
@@ -90,6 +90,7 @@ export function updateProject(id: string, b: { name?: unknown; pinned?: unknown 
     p.name = n;
   }
   if (typeof b.pinned === "boolean") p.pinned = b.pinned || undefined;
+  if (typeof b.shell === "boolean") p.shell = b.shell || undefined;
   save(list);
   return { project: p };
 }

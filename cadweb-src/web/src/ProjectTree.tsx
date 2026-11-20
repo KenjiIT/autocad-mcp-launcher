@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createProject, deleteProject, importFiles, listConvs, listProjects, niceError, pickFiles, pickFolder, pinProject, renameProject, revealFile, type ConvMeta, type Project } from "./api";
+import { createProject, deleteProject, importFiles, listConvs, listProjects, niceError, pickFiles, pickFolder, pinProject, setProjectShell, renameProject, revealFile, type ConvMeta, type Project } from "./api";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { dialog } from "./Dialog";
 
@@ -56,6 +56,10 @@ export function ProjectTree(p: Props) {
         const n = (await dialog.prompt("Đổi tên dự án", pr.name))?.trim();
         if (n && n !== pr.name) { await renameProject(pr.id, n); await load(); p.onProjectsChanged?.(); }
       }) },
+      ...(pr.dir ? [{ label: pr.shell ? "Tắt cho agent chạy lệnh" : "Cho agent chạy lệnh…", icon: pr.shell ? "■" : "▶", onClick: act(async () => {
+        if (!pr.shell && !(await dialog.confirm("Cho agent chạy lệnh trong dự án này?", { body: `Agent sẽ được chạy lệnh (Python, script, Excel…) trên máy này, trong thư mục ${pr.dir}. Chỉ bật khi cần, và tắt khi xong.`, okText: "Cho phép" }))) return;
+        await setProjectShell(pr.id, !pr.shell); await load();
+      }) }] : []),
       { label: pr.pinned ? "Bỏ ghim" : "Ghim lên đầu", icon: pr.pinned ? "○" : "◉", onClick: act(async () => { await pinProject(pr.id, !pr.pinned); await load(); }) },
       { sep: true },
       { label: "Mở thư mục trong Explorer", icon: "↗", disabled: !pr.dir, onClick: act(() => revealFile(pr.id)) },
@@ -102,7 +106,7 @@ export function ProjectTree(p: Props) {
               <div className="prow" onContextMenu={e => showMenu(e, projectMenu(pr))}>
                 <button type="button" className="prow-tw" aria-label={isOpen(pr.id) ? "Thu gọn" : "Mở ra"} onClick={() => toggle(pr.id)}>{isOpen(pr.id) ? "▾" : "▸"}</button>
                 <button type="button" className="prow-name" title={pr.dir ?? "Không gắn thư mục"} onClick={() => cur ? toggle(pr.id) : p.onSelect(pr.id)}>
-                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h4l1.5 1.5h7.5v8h-13z" /></svg>{pr.name}{pr.pinned && <span className="ppin" title="Đã ghim">●</span>}
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 3.5h4l1.5 1.5h7.5v8h-13z" /></svg>{pr.name}{pr.pinned && <span className="ppin" title="Đã ghim">●</span>}{pr.shell && <span className="pshell" title="Agent được chạy lệnh trong dự án này">&gt;_</span>}
                 </button>
                 <button type="button" className="prow-add" title="Cuộc mới trong dự án này" aria-label={`Cuộc mới trong ${pr.name}`}
                   disabled={p.busy} onClick={() => cur ? p.onNew() : p.onSelect(pr.id)}>+</button>
@@ -114,8 +118,10 @@ export function ProjectTree(p: Props) {
                       <span className="t">{c.title}</span><small>{ago(c.updatedAt)}</small>
                     </button>
                     {cur && <span className="acts">
-                      <button className="ghost" onClick={() => p.onRename(c)} title="Đổi tên">Sửa</button>
-                      <button className="ghost" onClick={() => p.onRemove(c.id)} title="Xóa">Xóa</button>
+                      <button className="ghost ic-btn" onClick={() => p.onRename(c)} title="Đổi tên" aria-label="Đổi tên">
+                        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 2.5l3 3L6 13H3v-3z M9 4l3 3" /></svg></button>
+                      <button className="ghost ic-btn ic-del" onClick={() => p.onRemove(c.id)} title="Xóa" aria-label="Xóa">
+                        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11 M6 4V2.5h4V4 M4 4l.7 9.5h6.6L12 4 M6.8 6.5v4.5 M9.2 6.5v4.5" /></svg></button>
                     </span>}
                   </li>
                 ))}

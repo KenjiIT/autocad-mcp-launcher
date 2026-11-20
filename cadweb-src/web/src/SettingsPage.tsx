@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Settings } from "./Settings";
+import { askNotifyPermission, isLocalPage, notify, notifyEnabled, notifyPermission, notifySupported, setNotifyEnabled } from "./notify";
 import { LocalMcp } from "./LocalMcp";
 import { getClickAction, getPlanUsage, niceError, refreshPlanUsage, setClickAction, type ClickAction, type PlanSide, type PlanUsage } from "./api";
 
@@ -10,6 +11,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
   ] },
   { title: "Dự án", items: [
     { id: "files", label: "Mở file", icon: "▤", keys: "mở file bấm click ứng dụng app mặc định autocad excel word web trình duyệt mở bằng" },
+    { id: "notify", label: "Thông báo", icon: "◉", keys: "thông báo popup notification xong hoàn thành báo agent hỏi windows" },
   ] },
   { title: "Kết nối", items: [
     { id: "mcp", label: "MCP trên máy này", icon: "⇄", keys: "mcp autocad beiming puran dự toán dutoan launcher 8764 server tool" },
@@ -69,6 +71,7 @@ export function SettingsPage({ reloadKey, onSaved, onMcpChanged }: { reloadKey: 
           {cur.id === "mcp" && <LocalMcp onChanged={onMcpChanged} />}
           {cur.id === "plan" && <PlanDetail />}
           {cur.id === "files" && <FileClick />}
+          {cur.id === "notify" && <NotifySettings />}
         </div>
       </section>
     </div>
@@ -132,6 +135,31 @@ function FileClick() {
         ))}
       </fieldset>
       <p className="help">Chuột phải vào file luôn có đủ các cách mở (Mở bằng › Trình duyệt / Ứng dụng mặc định / Chọn ứng dụng…). Lựa chọn này lưu trên trình duyệt đang dùng.</p>
+    </div>
+  );
+}
+
+/** Bật/tắt thông báo khi agent xong hoặc cần trả lời, xin quyền của trình duyệt và gửi thử. */
+function NotifySettings() {
+  const [on, setOn] = useState(notifyEnabled);
+  const [perm, setPerm] = useState(notifyPermission);
+  const toggle = (v: boolean) => { setOn(v); setNotifyEnabled(v); };
+  const allow = async () => setPerm(await askNotifyPermission());
+  const test = async () => { const p = await askNotifyPermission(); setPerm(p); notify("CAD Studio: thông báo thử", "Thông báo sẽ hiện như thế này khi agent làm xong.", { force: true }); };
+  const permText = isLocalPage() ? "Đang mở trên chính máy này: thông báo hiện bằng thông báo của Windows, không cần trình duyệt cho phép."
+    : perm === "granted" ? "Trình duyệt đã cho phép." : perm === "denied"
+    ? "Trình duyệt đang CHẶN thông báo của trang này. Bấm biểu tượng ổ khóa cạnh địa chỉ trang → Quyền → Thông báo → Cho phép, rồi tải lại trang."
+    : perm === "unsupported" ? "Trình duyệt này không hỗ trợ thông báo." : "Chưa cho phép: bấm \"Cho phép thông báo\" (hoặc trình duyệt sẽ hỏi lần đầu bạn gửi tin).";
+  return (
+    <div className="sp-form">
+      <label className="opt"><input type="checkbox" checked={on} onChange={e => toggle(e.target.checked)} />
+        <span><b>Báo khi agent làm xong hoặc cần bạn trả lời</b>
+          <small>Hiện thông báo của Windows (góc màn hình) khi bạn đang ở tab hoặc cửa sổ khác. Đang xem CAD Studio thì không báo.</small></span></label>
+      <p className="help">{permText}</p>
+      {notifySupported() && <div className="sp-btns">
+        {perm !== "granted" && perm !== "denied" && <button type="button" className="primary" onClick={() => void allow()}>Cho phép thông báo</button>}
+        <button type="button" disabled={perm === "denied" || !on} onClick={() => void test()}>Gửi thử</button>
+      </div>}
     </div>
   );
 }

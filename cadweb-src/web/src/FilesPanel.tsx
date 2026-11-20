@@ -1,3 +1,4 @@
+import { Resizer } from "./Resizer";
 import { useEffect, useState } from "react";
 import { getClickAction, launchEntry, listProjectFiles, moveEntry, uploadFile, listProjects, newEntry, niceError, pasteEntry, rawUrl, renameEntry, revealFile, searchEntries, trashEntry, type Entry, type Project } from "./api";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
@@ -172,14 +173,16 @@ export function FilesPanel({ project, tick }: { project: string; tick: number })
       onDragOver={ev => over(ev, e.dir ? e.path : parentOf(e.path))} onDrop={ev => drop(ev, e.dir ? e.path : parentOf(e.path))}
       onContextMenu={ev => showMenu(ev, entryMenu(e))} onKeyDown={ev => keys(ev, e)}
       onClick={() => e.dir ? toggle(e.path) : openFile(e)} title={e.dir ? e.path || e.name : `${e.path} · ${size(e.size)}`}>
-      <span className="fic">{e.dir ? (open[e.path] ? "▾" : "▸") : "·"}</span><span className="fname">{label}</span>
+      <span className={`fchev${e.dir && open[e.path] ? " open" : ""}`} aria-hidden="true">{e.dir && <svg viewBox="0 0 16 16"><path d="m6 4 4 4-4 4" /></svg>}</span>
+      <FileIcon dir={e.dir} open={!!open[e.path]} name={e.name} />
+      <span className="fname">{label}</span>
     </button>
   );
   const rows = (path: string, depth: number): React.ReactNode =>
     (tree[path] ?? []).map(e => (
       <li key={e.path}>
         {row(e, depth)}
-        {e.dir && open[e.path] && <ul>{rows(e.path, depth + 1)}</ul>}
+        {e.dir && open[e.path] && <ul style={{ ["--guide" as string]: `${8 + depth * 14 + 11}px` }}>{rows(e.path, depth + 1)}</ul>}
       </li>
     ));
 
@@ -188,6 +191,7 @@ export function FilesPanel({ project, tick }: { project: string; tick: number })
     <aside className={`files${dropOn === "" ? " drop" : ""}`} aria-label="File dự án" onContextMenu={ev => { if (info.dir) showMenu(ev, entryMenu(ROOT)); }}
       onDragOver={ev => over(ev, "")} onDrop={ev => drop(ev, "")}
       onDragLeave={ev => { if (!ev.currentTarget.contains(ev.relatedTarget as Node)) setDropOn(null); }}>
+      <Resizer name="files" def={280} min={200} max={560} edge="left" />
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
       <div className="files-head">
         <b title={info.dir ?? ""}>{info.name}</b>
@@ -209,5 +213,24 @@ export function FilesPanel({ project, tick }: { project: string; tick: number })
         {tree[""] && !tree[""].length && <p className="hint small">Thư mục trống. Kéo thả file vào đây, chuột phải để tạo tệp/thư mục, hoặc nhờ agent tạo file.</p>}
       </> : <p className="hint small">Dự án này không gắn thư mục.</p>}
     </aside>
+  );
+}
+
+/** Loại file → màu nhạt cho biểu tượng (chỉ để nhận ra nhanh, không chói). */
+const KIND: [RegExp, string][] = [
+  [/\.(dwg|dxf|dwt|ifc|rvt)$/i, "cad"], [/\.(xlsx?|csv|ods)$/i, "sheet"], [/\.(docx?|pdf|txt|md|rtf)$/i, "doc"],
+  [/\.(png|jpe?g|gif|webp|bmp|svg|mp4|mov)$/i, "media"], [/\.(zip|rar|7z|tar|gz)$/i, "zip"], [/\.(exe|msi|bat|ps1|cmd)$/i, "exe"],
+];
+function FileIcon({ dir, open, name }: { dir: boolean; open: boolean; name: string }) {
+  if (dir) return (
+    <svg className="fi fi-dir" viewBox="0 0 16 16" aria-hidden="true">
+      {open ? <path d="M1.5 4.5v8h11l2-5.5H4l-2 5.5M1.5 4.5V3h4l1.5 1.5h6V7" /> : <path d="M1.5 3.5h4.5l1.5 1.5h7v7.5h-13z" />}
+    </svg>
+  );
+  const kind = KIND.find(([re]) => re.test(name))?.[1] ?? "file";
+  return (
+    <svg className={`fi fi-${kind}`} viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3" />
+    </svg>
   );
 }

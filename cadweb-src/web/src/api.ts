@@ -108,7 +108,7 @@ export const claudeInstall = () => req<{ ok: boolean }>("/api/claude/install", {
 export const claudeLogin = () => req<{ ok: boolean }>("/api/claude/login", { method: "POST" });
 
 /** Dự án kiểu Orca: mỗi dự án là một thư mục trên máy; hội thoại lưu riêng theo dự án. Rỗng = dự án đầu tiên. */
-export type Project = { id: string; name: string; dir: string | null; createdAt: number; pinned?: boolean };
+export type Project = { id: string; name: string; dir: string | null; createdAt: number; pinned?: boolean; shell?: boolean };
 let currentProject = "";
 export const setCurrentProject = (id: string) => { currentProject = id; };
 const pq = (sep: string) => `${sep}project=${encodeURIComponent(currentProject)}`;
@@ -117,6 +117,9 @@ export const createProject = (name: string, dir: string) =>
   req<{ project: Project }>("/api/projects", { method: "POST", body: JSON.stringify({ name, dir }) }).then(r => r.project);
 export const renameProject = (id: string, name: string) =>
   req<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ name }) }).then(r => r.project);
+/** Cho agent chạy lệnh (Bash) trong thư mục dự án. */
+export const setProjectShell = (id: string, shell: boolean) =>
+  req<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ shell }) }).then(r => r.project);
 export const pinProject = (id: string, pinned: boolean) =>
   req<{ project: Project }>(`/api/projects/${id}`, { method: "PATCH", body: JSON.stringify({ pinned }) }).then(r => r.project);
 export const deleteProject = (id: string) => req<{ ok: boolean }>(`/api/projects/${id}`, { method: "DELETE" });

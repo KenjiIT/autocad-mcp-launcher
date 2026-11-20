@@ -1,3 +1,5 @@
+import { Lightbox } from "./Lightbox";
+import { Resizer } from "./Resizer";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { dialog } from "./Dialog";
 import { MAX_IMAGES, prepareImage, type Att } from "./attach";
@@ -6,6 +8,7 @@ import { AskCard, type AskItem } from "./AskCard";
 import { CopyButton, Markdown } from "./Markdown";
 import { collect, SessionPanel } from "./SessionPanel";
 import { ProjectTree } from "./ProjectTree";
+import { askNotifyPermission, notify } from "./notify";
 import { answerAsk, chat, delConv, getQuota, listModels, type Quota, type WinState, WIN_NAME, tightest, listSkills, type ModelInfo, type Usage, NO_USAGE, addUsage, type Skill, fetchImage, getConv, listConvs, newId, niceError, putConv, type Content, type ConvMeta } from "./api";
 
 type Item =
@@ -67,26 +70,33 @@ function useTrimmed(src?: string) {
 
 /** Ảnh nằm trong khung chat (không bị thu gọn), có nút mở ảnh lớn và tải về. */
 function Shot({ c }: { c: Content }) {
+  const [big, setBig] = useState(false);
   const { src: raw, bad } = useImage(c);
   const src = useTrimmed(raw);
   if (bad) return <p className="hint">Không tải được ảnh.</p>;
   if (!src) return <div className="skel" aria-label="Đang tải ảnh" />;
   const ext = (c.mimeType ?? "image/png").split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+  const fname = `autocad-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${ext}`;
   return (
     <figure className="shot">
-      <a href={src} target="_blank" rel="noreferrer" title="Mở ảnh lớn"><img src={src} alt="Ảnh từ AutoCAD" /></a>
+      {big && <Lightbox src={src} name={fname} onClose={() => setBig(false)} />}
+      <button type="button" className="shot-open" onClick={() => setBig(true)} title="Mở ảnh lớn"><img src={src} alt="Ảnh từ AutoCAD" /></button>
       <figcaption>
-        <a href={src} target="_blank" rel="noreferrer">Mở ảnh lớn</a>
-        <a href={src} download={`autocad-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${ext}`}>Tải về</a>
+        <a href={src} onClick={e => { e.preventDefault(); setBig(true); }}>Mở ảnh lớn</a>
+        <a href={src} download={fname}>Tải về</a>
       </figcaption>
     </figure>
   );
 }
 
 function Img({ c }: { c: Content }) {
+  const [big, setBig] = useState(false);
   const { src, bad } = useImage(c);
   if (bad) return <p className="hint">Không tải được ảnh đã lưu.</p>;
-  return src ? <img src={src} alt="Kết quả từ tool" /> : <div className="skel" aria-label="Đang tải ảnh" />;
+  return src ? <>
+    <button type="button" className="shot-open" onClick={() => setBig(true)} title="Mở ảnh lớn"><img src={src} alt="Kết quả từ tool" /></button>
+    {big && <Lightbox src={src} name="anh.png" onClose={() => setBig(false)} />}
+  </> : <div className="skel" aria-label="Đang tải ảnh" />;
 }
 
 /** Đếm giây từ lúc tool bắt đầu, để biết nó đang chạy hay đã treo (có tool CAD chạy tới 10 phút). */
@@ -344,6 +354,8 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
     push(p => [...p, { kind: "user", text, ...(imgs.length ? { images: imgs } : {}) }]);
     queueMicrotask(() => toBottom(false));      // tự gửi thì luôn kéo xuống xem câu trả lời
     const ac = new AbortController(); abort.current = ac;
+    void askNotifyPermission();   // lần đầu: trình duyệt hỏi cho phép thông báo (cần đúng lúc người dùng vừa bấm gửi)
+    let turnError = "";
     try {
       await chat([...history.current, { role: "user", content }], sessionId.current, e => {
         if (e.event === "text") push(p => {
@@ -354,15 +366,25 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
         else if (e.event === "tool_result") push(p => p.map(x => x.kind === "tool" && x.id === e.data.id ? { ...x, done: true, isError: e.data.isError, content: e.data.content } : x));
         else if (e.event === "notice") push(p => [...p, { kind: "note", text: e.data }]);
         // Lỗi báo trong luồng (không ném ngoại lệ) cũng là lượt hỏng: giữ tin đã gõ để gửi lại.
-        else if (e.event === "error") { push(p => [...p, { kind: "note", text: e.data }]); setFailed(text || "ảnh"); }
+        else if (e.event === "error") { push(p => [...p, { kind: "note", text: e.data }]); setFailed(text || "ảnh"); turnError = e.data; }
         else if (e.event === "usage") setUsage(addUsage(usageRef.current, e.data));
-        else if (e.event === "ask") push(p => [...p, { kind: "ask", id: e.data.id, questions: e.data.questions }]);
+        else if (e.event === "ask") {
+          push(p => [...p, { kind: "ask", id: e.data.id, questions: e.data.questions }]);
+          notify("CAD Studio cần bạn trả lời", e.data.questions.map(q => q.question).join(" · "), { tag: "cad-ask" });
+        }
         else if (e.event === "done") { history.current = e.data.messages; sessionId.current = e.data.sessionId; }
       }, ac.signal, model || undefined, effort);
     } catch (e) {
       push(p => [...p, { kind: "note", text: ac.signal.aborted ? "Đã dừng." : niceError(e) }]);
-      if (!ac.signal.aborted) setFailed(text || "ảnh");      // giữ lại tin đã gõ (kèm ảnh) để gửi lại, không bắt gõ lại từ đầu
-    } finally { setAll(expireAsks(itemsRef.current)); setBusy(false); abort.current = null; refreshQuota(); await persist(id); onTurnDone?.(); }
+      if (!ac.signal.aborted) { setFailed(text || "ảnh"); turnError = niceError(e); }     // giữ lại tin đã gõ (kèm ảnh) để gửi lại, không bắt gõ lại từ đầu
+    } finally {
+      setAll(expireAsks(itemsRef.current)); setBusy(false); abort.current = null; refreshQuota(); await persist(id); onTurnDone?.();
+      if (!ac.signal.aborted) {   // tự bấm Dừng thì không báo
+        const last = [...itemsRef.current].reverse().find(x => x.kind === "text") as { text: string } | undefined;
+        if (turnError) notify("CAD Studio: lượt chat bị lỗi", turnError, { tag: "cad-done" });
+        else notify("CAD Studio: agent đã xong", last?.text.replace(/[#*_`>|-]+/g, " ").replace(/\s+/g, " ").trim() || "Xem kết quả trong CAD Studio.", { tag: "cad-done" });
+      }
+    }
   };
 
   /** Gửi lại tin nhắn vừa lỗi: bỏ tin của mình và dòng báo lỗi ở cuối, rồi gửi lại nguyên văn. */
@@ -377,7 +399,15 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
     void send(text, imgs);
   };
 
-  const reset = () => { dropAtts(atts); setAtts([]); setAttErr(""); abort.current?.abort(); history.current = []; sessionId.current = undefined; setAll([]); setCurId(newId()); setModel(defModel.current); setUsage(NO_USAGE); };
+  const reset = () => {
+    // Đang ở một phiên trống sẵn có trong danh sách thì không tạo thêm phiên trống nữa.
+    if (!itemsRef.current.length && convs.some(c => c.id === curId)) { taRef.current?.focus(); return; }
+    dropAtts(atts); setAtts([]); setAttErr(""); abort.current?.abort(); history.current = []; sessionId.current = undefined; setAll([]); setModel(defModel.current); setUsage(NO_USAGE);
+    const id = newId(); setCurId(id);
+    // Tạo phiên ngay (như Orca) để nó hiện trong danh sách; câu hỏi đầu tiên sẽ thành tên phiên.
+    putConv(id, { title: STARTER, items: [], history: [] }).then(() => refresh()).catch(e => setListErr(niceError(e)));
+    taRef.current?.focus();
+  };
 
   const open = async (id: string) => {
     if (busy || id === curId) return;
@@ -425,6 +455,7 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
           const el = msgsRef.current?.querySelectorAll(".shot")[i];
           if (el) { unpin(); el.scrollIntoView({ block: "center", behavior: "smooth" }); }
         }} />
+        <Resizer name="side" def={260} min={200} max={480} edge="right" />
       </aside>
 
       <div className={`chat${items.length === 0 ? " fresh" : ""}`}>
