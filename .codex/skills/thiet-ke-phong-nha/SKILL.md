@@ -23,6 +23,12 @@ Skill này là **bộ lăng kính đánh giá và đề xuất bố trí** (côn
 - Cửa WC khách và cửa tủ đồ **không mở thẳng ra tiền sảnh**. Nếu buộc phải, xoay hướng cho cửa mở vào hốc hoặc hành lang nhỏ, không đối diện lối vào.
 - Tiền sảnh chỉ là khoảng đệm: không để nó phình to vì nhiều cánh cửa mở ra từ nhiều phía. Xoay hướng WC/tủ để thu gọn đệm, rồi đặt điểm nhấn thị giác (hốc tường trang trí, tranh, ghế băng + kệ) ở cuối trục nhìn.
 
+### 1b. Hướng mở cánh cửa: áp sát vách
+- Đặt **bản lề cách góc tường khoảng 10–15 cm** để cánh cửa khi mở **áp sát vách**, không cắt ngang giữa phòng.
+- Vùng quét cánh (cung mở) không trùng lối đi, giường, tủ, bàn, công tắc hay vùng mở của cửa khác.
+- Chỗ chật (WC nhỏ, hành lang hẹp, tủ âm) mà cánh mở vẫn chiếm diện tích thì dùng **cửa lùa hoặc cửa xếp**.
+- Khi vẽ, luôn thể hiện cung mở cánh để kiểm tra xung đột.
+
 ### 2. Vị trí WC khách
 - Đặt ở vị trí trung tâm, gần khu sinh hoạt chung để cả gia đình lẫn khách dùng thuận tiện. Mỗi lần một người dùng nên không cần rộng; khoảng thông thủy trước thiết bị có thể ở mức tối thiểu theo quy chuẩn.
 - Ba kiểu phổ biến:

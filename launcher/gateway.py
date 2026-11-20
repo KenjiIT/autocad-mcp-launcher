@@ -425,6 +425,36 @@ litecad = litebim_bridge.LiteBimBridge(product="litecad")
 PIPE_BRIDGES = {"litebim": lambda: litebim, "litecad": lambda: litecad}  # tra lúc gọi để test thay được
 
 
+PIPE_SKILLS_NOTE = (
+    "Dự án có bộ skill nghiệp vụ dùng chung (thiết kế nhà ở, mặt bằng chung cư, hồ sơ và tiêu chuẩn xây dựng, "
+    "tra định mức, tri thức chung). Trước khi dựng, sửa hay đo mô hình: gọi tool `skills` với operation=list, chọn mọi "
+    "skill khớp yêu cầu rồi nạp từng skill bằng operation=get (tệp tham chiếu: operation=get, name, path) và làm theo "
+    "phần nghiệp vụ. Skill tên autocad-* viết cho AutoCAD: vẫn dùng quy tắc nghiệp vụ trong đó, còn bước gọi tool CAD "
+    "thì thay bằng tool của ứng dụng này."
+)
+PIPE_SKILLS_TOOL = {**SKILLS_TOOL, "description": (
+    "Đọc bộ skill (quy trình, quy tắc nghiệp vụ) của dự án. Gọi trước khi dựng hoặc sửa mô hình: operation=list "
+    "liệt kê skill, operation=get với name nạp một skill, thêm path để đọc tệp tham chiếu của skill."
+)}
+
+
+def pipe_with_skills(bridge, item):
+    """LiteBIM/LiteCAD đi thẳng qua pipe, nhưng vẫn có tool `skills` và lời dặn đọc skill như hai MCP AutoCAD."""
+    method = item.get("method")
+    if method == "tools/call" and (item.get("params") or {}).get("name") == "skills":
+        payload, is_error = skills_call((item.get("params") or {}).get("arguments") or {})
+        return {"jsonrpc": "2.0", "id": item.get("id"), "result": {
+            "content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}], "isError": is_error}}
+    reply = bridge.handle(item)
+    result = reply.get("result") if isinstance(reply, dict) else None
+    if method == "initialize" and isinstance(result, dict):
+        result["instructions"] = (str(result.get("instructions") or "") + "\n\n" + PIPE_SKILLS_NOTE).strip()
+    elif method == "tools/list" and isinstance(result, dict) and isinstance(result.get("tools"), list):
+        if not any(t.get("name") == "skills" for t in result["tools"] if isinstance(t, dict)):
+            result["tools"] = [*result["tools"], PIPE_SKILLS_TOOL]
+    return reply
+
+
 async def litebim_route(request: Request, bridge=None):
     """MCP của LiteBIM hoặc LiteCAD qua pipe của chúng. Không dùng AutoCAD và không qua cổng chặn skill."""
     if request.method == "GET":
@@ -438,7 +468,8 @@ async def litebim_route(request: Request, bridge=None):
     batch = message if isinstance(message, list) else [message]
     if not all(isinstance(item, dict) for item in batch):
         return JSONResponse({"error": "Invalid JSON-RPC request"}, status_code=400)
-    replies = [reply for reply in [await asyncio.to_thread((bridge or litebim).handle, item) for item in batch] if reply is not None]
+    target = bridge or litebim
+    replies = [reply for reply in [await asyncio.to_thread(pipe_with_skills, target, item) for item in batch] if reply is not None]
     if not replies:
         return Response(status_code=202)
     return JSONResponse(replies if isinstance(message, list) else replies[0])

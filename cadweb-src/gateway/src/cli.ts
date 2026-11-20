@@ -9,6 +9,7 @@ import type { Emit } from "./chat.js";
 import { usageOf } from "./usage.js";
 import { attachLocalImages, roots } from "./localImages.js";
 import { claudeBin } from "./claudeSetup.js";
+import { recordClaudeRate } from "./planUsage.js";
 
 const SYSTEM = process.env.CHAT_SYSTEM ??
   "Bạn là trợ lý điều khiển AutoCAD qua các tool MCP. Trả lời bằng tiếng Việt, ngắn gọn. " +
@@ -52,6 +53,8 @@ function reader(emit: Emit, names: Record<string, string>, sessionId?: string) {
     } else if (ev.type === "user") {
       for (const b of Array.isArray(ev.message?.content) ? ev.message.content : []) if (b.type === "tool_result" && !askIds.has(b.tool_use_id))
         emit("tool_result", { id: b.tool_use_id, isError: !!b.is_error, content: attachLocalImages(normalize(b.content)) });
+    } else if (ev.type === "rate_limit_event") {
+      recordClaudeRate(ev.rate_limit_info);
     } else if (ev.type === "result") {
       finished = true;
       if (ev.usage) emit("usage", usageOf(ev.usage, ev.total_cost_usd));
@@ -82,6 +85,8 @@ export type CliArgs = {
   ask?: { run: Run; url: string };
   serverList?: McpServer[];                 // MCP trên máy CAD của tài khoản; không có MCP chung của gateway
   att?: { dir: string; files: string[] };   // ảnh người dùng đính kèm (file tạm của lượt này)
+  project?: { name: string; dir: string };
+  effort?: string;                          // --effort của Claude CLI (low|medium|high|xhigh|max)  // dự án: CLI chạy trong thư mục này và được đọc file trong đó
 };
 
 /**
@@ -108,22 +113,26 @@ export function runCliLocal(a: CliArgs): Promise<string | undefined> {
   const imageRoots = roots();
   for (const r of imageRoots) allow.push(`Read(${r.replace(/\\/g, "/")}/**)`);
   if (att) allow.push(`Read(${att.dir.replace(/\\/g, "/")}/**)`);   // đúng thư mục tạm của lượt này, không rộng hơn
+  const proj = a.project;
+  if (proj) for (const t of ["Read", "Glob", "Grep", "Write", "Edit"]) allow.push(`${t}(${proj.dir.replace(/\\/g, "/")}/**)`);
   if (att) prompt += `\n\n[Người dùng đã đính kèm ${att.files.length} ảnh. Hãy dùng công cụ Read mở từng file dưới đây để xem trước khi trả lời:\n${att.files.map(f => `- ${f}`).join("\n")}]`;
 
   const args = [
     "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages",
     "--mcp-config", mcpFile, "--strict-mcp-config",
-    "--tools", imageRoots.length || att ? "Read" : "",    // chỉ có Read (giới hạn ở thư mục ảnh); khóa mọi công cụ sửa file/chạy lệnh
+    "--tools", proj ? "Read,Glob,Grep,Write,Edit" : imageRoots.length || att ? "Read" : "",    // chỉ có Read (giới hạn ở thư mục ảnh); khóa mọi công cụ sửa file/chạy lệnh
     "--allowedTools", allow.join(","),
     "--disable-slash-commands",
-    "--append-system-prompt", SYSTEM,
+    "--append-system-prompt", proj ? `${SYSTEM}
+Đang làm việc trong dự án "${proj.name}", thư mục ${proj.dir}. Hồ sơ, bản vẽ tham chiếu của dự án nằm trong thư mục này; dùng Glob/Grep/Read để tìm và đọc khi cần. File bạn tạo ra (báo cáo, bảng tính, DXF, ảnh xuất…) phải lưu trong thư mục này, không lưu nơi khác.` : SYSTEM,
     "--model", model,
+    ...(a.effort ? ["--effort", a.effort] : []),
     ...(sessionId ? ["--resume", sessionId] : []),
   ];
 
   return new Promise((resolve, reject) => {
     // MCP_TOOL_TIMEOUT: tool ask_user có thể chờ người dùng rất lâu, mặc định của CLI sẽ cắt ngang.
-    const p = spawn(claudeBin(), args, { cwd: WORK, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: { ...process.env, MCP_TOOL_TIMEOUT: "1800000" } });
+    const p = spawn(claudeBin(), args, { cwd: proj?.dir ?? WORK, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: { ...process.env, MCP_TOOL_TIMEOUT: "1800000" } });
     signal.addEventListener("abort", () => p.kill());
     p.stdin.end(prompt);                             // qua stdin để khỏi dính giới hạn/escape của dòng lệnh
 

@@ -28,21 +28,34 @@ export const getModel = () => (getEngine() === "codex" ? DEFAULT_CODEX_MODEL : p
 
 /** Model người dùng được chọn cho từng phiên. CHAT_MODELS="id:Nhãn,id2:Nhãn 2" để đổi danh sách. */
 const DEFAULT_MODELS: [string, string][] = [
-  ["claude-sonnet-5-5", "Sonnet 5.5 (cân bằng)"],
-  ["claude-opus-5-5", "Opus 5.5 (mạnh hơn, đắt hơn)"],
-  ["claude-haiku-5-5", "Haiku 5.5 (rẻ, nhanh)"],
+  ["claude-opus-5-5", "Claude Opus 5.5 (Cho việc phức tạp và việc hằng ngày)"],
+  ["claude-fable-5-2", "Claude Fable 5.2 (Cho việc khó nhất)"],
+  ["claude-sonnet-5-5", "Claude Sonnet 5.5 (Tiết kiệm nhất cho việc đơn giản)"],
+  ["claude-haiku-5-5", "Claude Haiku 5.5 (Nhanh nhất cho câu trả lời ngắn)"],
 ];
-export function getModels(): { id: string; label: string }[] {
+/** Model đời trước, vẫn gọi được qua Claude CLI (đã thử từng tên trên máy). Hiện thành nhóm riêng trong ô chọn. */
+const LEGACY_MODELS: [string, string][] = [
+  ["claude-fable-5-1", "Claude Fable 5.1"], ["claude-fable-5", "Claude Fable 5"],
+  ["claude-opus-5", "Claude Opus 5"], ["claude-sonnet-5", "Claude Sonnet 5"],
+  ["claude-opus-4-7", "Claude Opus 4.7"], ["claude-opus-4-6", "Claude Opus 4.6"], ["claude-sonnet-4-6", "Claude Sonnet 4.6"],
+  ["claude-opus-4-5", "Claude Opus 4.5"], ["claude-haiku-4-5", "Claude Haiku 4.5"], ["claude-opus-4-1", "Claude Opus 4.1"],
+];
+export function getModels(): { id: string; label: string; legacy?: boolean }[] {
   // Codex: model mặc định của Codex, kèm các model trong danh mục của chính Codex (tải bằng `codex debug models`)
   if (getEngine() === "codex") return [{ id: DEFAULT_CODEX_MODEL, label: "Mặc định của Codex" }, ...codexCatalog()];
   const fromEnv = (process.env.CHAT_MODELS ?? "").split(",").map(x => x.trim()).filter(Boolean)
     .map(x => { const i = x.indexOf(":"); return (i > 0 ? [x.slice(0, i).trim(), x.slice(i + 1).trim()] : [x, x]) as [string, string]; })
     .filter(([id]) => /^[a-z0-9][a-z0-9._-]{1,63}$/i.test(id));
-  const list = (fromEnv.length ? fromEnv : DEFAULT_MODELS).map(([id, label]) => ({ id, label }));
+  const list: { id: string; label: string; legacy?: boolean }[] = fromEnv.length ? fromEnv.map(([id, label]) => ({ id, label }))
+    : [...DEFAULT_MODELS.map(([id, label]) => ({ id, label })), ...LEGACY_MODELS.map(([id, label]) => ({ id, label, legacy: true }))];
   const def = getModel();
   return list.some(m => m.id === def) ? list : [{ id: def, label: def }, ...list];   // model mặc định do admin đặt luôn có trong danh sách
 }
 /** Model dùng cho một lượt chat: lấy theo lựa chọn của phiên nếu nằm trong danh sách cho phép, ngược lại dùng mặc định. */
+/** Mức cố gắng (suy nghĩ) cho một lượt chat; giá trị lạ thì bỏ qua để CLI dùng mặc định. */
+export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type Effort = typeof EFFORTS[number];
+export const effortFor = (v: unknown): Effort | undefined => (EFFORTS as readonly unknown[]).includes(v) ? v as Effort : undefined;
 export const modelFor = (requested?: unknown) => (typeof requested === "string" && getModels().some(m => m.id === requested) ? requested : getModel());
 
 export function saveConfig(patch: { anthropicKey?: string; engine?: string }) {

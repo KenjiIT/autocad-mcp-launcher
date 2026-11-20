@@ -28,6 +28,8 @@ export function codexVersion(): Promise<string | null> {
 const toml = (v: unknown) => JSON.stringify(v);   // chuỗi hoặc mảng JSON cũng là TOML hợp lệ (có thoát \\ và \")
 
 export type CodexArgsInput = {
+  writable?: boolean;
+  effort?: string;      // mức suy nghĩ; Codex chỉ có tới "high" nên xhigh/max quy về high   // true: được ghi trong thư mục làm việc (thư mục dự án)
   sessionId?: string; model: string; servers: McpServer[]; allowed: string[];
   ask?: { run: Pick<Run, "token">; url: string };
   images?: string[];   // đường dẫn ảnh người dùng đính kèm (file tạm do gateway ghi)
@@ -38,7 +40,8 @@ export function codexArgs(o: CodexArgsInput): { args: string[]; env: Record<stri
   const env: Record<string, string> = {};
   const c: string[] = [];
   const set = (k: string, v: unknown) => c.push("-c", `${k}=${toml(v)}`);
-  set("sandbox_mode", "read-only");
+  set("sandbox_mode", o.writable ? "workspace-write" : "read-only");
+  if (o.effort) set("model_reasoning_effort", o.effort === "xhigh" || o.effort === "max" ? "high" : o.effort);
   set("approval_policy", "never");                // không có người duyệt trong chế độ này, nên tool MCP phải được duyệt sẵn (bên dưới)
   set("developer_instructions", INSTRUCTIONS);
 
@@ -129,15 +132,15 @@ export function codexMapper(emit: Emit, serverNames: Record<string, string> = {}
 /** Chạy một lượt chat qua Codex CLI (dùng tài khoản Codex đã đăng nhập trên máy). Trả về thread_id để nối tiếp. */
 export function runCodex(
   prompt: string, sessionId: string | undefined, allowed: string[], emit: Emit, signal: AbortSignal, model: string,
-  ask?: { run: Run; url: string }, serverList: McpServer[] = [], images: string[] = [],
+  ask?: { run: Run; url: string }, serverList: McpServer[] = [], images: string[] = [], workDir?: string, effort?: string,
 ): Promise<string | undefined> {
   mkdirSync(WORK, { recursive: true });
   const servers = serverList.filter(s => s.enabled);
-  const { args, env } = codexArgs({ sessionId, model, servers, allowed, ask, images });
+  const { args, env } = codexArgs({ sessionId, model, servers, allowed, ask, images, writable: !!workDir, effort });
   const m = codexMapper(emit, Object.fromEntries(servers.map(s => [s.id, s.name])));
 
   return new Promise((resolve, reject) => {
-    const p = spawn(CODEX_BIN, args, { cwd: WORK, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: { ...process.env, ...env } });
+    const p = spawn(CODEX_BIN, args, { cwd: workDir ?? WORK, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, env: { ...process.env, ...env } });
     signal.addEventListener("abort", () => p.kill());
     p.stdin.end(prompt);
 

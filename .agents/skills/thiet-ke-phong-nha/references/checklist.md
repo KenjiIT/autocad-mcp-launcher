@@ -6,6 +6,11 @@
 - [ ] Tiền sảnh gọn, không bị nhiều cánh cửa làm phình ra.
 - [ ] Có điểm nhấn ở cuối trục nhìn (hốc tường, tranh, kệ).
 
+### Hướng mở cửa
+- [ ] Bản lề cách góc tường ~10–15 cm, cánh mở áp sát vách.
+- [ ] Cung mở cánh không trùng lối đi, đồ nội thất, công tắc, cửa khác.
+- [ ] Chỗ chật đã cân nhắc cửa lùa/cửa xếp.
+
 ### WC khách
 - [ ] Vị trí trung tâm, gần khu sinh hoạt chung.
 - [ ] Nếu gầm cầu thang: đã kiểm chiều cao đầu người trước bồn cầu theo quy chuẩn.

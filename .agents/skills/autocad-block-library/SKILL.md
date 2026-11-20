@@ -78,8 +78,8 @@ Thêm kho mới (gói DWG khác) bằng `lt-adapter/tools/import_block_pack.py` 
 Các tệp trong `blocks/` được tách từ bản vẽ mẫu của AutoCAD LT (nội dung của Autodesk). Không đưa chúng lên repo công khai và không đóng gói kèm bản cài (gói bỏ qua `.dwg`). Trên máy đã cài AutoCAD LT và đang mở LT:
 
 ```
-autocad-beiming-mcp-custom\.venv\Scripts\python.exe lt-adapter\tools\extract_sample_blocks.py --catalog-json catalog.json
-autocad-beiming-mcp-custom\.venv\Scripts\python.exe lt-adapter\tools\build_block_catalog.py catalog.json blocks\index.json <skill>\references\catalog.md
+autocad-beiming-mcp\.venv\Scripts\python.exe lt-adapter\tools\extract_sample_blocks.py --catalog-json catalog.json
+autocad-beiming-mcp\.venv\Scripts\python.exe lt-adapter\tools\build_block_catalog.py catalog.json blocks\index.json <skill>\references\catalog.md
 ```
 
 Công cụ chép bản vẽ mẫu sang thư mục tạm, mở từng tệp trong LT (xong gõ `CLOSEALL` để đóng), tách các block đã chọn trong `lt-adapter/tools/sample_blocks.py` và ghi `blocks/index.json`. Muốn thêm một block từ danh mục vào thư viện: thêm một dòng vào `SELECTED` trong `sample_blocks.py` (tệp, tên block gốc, tên thư viện, loại hình, ý nghĩa) rồi chạy lại; tệp đã có được giữ nguyên.

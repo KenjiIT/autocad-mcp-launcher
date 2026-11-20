@@ -19,10 +19,8 @@ export function LocalMcp({ onChanged }: { onChanged: () => void }) {
   const refresh = () => { void load().then(onChanged); };
 
   return (
-    <div className="full settings mcp">
-      <div className="mcp-in">
+    <section className="mcp-in">
         <div className="mcp-head">
-          <h1>MCP trên máy này</h1>
           <div className="mcp-btns"><button className="primary" disabled={busy} onClick={refresh}>{busy ? "Đang kiểm tra…" : "Kiểm tra lại"}</button></div>
         </div>
         <p className="desc">
@@ -46,7 +44,6 @@ export function LocalMcp({ onChanged }: { onChanged: () => void }) {
             ))}
           </ul>
         )}
-      </div>
-    </div>
+    </section>
   );
 }

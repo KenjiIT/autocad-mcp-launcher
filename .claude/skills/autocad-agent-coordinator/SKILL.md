@@ -1,28 +1,42 @@
 ---
 name: autocad-agent-coordinator
-description: Điểm vào BẮT BUỘC cho mọi việc AutoCAD qua MCP autocad_beiming và autocad_puran - vẽ, sửa, đọc, đo, kiểm tra, chép, xuất bản vẽ CAD, vẽ layout, mặt bằng, tổng mặt bằng, ranh đất. Nạp trước khi gọi bất kỳ tool CAD nào. Chứa bảng chọn skill chuyên biệt theo lời người dùng, quy tắc xác nhận khu đất bằng ảnh trước khi lập kế hoạch layout, quy tắc hỏi lại khi yêu cầu mơ hồ, và quy ước màu, giới hạn của AutoCAD LT.
+description: Điểm vào BẮT BUỘC cho mọi việc CAD/BIM qua MCP của launcher - AutoCAD (autocad_beiming, autocad_puran), LiteCAD (litecad, CAD 2D đọc ghi DWG/DXF) và LiteBIM (litebim, mô hình BIM 3D giống Revit) - vẽ, dựng, sửa, đọc, đo, kiểm tra, chép, xuất bản vẽ hoặc mô hình, vẽ layout, mặt bằng, tổng mặt bằng, ranh đất, bố trí nhà. Nạp trước khi gọi bất kỳ tool CAD/BIM nào. Chứa cách chọn ứng dụng, bảng chọn skill chuyên biệt theo lời người dùng, quy tắc xác nhận khu đất bằng ảnh trước khi lập kế hoạch layout, quy tắc hỏi lại khi yêu cầu mơ hồ, quy trình dựng mô hình LiteBIM, và quy ước màu, giới hạn của AutoCAD LT.
 ---
 
-# Điều phối agent làm việc với AutoCAD
+# Điều phối agent làm việc với AutoCAD, LiteCAD và LiteBIM
 
-Đây là điểm vào của mọi công việc AutoCAD thực hiện qua ứng dụng kết nối MCP của dự án: nạp skill này trước khi gọi bất kỳ tool CAD nào. Skill hướng dẫn agent; các công cụ MCP mới thực hiện thao tác CAD. Không nói rằng việc nạp skill đã mở AutoCAD hoặc kết nối MCP.
+Đây là điểm vào của mọi công việc CAD/BIM thực hiện qua các MCP của AutoCAD MCP Launcher: nạp skill này trước khi gọi bất kỳ tool CAD/BIM nào (tool của `autocad_beiming`, `autocad_puran`, `litecad`, `litebim`). Skill hướng dẫn agent; các công cụ MCP mới thực hiện thao tác. Không nói rằng việc nạp skill đã mở ứng dụng hoặc kết nối MCP.
+
+## Chọn ứng dụng: AutoCAD, LiteCAD hay LiteBIM
+
+| Ứng dụng | MCP | Dùng cho | Ghi chú |
+|---|---|---|---|
+| AutoCAD (bản đầy đủ hoặc LT) | `autocad_beiming` (kiến trúc, kết cấu), `autocad_puran` (MEP) | Bản vẽ 2D DWG đang mở trong AutoCAD | Phần lớn skill này viết cho AutoCAD; xem mục "Quy trình" để chọn Beiming hay Puran. |
+| LiteCAD | `litecad` | Bản vẽ 2D DWG/DXF mở trong LiteCAD | Chỉ có khi máy cài LiteCAD; danh sách tool rỗng khi LiteCAD chưa mở. |
+| LiteBIM | `litebim` | Mô hình BIM 3D (tầng, lưới trục, tường, cửa, sàn, mái, phòng, nội thất; phần tử gọi theo IFC GlobalId) | Chỉ có khi máy cài LiteBIM; xem mục "Làm việc với LiteBIM". |
+
+- **Người dùng nói rõ ứng dụng** ("trong LiteBIM", "bằng LiteCAD", "trên AutoCAD") thì dùng đúng ứng dụng đó, không tự đổi sang ứng dụng khác.
+- **Chưa nói rõ:** "mô hình", "3D", "BIM", "IFC", "giống Revit", "dựng nhà 3D" thì nghiêng về LiteBIM; bản vẽ 2D, DWG/DXF thì nghiêng về AutoCAD (hoặc LiteCAD nếu đó là ứng dụng đang mở bản vẽ). Còn phân vân thì hỏi một câu bằng công cụ chọn (mục "Cách hỏi"), kèm ứng dụng nào đang có tool.
+- **Ứng dụng chưa mở** (LiteBIM/LiteCAD trả lời "chưa mở", hoặc danh sách tool của nó rỗng; AutoCAD trả `AUTOCAD_UNAVAILABLE`): nói rõ và nhờ người dùng mở ứng dụng đó. Không lặng lẽ chuyển sang ứng dụng khác.
+- **Nghiệp vụ dùng chung cho cả ba:** các skill nghiệp vụ (`thiet-ke-phong-nha`, `autocad-apartment-floor-plan`, `mat-bang-tong-the`, `construction-*`, `tra-dinh-muc-du-toan`, `knowledge-*`) áp dụng cho mọi ứng dụng. Skill tên `autocad-*` viết theo tool AutoCAD: với LiteCAD/LiteBIM vẫn dùng quy tắc nghiệp vụ trong đó (diện tích, khoảng lùi, hệ trục, thứ tự dựng, kiểm tra), còn bước gọi tool AutoCAD thì thay bằng tool tương đương của ứng dụng đang dùng; không có tool tương đương thì nói rõ.
+- **Chỉ áp dụng cho AutoCAD:** bảng quy ước màu ACI, mục "Công cụ nào dùng được trên AutoCAD LT", backend `ezdxf` và `launcher_set_backend`, cách đọc DWG ngoại tuyến bằng `dwg_to_dxf.py`, và việc chọn Beiming hay Puran.
 
 ## Bước 0: tự lấy và nạp skill chuyên biệt (bắt buộc, agent tự làm, không chờ người dùng nhắc)
 
-Nạp xong skill này chưa đủ. Trước khi gọi tool CAD đầu tiên **làm đủ bốn việc**:
+Nạp xong skill này chưa đủ. Trước khi gọi tool CAD/BIM đầu tiên (AutoCAD, LiteCAD hay LiteBIM) **làm đủ bốn việc**:
 
 1. Gọi `skills` `operation=list` để lấy danh sách skill hiện có và đọc mô tả (bảng bên dưới có thể chưa kịp cập nhật skill mới).
 2. Đối chiếu yêu cầu của người dùng với bảng bên dưới **và** với mô tả trong danh sách; chọn **mọi** skill khớp, kể cả khi chỉ khớp một phần.
 3. Nạp từng skill bằng `skills` `operation=get` `name=<tên>`. Skill có tệp `references/` thì đọc tệp liên quan bằng `operation=get`, `name`, `path`. Không đọc `SKILL.md` bằng công cụ khác; gateway không tính.
 4. Nói một dòng: đã nạp skill nào, vì sao. Không có skill nào khớp thì nói rõ "không có skill khớp" và nêu từ khóa đã đối chiếu.
 
-**Không tự bỏ skill vì lý do chủ quan.** Các lý do sau không được chấp nhận: "vẽ sơ bộ", "việc nhỏ", "chỉ vẽ nháp", "người dùng chưa yêu cầu", "tôi đã biết cách làm". Chỉ bỏ khi skill thực sự không liên quan tới việc đang làm, và khi đó ghi lý do trong dòng thông báo. Việc **tạo hoặc sửa bản vẽ** luôn cần ít nhất `autocad-start-construction-drawing` (đơn vị, layer, hệ trục, chữ và kích thước) và, nếu có cửa, nội thất, cây, xe, thiết bị, thì cả `autocad-block-library` (chèn block có sẵn, không vẽ tay bằng nét rời).
+**Không tự bỏ skill vì lý do chủ quan.** Các lý do sau không được chấp nhận: "vẽ sơ bộ", "việc nhỏ", "chỉ vẽ nháp", "người dùng chưa yêu cầu", "tôi đã biết cách làm". Chỉ bỏ khi skill thực sự không liên quan tới việc đang làm, và khi đó ghi lý do trong dòng thông báo. Việc **tạo hoặc sửa bản vẽ 2D** (AutoCAD, LiteCAD) luôn cần ít nhất `autocad-start-construction-drawing` (đơn vị, layer, hệ trục, chữ và kích thước) và, nếu có cửa, nội thất, cây, xe, thiết bị trên AutoCAD, thì cả `autocad-block-library` (chèn block có sẵn, không vẽ tay bằng nét rời). Việc **dựng hoặc sửa mô hình LiteBIM** luôn cần ít nhất skill nghiệp vụ của loại công trình (`thiet-ke-phong-nha` cho nhà ở, `autocad-apartment-floor-plan` cho chung cư) và `construction-boundaries-grids` khi có khu đất hoặc hệ trục.
 
 Bảng dưới là gợi ý theo lời người dùng, không phải danh sách đầy đủ. Yêu cầu không khớp hàng nào thì vẫn làm bước 1 và 2.
 
 ## Chọn skill theo yêu cầu (đọc trước khi gọi tool CAD)
 
-Skill chỉ có tác dụng khi được nạp. Ngay sau khi nhận yêu cầu AutoCAD, đối chiếu bảng dưới, **nạp bằng công cụ Skill mọi skill khớp** rồi mới thao tác; không làm theo trí nhớ. Skill không có trong danh sách của môi trường thì đọc thẳng tệp `skills/<tên>/SKILL.md` (thư mục `.claude`, `.codex` hoặc `.agents` của dự án hoặc của tài khoản). Yêu cầu khớp nhiều hàng thì nạp các skill theo thứ tự từ trên xuống.
+Skill chỉ có tác dụng khi được nạp. Ngay sau khi nhận yêu cầu CAD/BIM, đối chiếu bảng dưới, **nạp bằng công cụ Skill mọi skill khớp** rồi mới thao tác; không làm theo trí nhớ. Skill không có trong danh sách của môi trường thì đọc thẳng tệp `skills/<tên>/SKILL.md` (thư mục `.claude`, `.codex` hoặc `.agents` của dự án hoặc của tài khoản). Yêu cầu khớp nhiều hàng thì nạp các skill theo thứ tự từ trên xuống.
 
 | Người dùng nói hoặc tình huống | Nạp skill |
 |---|---|
@@ -45,6 +59,8 @@ Skill chỉ có tác dụng khi được nạp. Ngay sau khi nhận yêu cầu A
 | "nét vẽ", "đường trục", "TCVN 5570", kiểu và bề rộng nét | `construction-drawing-tcvn5570` |
 | thiết kế cơ sở, thiết kế kỹ thuật, bản vẽ thi công, chưa rõ đang ở bước nào | `construction-document-router`, rồi `construction-design-stages` |
 | bản vẽ phát hành, cập nhật theo hiện trường, thay đổi khi thi công | `construction-drawing-records` |
+| "trong LiteBIM", "mô hình 3D", "BIM", "IFC", "dựng nhà 3D", "giống Revit" | Mục "Làm việc với LiteBIM" bên dưới, kèm skill nghiệp vụ theo loại công trình (`thiet-ke-phong-nha`, `autocad-apartment-floor-plan`, `mat-bang-tong-the`) và `construction-boundaries-grids` |
+| "trong LiteCAD", "bằng LiteCAD" | Như hàng tương ứng của AutoCAD ở bảng trên, đổi bước gọi tool sang tool của `litecad` (mục "Chọn ứng dụng") |
 
 Sau khi nạp, nói ngắn cho người dùng đã nạp skill nào và vì sao (một dòng trong thông báo cách làm).
 
@@ -57,6 +73,8 @@ Sau khi nạp, nói ngắn cho người dùng đã nạp skill nào và vì sao 
 3. **Hỏi xác nhận một lần**, kèm ảnh và bảng số, đúng ba lựa chọn: **Đúng**, **Sai** (người dùng chỉ ranh bằng layer, màu, đối tượng mẫu hoặc vẽ khoanh), **Đúng một phần** (nói phần nào sai). Nêu ranh nào nghi là ranh đất nhưng chưa chắc, ranh nào là đường bao nhà, và khối nhà nào đã bị loại. Hỏi bằng công cụ chọn (xem mục "Cách hỏi"), không liệt kê ba lựa chọn bằng văn bản.
 4. **Chờ trả lời.** Chỉ khi người dùng xác nhận *Đúng* mới qua bước lập kế hoạch (thông báo cách làm theo mục "Quy trình", rồi các skill dựng hình ở bảng trên). Trả lời *Sai* hoặc *Đúng một phần* thì quay lại bước 1 với chỉ dẫn mới và chụp lại. Việc chỉ đọc khác vẫn làm được trong lúc chờ.
 5. **Ghi lại ranh đã xác nhận** (handle hoặc tọa độ các góc, diện tích, đơn vị, bản vẽ) trong kế hoạch và báo cáo cuối. Cùng bản vẽ trong cùng phiên đã xác nhận rồi thì không hỏi lại; bản vẽ khác, ranh bị sửa, hoặc người dùng đổi yêu cầu về phạm vi đất thì xác nhận lại.
+
+Với LiteBIM: bước 1 dùng `model_summary` và `list_elements` (lưới trục, tường, phòng đã có), bước 2 chụp bằng `view` (mặt bằng từng tầng hoặc 3D). Với LiteCAD: dùng tool đọc và chụp mà `litecad` cung cấp; không có tool chụp thì thay bằng bảng số như trên.
 
 Quy tắc này bổ sung cho Quy tắc 2, không thay thế: sau khi khu đất được xác nhận, yêu cầu vẫn mơ hồ ở chỗ khác thì hỏi theo Quy tắc 2.
 
@@ -119,7 +137,7 @@ Khi cần tạo một vật thể thông dụng trên AutoCAD LT (nội thất, 
 
 ## Quy trình
 
-1. Xác định kết quả người dùng cần, bản vẽ sẽ tác động và bộ môn của công việc. Dùng công cụ chỉ đọc để kiểm tra các MCP sẵn có và trạng thái bản vẽ hiện tại. Với bản vẽ xây dựng như kiến trúc, kết cấu, dùng `autocad_beiming`. Chỉ dùng `autocad_puran` cho bản vẽ MEP như điện, điều hòa, cấp thoát nước và các hệ kỹ thuật liên quan. Nếu yêu cầu gồm cả xây dựng và MEP, tách phần việc theo bộ môn rồi chọn MCP tương ứng cho từng phần. Gateway sẽ đổi kết nối khi gọi công cụ. Thử AutoCAD trước; nếu công cụ trả `AUTOCAD_UNAVAILABLE`, hỏi người dùng: “AutoCAD hiện không chạy. Bạn có muốn tôi xuất bản vẽ dạng DXF thay thế không?” Chờ câu trả lời rõ ràng; chỉ khi được đồng ý mới gọi `launcher_set_backend` với `mode="ezdxf", user_confirmed=true`. Nếu người dùng không đồng ý, dừng thao tác và chờ AutoCAD.
+1. Xác định kết quả người dùng cần, ứng dụng (mục "Chọn ứng dụng"), bản vẽ hoặc mô hình sẽ tác động và bộ môn của công việc. LiteBIM làm theo mục "Làm việc với LiteBIM"; phần còn lại của bước này nói về AutoCAD. Dùng công cụ chỉ đọc để kiểm tra các MCP sẵn có và trạng thái bản vẽ hiện tại. Với bản vẽ xây dựng như kiến trúc, kết cấu, dùng `autocad_beiming`. Chỉ dùng `autocad_puran` cho bản vẽ MEP như điện, điều hòa, cấp thoát nước và các hệ kỹ thuật liên quan. Nếu yêu cầu gồm cả xây dựng và MEP, tách phần việc theo bộ môn rồi chọn MCP tương ứng cho từng phần. Gateway sẽ đổi kết nối khi gọi công cụ. Thử AutoCAD trước; nếu công cụ trả `AUTOCAD_UNAVAILABLE`, hỏi người dùng: “AutoCAD hiện không chạy. Bạn có muốn tôi xuất bản vẽ dạng DXF thay thế không?” Chờ câu trả lời rõ ràng; chỉ khi được đồng ý mới gọi `launcher_set_backend` với `mode="ezdxf", user_confirmed=true`. Nếu người dùng không đồng ý, dừng thao tác và chờ AutoCAD.
 2. Trước thao tác đầu tiên làm thay đổi bản vẽ, thông báo ngắn gọn cho người dùng: bản vẽ hoặc khu vực nào sẽ thay đổi, sẽ làm gì và sẽ kiểm tra kết quả ra sao. Nếu công việc có nhiều bước, liệt kê các bước chính. Đây là thông báo cách làm; chỉ hỏi phê duyệt khi nhiệm vụ hoặc môi trường agent thực sự yêu cầu.
 3. Thực hiện bằng các công cụ mà MCP đã chọn thực sự cung cấp. Đọc cấu trúc tham số của từng công cụ trước khi gọi. Khi tạo đối tượng, kiểm tra layer và áp dụng quy ước màu của bản vẽ theo mục dưới đây. Thực hiện các thao tác sửa CAD theo thứ tự. Không tự giả định có khả năng giao dịch, hoàn tác, đọc lại hay xuất tệp nếu công cụ hiện dùng không cung cấp. Nếu cách làm thay đổi đáng kể, thông báo trước khi tiếp tục.
 4. Sau mỗi thay đổi quan trọng, dùng công cụ chỉ đọc sẵn có để so trạng thái bản vẽ thực tế với yêu cầu. Nếu lệnh lỗi hoặc kết quả không rõ, dừng các bước phụ thuộc, báo lỗi cụ thể và chưa kết luận đã hoàn thành.
@@ -130,6 +148,18 @@ Khi cần tạo một vật thể thông dụng trên AutoCAD LT (nội thất, 
 Khi cần nắm cấu trúc bản vẽ qua Beiming, gọi `drawing` với `operation="audit"`; dùng `include_entities=false` nếu chỉ cần tóm tắt. `changed_only=true` trả các đối tượng thay đổi so với lần audit trước của cùng bản vẽ trong cùng tiến trình MCP và cùng phạm vi. Bỏ tùy chọn này nếu cần toàn bộ đối tượng. Khi chuyển sang bản vẽ khác, baseline được tách riêng; sau khi có thay đổi mà kết quả chưa xác nhận được, đọc lại trước khi kết luận.
 
 Với DWG lớn, bắt đầu bằng một lần audit Model Space với `include_entities=false` để lấy tổng số và số lượng theo layer; sau đó chỉ audit các layer ứng viên cần kiểm tra, tuần tự. Không giả định audit theo layer dùng snapshot đã cache: trong cấu hình COM-only hiện tại, Beiming không báo revision từ database event và mỗi audit có thể quét lại Model Space. Audit chỉ trả tối đa 500 entity; nếu có `truncated=true`, mẫu đó chưa đủ để khẳng định đã kiểm tra hết. Tránh gọi `entity.list` hoặc `entity.get` lặp cho hàng trăm đối tượng và không gửi nhiều lệnh đọc CAD song song. Chỉ tái sử dụng cache khi kết quả/cấu hình xác nhận cache hit và đúng bản vẽ, revision.
+
+## Làm việc với LiteBIM
+
+LiteBIM là phần mềm BIM giống Revit; tool `litebim` làm việc trên dự án đang mở trong LiteBIM và người dùng thấy mô hình thay đổi trong lúc agent làm. Quy trình dưới đây theo hướng dẫn của chính MCP LiteBIM; đọc lại phần hướng dẫn server (instructions) và mô tả tool khi nghi ngờ.
+
+1. **Đọc trước (chỉ đọc):** `model_summary` để biết tầng và cao độ, lưới trục, số phần tử theo loại, phòng theo tầng và các script đã dựng. Cần chi tiết thì `list_elements` (tối đa 300 dòng, lọc theo loại hoặc tầng), `element_info`, `list_rooms`; người dùng đang chọn gì thì `get_selection`.
+2. **Áp Quy tắc 1, 2 và skill nghiệp vụ** như với AutoCAD: khu đất, hệ trục, kích thước còn thiếu thì hỏi trước khi dựng.
+3. **Dựng hoặc sửa bằng script:** đọc `get_reference` một lần (gói Python `litebim`: lớp, hàm, quy tắc script, ví dụ), viết **cả một script** rồi chạy bằng `run_script`. Script bị giới hạn: không đọc ghi file, chỉ import `litebim`, `math`, `itertools`, chạy tối đa 30 giây. Sửa lỗi hoặc chỉnh nhỏ thì dùng `edit_script` (thay đúng đoạn chữ xuất hiện một lần), rẻ hơn nhiều so với chạy lại cả script; xem script cũ bằng `get_script`.
+4. **Dựng theo từng phần, mỗi phần một lần chạy**, nói trước phần đó làm gì để người dùng thấy công trình lớn dần: tầng và lưới trục → tường và lỗ mở (cửa đi, cửa sổ) → sàn và mái → phòng và nội thất. Mỗi lần chạy là một bước hoàn tác trong LiteBIM.
+5. **Kiểm tra sau mỗi lần chạy:** xem mặt bằng **mọi tầng** và hình 3D bằng `view` như kiến trúc sư soát bản vẽ, đọc danh sách vấn đề mà lần chạy báo và sửa hết. Đối chiếu số liệu bằng `list_rooms` (phòng có diện tích 0 nghĩa là tường chưa khép kín) và `model_summary`. Chưa sửa hết thì chưa báo hoàn thành.
+6. **Chỉ cho người dùng thấy** phần tử đang nói tới bằng `select` (phần tử gọi theo IFC GlobalId).
+7. **Hoàn tác:** `undo_last` chỉ lấy lại thay đổi cuối của chính các tool này khi nó vẫn là bước mới nhất trong LiteBIM; những gì người dùng tự làm sau đó không bị lấy lại. Trước khi hoàn tác thì nói rõ sẽ bỏ phần nào.
 
 ## Quy ước màu của bản vẽ hiện tại
 
@@ -152,7 +182,7 @@ ACI là mã màu cần truyền cho AutoCAD khi công cụ nhận ACI; HEX/RGB c
 ## Công cụ nào dùng được trên AutoCAD LT
 
 - Trước khi kết luận một công cụ không dùng được trên LT, gọi thao tác chỉ đọc của nó (preview, list, info) và đọc mã lỗi trả về. Chỉ kết luận theo lỗi đã quan sát được, không theo suy đoán.
-- Khi cần đọc mã nguồn để biết hành vi trên LT, xem `lt-adapter/` trước (`contract.json`, `py/lt_adapter/`, `lisp/mcp_dispatch_lt.lsp`). Không suy ra từ `autocad-beiming-mcp-custom/`: đó là mã gốc cho AutoCAD đầy đủ, adapter thay thế nhiều phần của nó khi chạy trên LT.
+- Khi cần đọc mã nguồn để biết hành vi trên LT, xem `lt-adapter/` trước (`contract.json`, `py/lt_adapter/`, `lisp/mcp_dispatch_lt.lsp`). Không suy ra từ `autocad-beiming-mcp/`: đó là mã gốc cho AutoCAD đầy đủ, adapter thay thế nhiều phần của nó khi chạy trên LT.
 - `copy_region_between_dwgs` và `delete_batching` đã được thay bằng bản LT và dùng được trên LT. `copy_region_between_dwgs` cần hai file DWG đã lưu, cả hai đang mở trong cùng một phiên LT, bản nguồn phải là bản vẽ đang hoạt động; chuyển bằng `drawing` `activate` (xem dưới), không cần nhờ người dùng bấm tab.
 - `drawing` `activate` dùng được trên LT cho bản vẽ **đã mở sẵn** trong phiên: truyền `doc_id` (hoặc đường dẫn đầy đủ của file) và `expected_revision`. Nếu `doc_id` không thuộc bản vẽ nào đang mở, lỗi trả về kèm `open_documents` (đường dẫn, tên, bản nào đang hoạt động). Sau khi chuyển, đọc lại `drawing` `context` vì `doc_id`, `revision` và `lease_token` thuộc bản vẽ mới. `drawing` `open` với đường dẫn đầy đủ (có thể có dấu tiếng Việt) mở được file DWG/DXF có sẵn trên LT và đưa nó thành bản vẽ đang hoạt động; đường dẫn sai trả `DWG file not found`. Sau khi mở, đọc lại `drawing` `context` để xác nhận đúng tên bản vẽ trước khi vẽ. LT không tạo bản vẽ mới và không đóng bản vẽ: cần file mới thì nhờ người dùng tạo, hoặc xin phép chép một bản mẫu thành file mới rồi mở nó.
 - **Tạo bản vẽ mới trên LT: làm như tạo một file DWG bình thường.** `drawing create` không chạy trên LT, nên: (1) hỏi người dùng tên file và thư mục lưu (hộp chọn nếu có vài phương án); (2) sao một template của LT thành file `.dwg` ở đó, ví dụ `acadltiso.dwt` (mm) trong `%LOCALAPPDATA%\Autodesk\AutoCAD LT <năm>\R<số>\enu\Template\` (tìm `*.dwt` nếu thư mục khác), dùng lệnh sao chép của hệ điều hành, không ghi đè file có sẵn; (3) `drawing` `open` file đó, rồi `drawing` `context` để lấy `doc_id`. Template đã có sẵn Layout1, Layout2, đơn vị và kiểu chữ, kích thước. Không tự dựng file DXF hay DWG tối giản bằng mã để thay cho template, vì file đó thiếu Layout, đơn vị (`INSUNITS`=0) và kiểu chú thích. Xong việc, hỏi người dùng rồi lưu bằng `drawing` `save` (mục dưới).

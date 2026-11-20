@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { dialog } from "./Dialog";
 import { MAX_IMAGES, prepareImage, type Att } from "./attach";
-import { ModelMenu } from "./ModelMenu";
+import { ModelMenu, type Effort } from "./ModelMenu";
 import { AskCard, type AskItem } from "./AskCard";
 import { CopyButton, Markdown } from "./Markdown";
 import { collect, SessionPanel } from "./SessionPanel";
+import { ProjectTree } from "./ProjectTree";
 import { answerAsk, chat, delConv, getQuota, listModels, type Quota, type WinState, WIN_NAME, tightest, listSkills, type ModelInfo, type Usage, NO_USAGE, addUsage, type Skill, fetchImage, getConv, listConvs, newId, niceError, putConv, type Content, type ConvMeta } from "./api";
 
 type Item =
@@ -117,7 +118,12 @@ function ToolCard({ t }: { t: Extract<Item, { kind: "tool" }> }) {
 
 /** Đầu vào của phiên = phần mới + phần đọc từ bộ nhớ đệm + phần ghi vào bộ nhớ đệm (cả ba đều là token Claude phải xử lý). */
 const usageIn = (u: Usage) => u.input + u.cacheRead + u.cacheWrite;
-const fmtTok = (n: number) => (n < 1000 ? String(n) : `${(n / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}k`);
+/** 950 -> "950", 51.700 -> "51,7k", 6.504.400 -> "6,5m", 2.100.000.000 -> "2,1b". */
+const fmtTok = (n: number) => {
+  // Ngưỡng tính sau làm tròn một chữ số lẻ, để 999.999 thành "1m" chứ không phải "1.000k".
+  const u = n >= 999_950_000 ? [1e9, "b"] : n >= 999_950 ? [1e6, "m"] : n >= 1e3 ? [1e3, "k"] : null;
+  return u ? `${(n / (u[0] as number)).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}${u[1]}` : String(n);
+};
 const pctOf = (w: WinState) => Math.min(100, Math.round((w.used / w.limit!) * 100));
 const levelOf = (p: number) => (p >= 100 ? " qbar-full" : p >= 80 ? " qbar-warn" : "");
 /** Thời điểm đặt lại, viết ngắn: cùng ngày thì chỉ giờ, khác ngày thì thêm ngày. */
@@ -186,7 +192,23 @@ const ago = (t: number) => {
   return new Date(t).toLocaleDateString("vi-VN");
 };
 
-export function Chat({ epoch }: { epoch: number }) {
+/** Bỏ dấu tiếng Việt và viết thường, để "/pho" khớp cả "phố", "phòng". */
+const fold = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
+/** "thiet-ke-phong-nha" -> "Thiet Ke Phong Nha" (nhãn của chip skill). */
+const skillTitle = (name: string) => name.split("-").map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(" ");
+/** Tin của người dùng bắt đầu bằng "/ten-skill" (skill có thật): hiện chip skill rồi phần còn lại. */
+function UserText({ text, known }: { text: string; known: { name: string }[] }) {
+  const m = /^\/([\w-]+)\s*([\s\S]*)$/.exec(text);
+  if (!m || !known.some(k => k.name === m[1])) return <>{text}</>;
+  return <><span className="skill-chip in-bubble">{skillTitle(m[1])}</span>{m[2] ? " " + m[2] : ""}</>;
+}
+const STARTER = "Phiên chat mới";   // tên phiên chat trống gateway tạo kèm dự án; đổi thành câu hỏi đầu tiên khi gửi
+
+type ChatProps = {
+  epoch: number; project: string; treeKey: number; initialOpen?: string;
+  onSelectProject: (id: string) => void; onOpenOther: (project: string, conv: string) => void; onTurnDone?: () => void; onProjectsChanged?: () => void;
+};
+export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, onOpenOther, onTurnDone, onProjectsChanged }: ChatProps) {
   const [convs, setConvs] = useState<ConvMeta[]>([]);
   const [curId, setCurId] = useState(newId);
   const [items, setItems] = useState<Item[]>([]);
@@ -195,6 +217,8 @@ export function Chat({ epoch }: { epoch: number }) {
   const [listErr, setListErr] = useState("");
   const [skills, setSkills] = useState<Skill[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [effort, setEffortState] = useState<Effort>(() => { try { return (localStorage.getItem("cad-effort") as Effort) || "medium"; } catch { return "medium"; } });
+  const setEffort = (e: Effort) => { setEffortState(e); try { localStorage.setItem("cad-effort", e); } catch { /* bỏ qua */ } };
   const [model, setModel] = useState("");                  // model của phiên đang mở; lưu cùng hội thoại
   const [usage, setUsageState] = useState<Usage>(NO_USAGE);  // token đã dùng của phiên này
   const usageRef = useRef<Usage>(NO_USAGE);                // bản mới nhất, cho persist() (state trong closure có thể cũ)
@@ -269,7 +293,7 @@ export function Chat({ epoch }: { epoch: number }) {
     return () => { document.removeEventListener("visibilitychange", back); document.title = base; };
   }, [busy, items.length]);
 
-  const refresh = useCallback(() => listConvs().then(c => { setConvs(c); setListErr(""); }).catch(e => setListErr(niceError(e))), []);
+  const refresh = useCallback(() => listConvs().then(c => { setConvs(c); setListErr(""); setConvsLoaded(true); }).catch(e => setListErr(niceError(e))), []);
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => { listSkills().then(setSkills).catch(() => setSkills([])); }, [epoch]);
   useEffect(() => {
@@ -280,18 +304,20 @@ export function Chat({ epoch }: { epoch: number }) {
   // Menu "/": chỉ hiện khi đang gõ token đầu tiên của tin nhắn, ví dụ "/chung" (chưa có dấu cách).
   const slashQ = /^\/([\w-]*)$/.exec(input)?.[1];
   const matches = slashQ === undefined || menuOff ? [] :
-    skills.filter(s => (s.name + " " + s.description).toLowerCase().includes(slashQ.toLowerCase()))
+    skills.filter(s => fold(s.name + " " + s.description).includes(fold(slashQ)))
       .sort((a, b) => Number(b.name.includes(slashQ)) - Number(a.name.includes(slashQ)));
   const slashRef = useRef<HTMLUListElement>(null);
   useEffect(() => { slashRef.current?.querySelector("li.on")?.scrollIntoView({ block: "nearest" }); }, [sel, matches.length]);
-  const pickSkill = (name: string) => { setInput(`/${name} `); setSel(0); };
+  // Chọn skill: hiện thành "chip" trong ô nhập (như Orca), không để chữ "/ten-skill" lẫn vào câu hỏi.
+  const [chip, setChip] = useState<string | null>(null);
+  const pickSkill = (name: string) => { setChip(name); setInput(i => i.replace(/^\/[\w-]*\s?/, "")); setSel(0); taRef.current?.focus(); };
 
   const persist = async (id: string) => {
     const firstUser = itemsRef.current.find(i => i.kind === "user");
     if (!firstUser) return;
     try {
       await putConv(id, {
-        ...(convs.some(c => c.id === id) ? {} : { title: (firstUser as { text: string }).text.slice(0, 60) || "Ảnh đính kèm" }),
+        ...(convs.some(c => c.id === id && c.title !== STARTER) ? {} : { title: (firstUser as { text: string }).text.slice(0, 60) || "Ảnh đính kèm" }),
         items: itemsRef.current, history: history.current, sessionId: sessionId.current, model: model || undefined, usage: usageRef.current,
       });
       void refresh();
@@ -299,7 +325,7 @@ export function Chat({ epoch }: { epoch: number }) {
   };
 
   const send = async (override?: string, overrideImgs?: Content[]) => {
-    const text = (override ?? input).trim();
+    const text = (override ?? (chip ? `/${chip} ${input}` : input)).trim();
     const imgs: Content[] = overrideImgs ?? atts.map(a => ({ type: "image", mimeType: a.mime, data: a.data }));
     if ((!text && !imgs.length) || busy) return;
     const id = curId;
@@ -313,7 +339,7 @@ export function Chat({ epoch }: { epoch: number }) {
     const content = imgs.length
       ? [...imgs.map(i => ({ type: "image", source: { type: "base64", media_type: i.mimeType, data: i.data } })), { type: "text", text: prompt || "Hãy xem ảnh đính kèm." }]
       : prompt;
-    setInput(""); setBusy(true); setFailed(null); setAttErr("");
+    setInput(""); setChip(null); setBusy(true); setFailed(null); setAttErr("");
     if (overrideImgs === undefined) { dropAtts(atts); setAtts([]); }
     push(p => [...p, { kind: "user", text, ...(imgs.length ? { images: imgs } : {}) }]);
     queueMicrotask(() => toBottom(false));      // tự gửi thì luôn kéo xuống xem câu trả lời
@@ -332,11 +358,11 @@ export function Chat({ epoch }: { epoch: number }) {
         else if (e.event === "usage") setUsage(addUsage(usageRef.current, e.data));
         else if (e.event === "ask") push(p => [...p, { kind: "ask", id: e.data.id, questions: e.data.questions }]);
         else if (e.event === "done") { history.current = e.data.messages; sessionId.current = e.data.sessionId; }
-      }, ac.signal, model || undefined);
+      }, ac.signal, model || undefined, effort);
     } catch (e) {
       push(p => [...p, { kind: "note", text: ac.signal.aborted ? "Đã dừng." : niceError(e) }]);
       if (!ac.signal.aborted) setFailed(text || "ảnh");      // giữ lại tin đã gõ (kèm ảnh) để gửi lại, không bắt gõ lại từ đầu
-    } finally { setAll(expireAsks(itemsRef.current)); setBusy(false); abort.current = null; refreshQuota(); await persist(id); }
+    } finally { setAll(expireAsks(itemsRef.current)); setBusy(false); abort.current = null; refreshQuota(); await persist(id); onTurnDone?.(); }
   };
 
   /** Gửi lại tin nhắn vừa lỗi: bỏ tin của mình và dòng báo lỗi ở cuối, rồi gửi lại nguyên văn. */
@@ -365,6 +391,17 @@ export function Chat({ epoch }: { epoch: number }) {
     } catch (e) { setListErr(niceError(e)); }
   };
 
+  // Bấm một cuộc trò chuyện của dự án khác: main đổi dự án rồi dựng lại Chat với initialOpen.
+  const opened = useRef(false);
+  // Không chỉ định thì mở sẵn phiên chat trống mới nhất (phiên tạo kèm dự án), như Orca mở phiên đang dở.
+  const [convsLoaded, setConvsLoaded] = useState(false);
+  useEffect(() => {
+    if (opened.current || !models.length || !convsLoaded) return;
+    const target = initialOpen ?? (convs[0]?.title === STARTER ? convs[0].id : undefined);
+    opened.current = true;
+    if (target) void open(target);
+  }, [models, convsLoaded]);
+
   const remove = async (id: string) => {
     if (!(await dialog.confirm("Xóa cuộc trò chuyện này?", { body: "Không khôi phục được.", okText: "Xóa", danger: true }))) return;
     try { await delConv(id); if (id === curId) reset(); void refresh(); }
@@ -381,24 +418,9 @@ export function Chat({ epoch }: { epoch: number }) {
     <div className={`chatwrap${sideOpen ? " side-open" : ""}`}>
       {sideOpen && <div className="side-veil" onClick={() => setSideOpen(false)} aria-hidden="true" />}
       <aside className="convs" aria-label="Các cuộc trò chuyện" onClick={e => { const b = (e.target as HTMLElement).closest("button"); if (b && !b.closest(".sres-head") && !b.classList.contains("sres-row")) setSideOpen(false); }}>
-        <button className="primary newchat" onClick={reset} disabled={busy}>Cuộc mới</button>
+        <ProjectTree key={treeKey} current={project} onSelect={onSelectProject} onOpenOther={onOpenOther}
+          convs={convs} curId={curId} busy={busy} onOpen={id => void open(id)} onRename={c => void rename(c)} onRemove={id => void remove(id)} onNew={reset} onProjectsChanged={onProjectsChanged} />
         {listErr && <p className="err-msg small" role="alert">{listErr}</p>}
-        <div className="conv-list">
-        <ul>
-          {convs.map(c => (
-            <li key={c.id} className={c.id === curId ? "on" : ""}>
-              <button className="pick" onClick={() => void open(c.id)} disabled={busy && c.id !== curId} title={c.title}>
-                <span className="t">{c.title}</span><small>{ago(c.updatedAt)}</small>
-              </button>
-              <span className="acts">
-                <button className="ghost" onClick={() => void rename(c)} aria-label={`Đổi tên ${c.title}`} title="Đổi tên">Sửa</button>
-                <button className="ghost" onClick={() => void remove(c.id)} aria-label={`Xóa ${c.title}`} title="Xóa">Xóa</button>
-              </span>
-            </li>
-          ))}
-        </ul>
-        {!convs.length && !listErr && <p className="hint small">Chưa có cuộc trò chuyện nào được lưu.</p>}
-        </div>
         <SessionPanel res={collect(items)} onShot={i => {
           const el = msgsRef.current?.querySelectorAll(".shot")[i];
           if (el) { unpin(); el.scrollIntoView({ block: "center", behavior: "smooth" }); }
@@ -432,7 +454,7 @@ export function Chat({ epoch }: { epoch: number }) {
             ) :
             <div key={i} className={`bubble ${it.kind}`} role={it.kind === "note" ? "alert" : undefined}>
               {it.kind === "user" && it.images?.length ? <div className="user-imgs">{it.images.map((c, j) => <Img key={c.url ?? j} c={c} />)}</div> : null}
-              {it.text}
+              {it.kind === "user" ? <UserText text={it.text} known={skills} /> : it.text}
               {it.kind === "note" && failed && i === items.length - 1 &&
                 <button className="retry" onClick={retry} disabled={busy}>Gửi lại</button>}
             </div>)}
@@ -471,7 +493,13 @@ export function Chat({ epoch }: { epoch: number }) {
               ))}
             </ul>
           )}
-          <textarea ref={taRef} rows={1} value={input} placeholder="Bạn cần làm gì với bản vẽ? Gõ / để chọn skill, dán ảnh (Ctrl+V) để đính kèm"
+          <div className="comp-input">
+          {chip && <span className="skill-chip" title={`Dùng skill ${chip}`}>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 14 4.8v6.4L8 14.5 2 11.2V4.8zM2 4.8l6 3.3 6-3.3M8 8.1v6.4" /></svg>
+            {skillTitle(chip)}
+            <button type="button" aria-label={`Bỏ skill ${chip}`} onClick={() => { setChip(null); taRef.current?.focus(); }}>×</button>
+          </span>}
+          <textarea ref={taRef} rows={1} value={input} placeholder={chip ? "" : "Bạn cần làm gì với bản vẽ? Gõ / để chọn skill, dán ảnh (Ctrl+V) để đính kèm"}
             onPaste={e => {
               const fs = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
               if (fs.length) { e.preventDefault(); void addFiles(fs); }   // dán chữ thường vẫn như cũ
@@ -484,8 +512,10 @@ export function Chat({ epoch }: { epoch: number }) {
                 if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSkill(matches[sel].name); return; }
                 if (e.key === "Escape") { e.preventDefault(); setMenuOff(true); return; }
               }
+              if (e.key === "Backspace" && chip && !input) { e.preventDefault(); setChip(null); return; }   // xóa lùi ở đầu ô thì bỏ chip
               if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
             }} />
+          </div>
           <div className="comp-bar">
             {usageIn(usage) + usage.output > 0
               ? <span className="usage" tabIndex={0} title={usageTip(usage)} aria-label={`Token của phiên này: ${usageTip(usage)}`}>
@@ -499,17 +529,21 @@ export function Chat({ epoch }: { epoch: number }) {
                 aria-label="Đính kèm ảnh" title={`Đính kèm ảnh (tối đa ${MAX_IMAGES}). Cũng có thể dán hoặc kéo thả vào khung chat.`}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 7.4 7.7 12.9a3.2 3.2 0 0 1-4.5-4.5l5.6-5.6a2.1 2.1 0 0 1 3 3L6.3 11.3a1 1 0 0 1-1.5-1.5l5-5" /></svg>
               </button>
-              {models.length > 0 && <ModelMenu models={models} value={model} onChange={setModel} disabled={busy} />}
+              {models.length > 0 && <ModelMenu models={models} value={model} onChange={setModel} effort={effort} onEffort={setEffort} disabled={busy} />}
               {busy
                 ? <button className="send stop" onClick={() => abort.current?.abort()} aria-label="Dừng" title="Dừng"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /></svg></button>
-                : <button className="send" onClick={() => void send()} disabled={!input.trim() && !atts.length} aria-label="Gửi" title="Gửi"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" /></svg></button>}
+                : <button className="send" onClick={() => void send()} disabled={!input.trim() && !atts.length && !chip} aria-label="Gửi" title="Gửi"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" /></svg></button>}
             </div>
           </div>
         </div>
         {items.length === 0 && (
           <div className="chips under">
-            {["Liệt kê các layer trong bản vẽ đang mở", "Đếm số block theo tên", "Chụp ảnh bản vẽ hiện tại"].map(s =>
-              <button key={s} onClick={() => { setInput(s); taRef.current?.focus(); }}>{s}</button>)}
+            {([
+              ["Vẽ mới", "Vẽ mới: "],
+              ["Đo/đọc bản vẽ hiện có", "Đọc bản vẽ đang mở và đo: "],
+              ["Bóc khối lượng", "Bóc khối lượng từ bản vẽ đang mở: "],
+            ] as const).map(([label, start]) =>
+              <button key={label} onClick={() => { setInput(start); taRef.current?.focus(); }}>{label}</button>)}
           </div>
         )}
       </div>

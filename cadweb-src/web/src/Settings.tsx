@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { dialog } from "./Dialog";
 import { claudeInstall, claudeLogin, claudeStatus, getConfig, niceError, saveConfig, type ClaudeStatus, type Config } from "./api";
 
+/** Mục "Trợ lý AI" của trang Cài đặt: cách gọi trợ lý (Claude CLI / API key / Codex) và API key. */
 export function Settings({ onSaved, reloadKey }: { onSaved: () => void; reloadKey: string }) {
   const [cfg, setCfg] = useState<Config | null>(null);
   const [engine, setEngine] = useState<"cli" | "api" | "codex">("cli");
@@ -30,9 +31,7 @@ export function Settings({ onSaved, reloadKey }: { onSaved: () => void; reloadKe
   };
 
   return (
-    <div className="full settings">
-      <form onSubmit={submit}>
-        <h1>Cài đặt</h1>
+      <form className="sp-form" onSubmit={submit}>
 
         <fieldset className="engine">
           <legend>Cách gọi trợ lý</legend>
@@ -63,7 +62,6 @@ export function Settings({ onSaved, reloadKey }: { onSaved: () => void; reloadKe
           {msg && <span className={msg.ok ? "ok-msg" : "err-msg"} role={msg.ok ? "status" : "alert"}>{msg.text}</span>}
         </div>
       </form>
-    </div>
   );
 }
 

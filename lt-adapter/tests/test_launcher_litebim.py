@@ -277,8 +277,25 @@ def test_gateway_routes_litecad_to_its_own_bridge(monkeypatch):
     request = FakeRequest("POST", json.dumps({"jsonrpc": "2.0", "id": 3, "method": "tools/list"}).encode())
     request.path_params = {"key": "litecad"}
     response = run(gateway.queued_mcp_route(request))
-    assert json.loads(response.body)["result"]["tools"] == TOOLS
+    assert json.loads(response.body)["result"]["tools"] == TOOLS + [gateway.PIPE_SKILLS_TOOL]
     assert litecad_pipe.seen and not seen
+
+
+def test_litebim_route_offers_the_project_skills(monkeypatch):
+    pipe = FakePipe()
+    bridge, _ = bridge_with(pipe)
+    monkeypatch.setattr(gateway, "litebim", bridge)
+    init = json.loads(run(gateway.queued_mcp_route(post({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                                         "params": {"protocolVersion": "2025-03-26"}}))).body)
+    assert "`skills`" in init["result"]["instructions"]
+    tools = json.loads(run(gateway.queued_mcp_route(post({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))).body)
+    assert [t["name"] for t in tools["result"]["tools"]].count("skills") == 1
+    sent_before = len(pipe.seen)
+    listed = json.loads(run(gateway.queued_mcp_route(post({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                                                           "params": {"name": "skills", "arguments": {"operation": "list"}}}))).body)
+    payload = json.loads(listed["result"]["content"][0]["text"])
+    assert listed["id"] == 3 and payload["ok"] and any(s["name"] == "thiet-ke-phong-nha" for s in payload["skills"])
+    assert len(pipe.seen) == sent_before   # skills trả lời ngay ở gateway, không gửi xuống LiteBIM
 
 
 def test_status_line_wording():

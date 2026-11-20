@@ -10,7 +10,7 @@ import { join } from "node:path";
 // cùng bộ hàm này, với bước kiểm thành viên đặt ở route trước khi gọi vào đây.
 const ROOT = process.env.CAD_DATA_DIR ?? fileURLToPath(new URL("../data/", import.meta.url));
 
-export type Scope = { kind: "user"; id: string };
+export type Scope = { kind: "user" | "project"; id: string };
 export const userScope = (id: string): Scope => {
   if (!/^[a-z0-9-]{1,64}$/.test(id)) throw new Error("userId không hợp lệ");   // chặn ../ và ký tự lạ trong tên thư mục
   return { kind: "user", id };

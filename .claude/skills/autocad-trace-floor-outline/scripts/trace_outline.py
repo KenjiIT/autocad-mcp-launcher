@@ -17,7 +17,7 @@ Ví dụ:
      --snap-x 6000 14345 22695 106995 --snap-y 400 11000 27900 30900 --out out_dir
 
 --offset: dịch tọa độ nguồn sang hệ đích (x_moi = x_nguon + dx). --bbox cho theo hệ ĐÍCH.
-Cần: ezdxf, numpy, matplotlib (có sẵn trong .venv của autocad-beiming-mcp-custom).
+Cần: ezdxf, numpy, matplotlib (có sẵn trong .venv của autocad-beiming-mcp).
 """
 import argparse
 import json
