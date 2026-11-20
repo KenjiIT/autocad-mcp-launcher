@@ -1,4 +1,4 @@
-"""Tự thêm hoặc gỡ cấu hình ba MCP của launcher (autocad_puran, autocad_beiming, dutoan) trong agent.
+"""Tự thêm hoặc gỡ cấu hình các MCP của launcher (autocad_puran, autocad_beiming, dutoan, và litebim, litecad khi máy có) trong agent.
 
 Chỉ động vào đúng ba mục của launcher; mọi MCP khác của người dùng giữ nguyên. Trước khi ghi, tệp
 cấu hình được sao lưu vào ``backup_dir`` (không để tệp .bak rải trong thư mục của agent).
@@ -23,8 +23,8 @@ except ImportError:  # pragma: no cover
     tomllib = None
 
 GATEWAY = "http://127.0.0.1:8764"
-SERVERS = ("autocad_puran", "autocad_beiming", "dutoan")
-KEYS = {"autocad_puran": "puran", "autocad_beiming": "beiming", "dutoan": "dutoan"}
+SERVERS = ("autocad_puran", "autocad_beiming", "dutoan", "litebim", "litecad")
+KEYS = {"autocad_puran": "puran", "autocad_beiming": "beiming", "dutoan": "dutoan", "litebim": "litebim", "litecad": "litecad"}
 AGENTS = ("OpenAI Codex", "Claude Code", "Claude Desktop", "Cursor")
 BEGIN = "# >>> AutoCAD MCP Launcher (tự thêm; gỡ bằng nút Gỡ khỏi agent trong launcher)"
 END = "# <<< AutoCAD MCP Launcher"
@@ -52,6 +52,8 @@ class Context:
     bridge_python: str = sys.executable
     bridge_script: str = "stdio_bridge.py"
     dutoan: bool = True
+    litebim: bool = False  # chỉ thêm khi máy có LiteBIM
+    litecad: bool = False  # chỉ thêm khi máy có LiteCAD
     run: Callable = _default_run
     which: Callable = shutil.which
     stamp: Callable = lambda: time.strftime("%Y%m%d-%H%M%S")
@@ -65,7 +67,7 @@ class Context:
 
 
 def names(ctx):
-    return [n for n in SERVERS if n != "dutoan" or ctx.dutoan]
+    return [n for n in SERVERS if (n != "dutoan" or ctx.dutoan) and (n != "litebim" or ctx.litebim) and (n != "litecad" or ctx.litecad)]
 
 
 # ---- đường dẫn tệp cấu hình ---------------------------------------------
@@ -225,7 +227,7 @@ def describe_plan(agent, ctx, remove=False):
         if (remove and st != "missing") or (not remove and st != "ok"):
             changes += 1
         lines.append(f"  - {n}: {label[st]}")
-    lines.append("Chỉ ba mục trên bị đụng tới; các MCP khác của bạn giữ nguyên.")
+    lines.append("Chỉ các mục trên bị đụng tới; các MCP khác của bạn giữ nguyên.")
     if changes:
         lines.append(f"Bản sao lưu trước khi ghi: {ctx.backup_dir}")
     return {"text": "\n".join(lines), "changes": changes, "problem": None}

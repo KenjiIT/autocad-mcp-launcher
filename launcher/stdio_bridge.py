@@ -9,13 +9,13 @@ from mcp.server.stdio import stdio_server
 
 
 async def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in ("puran", "beiming", "dutoan"):
-        raise SystemExit("Usage: stdio_bridge.py puran|beiming|dutoan")
+    if len(sys.argv) != 2 or sys.argv[1] not in ("puran", "beiming", "dutoan", "litebim", "litecad"):
+        raise SystemExit("Usage: stdio_bridge.py puran|beiming|dutoan|litebim|litecad")
     name = sys.argv[1]
     async with streamablehttp_client(f"http://127.0.0.1:8764/{name}/mcp") as (read, write, _):
         async with ClientSession(read, write) as remote:
             remote_init = await remote.initialize()
-            server = Server("dutoan" if name == "dutoan" else f"autocad_{name}", instructions=remote_init.instructions)
+            server = Server(name if name in ("dutoan", "litebim", "litecad") else f"autocad_{name}", instructions=remote_init.instructions)
 
             @server.list_tools()
             async def list_tools():

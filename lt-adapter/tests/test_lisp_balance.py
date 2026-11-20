@@ -36,7 +36,7 @@ def _balance(path: Path) -> int:
 def test_mcp_dispatch_lisp_balanced():
     root = Path(__file__).resolve().parents[2]
     dispatchers = (
-        root / "autocad-beiming-mcp-custom" / "lisp-code" / "mcp_dispatch.lsp",
+        root / "autocad-beiming-mcp" / "lisp-code" / "mcp_dispatch.lsp",
         root / "lt-adapter" / "lisp" / "mcp_dispatch_lt.lsp",
     )
     for dispatcher in dispatchers:

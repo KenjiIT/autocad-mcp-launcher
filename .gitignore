@@ -50,3 +50,7 @@ harness/metrics/cost-by-session.json
 
 # Mẫu dự toán GXD có dữ liệu bản quyền, chỉ dùng nội bộ, không đưa vào repo công khai
 **/MAU_du_toan_GXD_trong.xlsm
+
+# CAD Studio local: build output (CI) and dependencies
+cadweb/
+cadweb-src/node_modules/

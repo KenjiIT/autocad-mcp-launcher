@@ -50,7 +50,7 @@ def validate_contract(repo_root: Path = REPO_ROOT) -> list[str]:
                 f"signature changed for {dotted_name}: expected {expected}, found {actual}"
             )
 
-    dispatcher = repo_root / "autocad-beiming-mcp-custom" / "lisp-code" / "mcp_dispatch.lsp"
+    dispatcher = repo_root / "autocad-beiming-mcp" / "lisp-code" / "mcp_dispatch.lsp"
     if not dispatcher.is_file():
         problems.append(f"missing upstream dispatcher {dispatcher}")
     else:

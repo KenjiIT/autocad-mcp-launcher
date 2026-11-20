@@ -29,7 +29,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 LOCAL_BASE = "http://127.0.0.1:8764"
-PATH_RE = re.compile(r"^/(beiming|puran|dutoan)/mcp$")
+PATH_RE = re.compile(r"^/(beiming|puran|dutoan|litebim|litecad)/mcp$")
 METHODS = frozenset({"GET", "POST", "DELETE"})
 # Chỉ các header MCP cần thiết; không chuyển `authorization` của server xuống gateway nội bộ.
 REQUEST_HEADERS = ("content-type", "accept", "mcp-session-id", "mcp-protocol-version", "last-event-id")
@@ -315,7 +315,7 @@ class Connection:
         if method not in METHODS:
             return await refuse("METHOD_NOT_ALLOWED", "Chỉ chấp nhận GET, POST, DELETE.")
         if not isinstance(path, str) or not PATH_RE.match(path):
-            return await refuse("FORBIDDEN_PATH", "Chỉ cho phép /beiming/mcp, /puran/mcp, /dutoan/mcp.")
+            return await refuse("FORBIDDEN_PATH", "Chỉ cho phép /beiming/mcp, /puran/mcp, /dutoan/mcp, /litebim/mcp, /litecad/mcp.")
         try:
             body = base64.b64decode(frame.get("body_b64") or "", validate=True)
         except (binascii.Error, ValueError, TypeError):

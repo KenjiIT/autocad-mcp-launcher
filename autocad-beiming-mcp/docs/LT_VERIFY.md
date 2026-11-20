@@ -8,7 +8,7 @@ The standalone runner refuses to run while the launcher Beiming server is listen
 
 The active drawing must be empty and either named `Drawing*.dwg` or located under `AUTOCAD_MCP_LT_TEST_ROOT`. The runner never saves. It creates a rectangle, circle, and hatches, probes the resulting entities and areas, tests invalid handles, deletes its own test entities, then confirms the model-space handle set matches the initial snapshot.
 
-From PowerShell in `autocad-beiming-mcp-custom`:
+From PowerShell in `autocad-beiming-mcp`:
 
 ```powershell
 $env:AUTOCAD_MCP_LISP_PATH = (Join-Path (Get-Location).Path 'lisp-code\mcp_dispatch.lsp')

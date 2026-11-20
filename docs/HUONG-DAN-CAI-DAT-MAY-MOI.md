@@ -136,7 +136,7 @@ Nếu vẫn báo tệp đang được dùng (ví dụ launcher đang chạy bả
 
 ### 2.9 Thư viện block và AutoCAD LT (nếu dùng)
 - Tab **Cài đặt**, mục **Thư viện block** có nút **Mở thư mục thư viện**: nơi lưu block dựng sẵn (nội thất, cây, thiết bị vệ sinh) dạng `.dwg` hoặc `.dxf`. Agent chèn bằng tên file; đơn vị mỗi file phải là mm. Quy ước đặt tên nằm trong `README.md` của thư mục.
-- AutoCAD LT: LT gửi lệnh qua cửa sổ AutoCAD và dispatcher AutoLISP, nên phải thêm thư mục `autocad-beiming-mcp-custom\lisp-code` vào `TRUSTEDPATHS` của LT. Chi tiết ở `README.md` của repo, mục LT.
+- AutoCAD LT: LT gửi lệnh qua cửa sổ AutoCAD và dispatcher AutoLISP, nên phải thêm thư mục `autocad-beiming-mcp\lisp-code` vào `TRUSTEDPATHS` của LT. Chi tiết ở `README.md` của repo, mục LT.
 
 ### 2.10 Kết nối ra server (tùy chọn, từ v0.4.6)
 Chỉ cần khi một web hoặc server ở máy khác phải dùng MCP trên máy này. Launcher chủ động kết nối **ra** server (`wss://`), không mở cổng nào ở máy local. Tắt mặc định; tắt thì mọi thứ chạy như cũ.
@@ -148,7 +148,18 @@ Chỉ cần khi một web hoặc server ở máy khác phải dùng MCP trên m�
 
 Server chỉ gọi được ba đường `/beiming/mcp`, `/puran/mcp`, `/dutoan/mcp`; tool `launcher_set_backend` bị chặn với server; cổng buộc đọc skill vẫn áp dụng. Đặc tả giao thức đầy đủ: [GIAO-THUC-AGENT-KET-NOI-RA.md](GIAO-THUC-AGENT-KET-NOI-RA.md). Ảnh chụp từ `view get_screenshot` (kèm `include_image`) được trả trực tiếp khi chế độ này bật, áp dụng khi tiến trình Beiming khởi động lại.
 
-### 2.11 Kiểm tra cài đặt xong
+### 2.11 LiteBIM và LiteCAD (tùy chọn, bản sau v0.4.6)
+Máy có LiteBIM thì gateway có thêm MCP `litebim` (`http://127.0.0.1:8764/litebim/mcp`, 12 tool: `model_summary`, `list_elements`, `element_info`, `list_rooms`, `get_selection`, `view`, `get_reference`, `run_script`, `edit_script`, `get_script`, `undo_last`, `select`). Không cần cài thêm gì.
+
+1. Mở LiteBIM và bật MCP: Tùy chọn > AI, hoặc gõ lệnh `MCP` rồi chọn On. Tùy chọn **Read only** của LiteBIM quyết định agent có được sửa mô hình hay không.
+2. Bấm **Tự thêm vào agent** (launcher tự thêm mục `litebim` khi thấy LiteBIM đã cài), hoặc thêm tay theo README.
+3. Mở phiên agent mới và hỏi: "Dùng litebim, cho biết tóm tắt dự án." Phải thấy các tầng và số phần tử.
+
+LiteBIM chưa mở thì agent vẫn kết nối được nhưng chưa có tool; mở LiteBIM xong dùng được ngay. Pipe có tên `litebim-mcp-<tên người dùng Windows>`; đặt biến môi trường `g_MCP_PIPE` nếu LiteBIM dùng tên khác. **LiteCAD** làm y hệt: gateway có thêm `http://127.0.0.1:8764/litecad/mcp` (pipe `litecad-mcp-<tên Windows>`), mở LiteCAD và bật MCP là dùng được. Biến `g_MCP_PIPE` (nếu đặt) chỉ áp cho sản phẩm có tên pipe cùng tiền tố. Tab Điều khiển có một dòng trạng thái cho mỗi sản phẩm đã cài: "Đang nối qua gateway", "Đang mở, MCP bật" hoặc "Chưa mở hoặc MCP đang tắt".
+
+Lệnh `run_script` chạy tối đa 30 giây trong LiteBIM; quá thời gian chờ của cầu nối (120 giây) thì cầu nối báo "có thể vẫn đang chạy" và không tự gửi lại.
+
+### 2.12 Kiểm tra cài đặt xong
 1. `http://127.0.0.1:8764/status` trả trạng thái JSON. Trang chủ launcher hiện trạng thái `dutoan` (sẵn sàng hoặc chưa có dữ liệu).
 2. Trong agent mới, hỏi: "Liệt kê tool MCP bạn có." Phải thấy `knowledge` (đọc tri thức chung), `knowledge_propose` (gửi đề xuất), `skills`, `launcher_set_backend`, các tool CAD của `autocad_beiming`/`autocad_puran`, và 12 tool của `dutoan` (`search_don_gia`, `phan_tich_don_gia`, `create_project`, `add_project_item`, `get_project_summary`, `search_vat_tu`, `calculate_cvc`, `lookup_svdt`, `calculate_svdt`, `compare_prices`, `get_thvt`, `list_projects`).
 3. Hỏi agent: "Tra tri thức chung về cách đọc mặt bằng kết cấu Revit." Nó phải gọi tool `knowledge` (hoặc skill `knowledge-query`) và nêu trang nó dựa vào. Tool `knowledge` đọc thư mục tri thức của launcher nên hoạt động cả khi agent không được cấp quyền vào thư mục đó; chưa tải tri thức thì nó báo `KNOWLEDGE_NOT_DOWNLOADED`.
@@ -303,6 +314,7 @@ Trang đã đẩy lên `main` **chưa** tới người dùng cho tới khi đón
 - Khóa nhóm nhúng sẵn chỉ là che giấu, không phải bảo mật; ai tải launcher công khai cũng lấy lại được.
 - Lời dặn agent tự ghi và gửi là hướng dẫn cho mô hình, không có gì ép buộc; chưa kiểm chứng đầy đủ trong nhiều phiên thật.
 - Nút **Tự thêm vào agent** (v0.4.5): mới thử bằng test trên tệp tạm, trên bản sao `config.toml` của Codex, và với lệnh `claude mcp` thật dùng thư mục cấu hình tạm. **Đã ghi thật một lần** vào Claude Desktop bản Store (tệp hợp lệ, Claude Desktop liệt kê ba connector); **chưa ghi thật** vào Cursor, Codex, Claude Code, và chưa thử kết nối thật tới gateway sau khi ghi. Trên Python 3.10 không có bước kiểm TOML sau khi sửa Codex.
+- `litecad` (mục 2.11): **chưa thử với LiteCAD thật** (lúc làm LiteCAD không chạy); chỉ thử đường báo "chưa mở" qua gateway thật và bằng pipe giả. `litebim` (mục 2.11): đã thử với LiteBIM 27.4.19 thật qua gateway thử (initialize, danh sách 12 tool, `model_summary`, `list_rooms`; chỉ lệnh đọc) và 16 test với pipe giả. **Chưa thử** `run_script`/`edit_script` (lệnh ghi) qua gateway, Claude Desktop qua cầu stdio, và nút Tự thêm vào agent ghi mục `litebim` thật.
 - Kết nối ra server (mục 2.10): đã thử bằng 39 test với server WebSocket giả và một lượt chạy toàn tuyến trên gateway thật (cổng thử, `dutoan` thật, `ws://` localhost). **Chưa thử** với server `wss://` thật và chứng chỉ TLS thật, với lệnh AutoCAD thật đi qua kênh này, và chạy nhiều giờ. Danh sách đầy đủ trong `GIAO-THUC-AGENT-KET-NOI-RA.md` mục 12.
 - Gateway chỉ buộc **một bước**: đọc skill `autocad-agent-coordinator` trước khi dùng tool CAD. Nó không kiểm được agent có làm theo skill, hay có nạp thêm các skill chuyên biệt khớp yêu cầu hay không. Mới thử với client MCP của Python; Claude Code, Codex và Claude Desktop thật chưa thử (chúng cần gửi lại `Mcp-Session-Id`, nếu không thì dùng chung cửa sổ 30 phút).
 - Chưa có giới hạn số đề xuất mỗi ngày cho tới khi gắn KV (mục 4.6), trong khi agent tự gửi.

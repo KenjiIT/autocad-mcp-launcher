@@ -1,0 +1,17 @@
+{
+  "name": "cad-web-local",
+  "private": true,
+  "workspaces": [
+    "gateway",
+    "web"
+  ],
+  "scripts": {
+    "dev:gateway": "npm run dev -w gateway",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w web && npm run build -w gateway",
+    "pack": "node scripts/pack.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  }
+}

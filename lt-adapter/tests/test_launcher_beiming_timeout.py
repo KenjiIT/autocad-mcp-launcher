@@ -17,7 +17,7 @@ def load(name):
 def test_serve_extends_the_read_timeout_for_the_renamed_checkout():
     """Regression: matching only the old 'beiming183' name dropped the extension, so a 60 s audit poisoned COM."""
     serve = load("serve")
-    assert serve.extends_read_timeout(Path("C:/x/autocad-beiming-mcp-custom"))
+    assert serve.extends_read_timeout(Path("C:/x/autocad-beiming-mcp"))
     assert serve.extends_read_timeout(Path("C:/x/beiming183-cloud-AutoCAD-MCP"))
     assert not serve.extends_read_timeout(Path("C:/x/puran-water-autocad-mcp"))
 

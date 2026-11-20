@@ -5,7 +5,7 @@ from lt_adapter.lt_file_ipc import LtFileIPCBackend
 
 
 ROOT = Path(__file__).resolve().parents[2]
-UPSTREAM_FILE = ROOT / "autocad-beiming-mcp-custom" / "src" / "autocad_mcp" / "backends" / "file_ipc.py"
+UPSTREAM_FILE = ROOT / "autocad-beiming-mcp" / "src" / "autocad_mcp" / "backends" / "file_ipc.py"
 COM_HELPERS = {
     "_com_executor", "_get_autocad_application", "_get_entity_via_com",
     "_create_entity_via_com", "_create_with_com_fallback", "_create_hatch_com",

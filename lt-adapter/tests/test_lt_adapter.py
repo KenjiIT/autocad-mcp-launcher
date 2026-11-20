@@ -18,7 +18,7 @@ def test_lisp_unicode_escape_decoder_preserves_json_backslashes():
 
 
 def test_staged_upstream_dispatcher_renames_only_the_function_definition(tmp_path):
-    source = ROOT / "autocad-beiming-mcp-custom" / "lisp-code" / "mcp_dispatch.lsp"
+    source = ROOT / "autocad-beiming-mcp" / "lisp-code" / "mcp_dispatch.lsp"
     destination = tmp_path / "mcp_dispatch_upstream_runtime.lsp"
     _stage_upstream_dispatcher(source, destination)
 

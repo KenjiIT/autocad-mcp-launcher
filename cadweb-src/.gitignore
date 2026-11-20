@@ -1,0 +1,14 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+
+# Bí mật và dữ liệu cục bộ: KHÔNG commit (khóa API, token, hội thoại, ảnh chụp bản vẽ)
+.env
+.env.*
+!.env.example
+.config.json*
+gateway/data/
+data/
+.vite/
+dist-pack/

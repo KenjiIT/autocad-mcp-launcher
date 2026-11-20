@@ -35,7 +35,7 @@ Lập bằng cách so từng tệp với upstream; chỉ ghi điều thấy tron
 
 ### Cấu hình, tài liệu, kiểm thử
 
-- **`pyproject.toml`**: đổi tên gói thành `autocad-beiming-mcp-custom`, đổi mô tả, thêm lệnh `autocad-beiming-mcp`. Phiên bản `4.0.0`.
+- **`pyproject.toml`**: đổi tên gói thành `autocad-beiming-mcp`, đổi mô tả, thêm lệnh `autocad-beiming-mcp`. Phiên bản `4.0.0`.
 - **`README.md`**: viết lại ngắn (bỏ khoảng 640 dòng của upstream); `README.beiming-upstream.md` là README của Beiming có chỉnh nhẹ (bỏ phần worker native), không phải bản gốc nguyên văn.
 - **`UPSTREAM_NOTES.md`** thêm mới; **`docs/LT_TOOL_PLAN.md`**, **`docs/LT_VERIFY.md`**, **`docs/LT_VERIFY_PLAN.md`** thêm mới (nói về AutoCAD LT).
 - **`.gitignore`**: thêm `/output/` và các tệp `.mcp_dispatch_*_runtime_*.lsp`.

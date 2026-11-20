@@ -11,23 +11,23 @@ Người nhận: agent thực hiện. Đọc hết mục 1 và 2 trước khi l�
    `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`; mô tả PR kết thúc bằng `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
 4. **Trước khi sửa:** chạy `git status --short` và giữ nguyên mọi thay đổi không liên quan (nhiều file chưa commit là của người dùng và của phiên trước).
 5. **Không xoá gì** ngoài việc được liệt kê và đã được người dùng cho phép. Ưu tiên di chuyển (`git mv` với file đã theo dõi, `Move-Item` với file chưa theo dõi) hơn xoá.
-6. **Không sửa mã upstream** trong `autocad-beiming-mcp-custom/src` (bản chép từ `beiming183-cloud/AutoCAD-MCP`, baseline `11f7c47e5038796a20451b38b23032e625b5aa26`).
+6. **Không sửa mã upstream** trong `autocad-beiming-mcp/src` (bản chép từ `beiming183-cloud/AutoCAD-MCP`, baseline `11f7c47e5038796a20451b38b23032e625b5aa26`).
 7. **Không đụng nội dung bản vẽ** `.dwg`. Không mở bằng AutoCAD.
 8. Không đưa việc "đã sửa file" thành "đã hoạt động": chỉ báo cái đã kiểm chứng (test chạy, lệnh trả gì) và nói rõ cái chưa kiểm chứng.
 9. Người dùng nói tiếng Việt; báo cáo bằng tiếng Việt, ngắn gọn.
 
 ## 2. Bối cảnh
 
-- `autocad-beiming-mcp-custom/`: bản chép (vendored, không có `.git` riêng) của Beiming AutoCAD MCP. Có 6 file nguồn bị sửa cục bộ: `audit.py`, `base.py`, `file_ipc.py`, `com_sta.py`, `native_pipe.py`, `server.py` (ghi ở `LOCAL_CHANGES.md`). `file_ipc.py` còn một nhánh `AddArc` của người khác, không thuộc việc LT.
+- `autocad-beiming-mcp/`: bản chép (vendored, không có `.git` riêng) của Beiming AutoCAD MCP. Có 6 file nguồn bị sửa cục bộ: `audit.py`, `base.py`, `file_ipc.py`, `com_sta.py`, `native_pipe.py`, `server.py` (ghi ở `LOCAL_CHANGES.md`). `file_ipc.py` còn một nhánh `AddArc` của người khác, không thuộc việc LT.
 - `lt-adapter/`: lớp phủ cho AutoCAD LT, có `contract.json` và `tests/`.
 - `launcher/`: ứng dụng + gateway (cổng 8764); `launcher_multi/`: launcher thử nghiệm nhiều phiên.
 - Thư mục chứa dữ liệu công việc của người dùng, **không được commit hay xoá**: `.agents/skills/autocad-identify-and-measure/`, `ErrorReports/`, `T3_dam_can_xac_nhan_dau_mut.csv`, `review_1852-T3-S-405/`, `tmp/`, `llmwiki/` (và `.llmwiki/`).
-- Test adapter (đang 56 đạt, 0 lỗi), chạy từ `autocad-beiming-mcp-custom`:
+- Test adapter (đang 56 đạt, 0 lỗi), chạy từ `autocad-beiming-mcp`:
   ```bash
   PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="src;../lt-adapter/py" .venv/Scripts/python.exe -m pytest ../lt-adapter/tests -q -p no:cacheprovider
   ```
   Bộ test upstream có 6 lỗi có sẵn từ trước phần LT (`test_audit`×2, `test_autostart`, `test_resilience`, `test_supervisor`, `test_workspace`): đừng tính là lỗi mới.
-- Interpreter: gateway cần Python có `httpx`. Dùng `autocad-beiming-mcp-custom\.venv\Scripts\python.exe`/`pythonw.exe`, **không** dùng Python hệ thống.
+- Interpreter: gateway cần Python có `httpx`. Dùng `autocad-beiming-mcp\.venv\Scripts\python.exe`/`pythonw.exe`, **không** dùng Python hệ thống.
 
 ## 3. Các việc, theo thứ tự thực hiện
 
@@ -40,7 +40,7 @@ Mỗi bước: làm, chạy "Kiểm tra", báo kết quả, rồi mới sang bư
 - **[CẦN HỎI]** nếu muốn gom chúng vào `work/`: phải rà trước xem skill, tài liệu hay script nào tham chiếu đường dẫn cũ (`grep -rn` các tên trên trong `.codex`, `.claude`, `.agents`, `docs`, `launcher`, `llmwiki`), báo danh sách rồi chờ xác nhận. Người dùng từng dặn không đụng vào các mục này.
 
 ### Bước 2 — Gom tài liệu kế hoạch LT về một chỗ
-- Hiện có: `docs/LT_ADAPTER_PLAN.md`, `docs/LT_HARDENING_PLAN.md` (đã theo dõi hoặc chưa tuỳ file) và `autocad-beiming-mcp-custom/docs/LT_TOOL_PLAN.md`, `LT_VERIFY.md`, `LT_VERIFY_PLAN.md` (chưa theo dõi).
+- Hiện có: `docs/LT_ADAPTER_PLAN.md`, `docs/LT_HARDENING_PLAN.md` (đã theo dõi hoặc chưa tuỳ file) và `autocad-beiming-mcp/docs/LT_TOOL_PLAN.md`, `LT_VERIFY.md`, `LT_VERIFY_PLAN.md` (chưa theo dõi).
 - Dời cả 5 file vào `docs/lt/`; tạo `docs/README.md` làm mục lục (một dòng mô tả mỗi file, gồm cả `claude-multi-session-autocad.md` và `PROJECT_LAYOUT_PLAN.md`).
 - Sửa mọi liên kết chéo giữa các file này và trong `lt-adapter/README.md`, `README.md`, `UPSTREAM_NOTES.md` (dùng `grep -rn "LT_.*PLAN\|LT_VERIFY"` để tìm).
 - Cập nhật mục 6 của `LT_HARDENING_PLAN.md`: ghi "56 đạt" (không phải 57; giảm 1 do bỏ `layer_set_properties` khỏi `_UNSUPPORTED`), và thêm ba việc làm sau đó chưa có test riêng: `entity-list-lt` (toạ độ), `layer_set_properties` trên LT, `launcher/acad_pid.py`. Ghi rõ "chưa có test tự động".
@@ -62,12 +62,12 @@ Mỗi bước: làm, chạy "Kiểm tra", báo kết quả, rồi mới sang bư
 
 ### Bước 5 — Lập danh sách chính xác "khác upstream ở đâu" (chỉ lập danh sách)
 - Clone upstream vào thư mục tạm **nằm ngoài repo** (scratchpad hoặc `%TEMP%`), checkout `11f7c47e5038796a20451b38b23032e625b5aa26`.
-- So `autocad-beiming-mcp-custom` (trừ `.venv`, `output`, `.local-data`, `lisp-code/.mcp_dispatch_*_runtime_*.lsp`, `__pycache__`) với bản gốc bằng `diff -rq`. Ghi kết quả vào `autocad-beiming-mcp-custom/LOCAL_CHANGES.md`: mỗi file một dòng, phân loại "sửa nguồn upstream" / "thêm mới" / "thiếu so với upstream", kèm lý do nếu biết.
+- So `autocad-beiming-mcp` (trừ `.venv`, `output`, `.local-data`, `lisp-code/.mcp_dispatch_*_runtime_*.lsp`, `__pycache__`) với bản gốc bằng `diff -rq`. Ghi kết quả vào `autocad-beiming-mcp/LOCAL_CHANGES.md`: mỗi file một dòng, phân loại "sửa nguồn upstream" / "thêm mới" / "thiếu so với upstream", kèm lý do nếu biết.
 - **Không** chuyển mã vào lớp phủ trong bước này.
 - Kiểm tra: danh sách khớp 6 file đã biết; nếu có file lạ, báo nguyên văn.
 
 ### Bước 6 — Thư mục bản vẽ làm việc
-- **[CẦN HỎI]** Hai bản `CR8-3_T3_he_truc.dwg` đang tồn tại: `autocad-beiming-mcp-custom/output/drawings/` (22/10 17:55, 111782 byte, đang mở trong LT) và `.local-data/output/drawings/` (19/10, 66097 byte). **Không xoá, không dời, không mở.** Chỉ đề xuất cho người dùng: đặt thư mục chuẩn cho bản vẽ làm việc và ghi chú trong README bản nào là bản chính.
+- **[CẦN HỎI]** Hai bản `CR8-3_T3_he_truc.dwg` đang tồn tại: `autocad-beiming-mcp/output/drawings/` (22/10 17:55, 111782 byte, đang mở trong LT) và `.local-data/output/drawings/` (19/10, 66097 byte). **Không xoá, không dời, không mở.** Chỉ đề xuất cho người dùng: đặt thư mục chuẩn cho bản vẽ làm việc và ghi chú trong README bản nào là bản chính.
 
 ## 4. Báo cáo cuối
 

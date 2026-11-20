@@ -98,6 +98,7 @@ def test_agent_config_uses_http_for_dutoan():
     cursor = json.loads(app.config_for("Cursor"))["mcpServers"]
     assert cursor["dutoan"] == {"url": url} and cursor["autocad_puran"] == {"url": "http://127.0.0.1:8764/puran/mcp"}
     servers = json.loads(app.config_for("Claude Desktop"))["mcpServers"]
-    assert set(servers) == {"autocad_puran", "autocad_beiming", "dutoan"}
+    import litebim_bridge
+    assert set(servers) == {"autocad_puran", "autocad_beiming", "dutoan"} | {k for k in ("litebim", "litecad") if litebim_bridge.installed(k)}
     assert servers["dutoan"]["args"][-1] == "dutoan" and servers["dutoan"]["args"][0].endswith("stdio_bridge.py")
     assert servers["autocad_puran"]["args"][-1] == "puran"

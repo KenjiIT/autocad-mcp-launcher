@@ -16,7 +16,7 @@ AutoCAD LT support, LT verification helpers, and LT-only tests live in the sibli
 2. Replace only the vendored Beiming files from a reviewed upstream revision, retaining `LICENSE` and provenance.
 3. Reapply changes documented in `LOCAL_CHANGES.md` and preserve the local custom tool modules that are not part of upstream.
 4. Review the adapter contract in `lt-adapter/contract.json` and its explanation in `lt-adapter/README.md`, especially the dispatcher hash, `FileIPCBackend`, and client backend lifecycle hooks.
-5. From the repository root, set `PYTHONPATH` to `lt-adapter/py` and `autocad-beiming-mcp-custom/src`, then run `pytest lt-adapter/tests -q`. This suite includes the overlay/upstream LISP balance checks.
+5. From the repository root, set `PYTHONPATH` to `lt-adapter/py` and `autocad-beiming-mcp/src`, then run `pytest lt-adapter/tests -q`. This suite includes the overlay/upstream LISP balance checks.
 6. Start the launcher with a disposable LT drawing and verify backend selection and each LT operation before using the refreshed checkout.
 
 The adapter overlays the upstream LISP dispatcher at runtime; it depends on upstream helper and command symbols remaining available. A successful merge or import is not proof of LT runtime compatibility.

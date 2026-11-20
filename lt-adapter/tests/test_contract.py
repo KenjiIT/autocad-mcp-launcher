@@ -12,8 +12,8 @@ def test_current_upstream_matches_adapter_contract():
 
 
 def test_dispatcher_hash_drift_is_reported(tmp_path):
-    source = REPO_ROOT / "autocad-beiming-mcp-custom" / "lisp-code" / "mcp_dispatch.lsp"
-    destination = tmp_path / "autocad-beiming-mcp-custom" / "lisp-code" / "mcp_dispatch.lsp"
+    source = REPO_ROOT / "autocad-beiming-mcp" / "lisp-code" / "mcp_dispatch.lsp"
+    destination = tmp_path / "autocad-beiming-mcp" / "lisp-code" / "mcp_dispatch.lsp"
     destination.parent.mkdir(parents=True)
     destination.write_bytes(source.read_bytes().replace(
         b"(defun mcp-dispatch-command (",
@@ -29,7 +29,7 @@ def test_dispatcher_hash_drift_is_reported(tmp_path):
 
 def test_contract_hash_is_the_pinned_dispatcher_hash():
     contract = json.loads((ADAPTER_ROOT / "contract.json").read_text(encoding="utf-8"))
-    dispatcher = REPO_ROOT / "autocad-beiming-mcp-custom" / "lisp-code" / "mcp_dispatch.lsp"
+    dispatcher = REPO_ROOT / "autocad-beiming-mcp" / "lisp-code" / "mcp_dispatch.lsp"
     actual = hashlib.sha256(dispatcher.read_bytes()).hexdigest().upper()
     assert actual == contract["dispatcher_sha256"]
 

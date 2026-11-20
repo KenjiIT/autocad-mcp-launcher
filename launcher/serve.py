@@ -7,10 +7,10 @@ from pathlib import Path
 def extends_read_timeout(repo):
     """Large-drawing reads (drawing.audit, entity.collect) need a deadline beyond 60 s.
 
-    The Beiming source was renamed from beiming183-cloud's checkout to autocad-beiming-mcp-custom;
+    The Beiming source was renamed from beiming183-cloud's checkout to autocad-beiming-mcp;
     matching only the old name silently dropped the extension and poisoned the COM worker.
     """
-    return repo.name.startswith("beiming183") or repo.name == "autocad-beiming-mcp-custom"
+    return repo.name.startswith("beiming183") or repo.name == "autocad-beiming-mcp"
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     os.chdir(repo)
     os.environ.setdefault("AUTOCAD_MCP_BACKEND", "file_ipc")
     adapter_root = Path(__file__).resolve().parent.parent / "lt-adapter" / "py"
-    if repo.name == "autocad-beiming-mcp-custom" and adapter_root.is_dir():
+    if repo.name == "autocad-beiming-mcp" and adapter_root.is_dir():
         sys.path.insert(0, str(adapter_root))
         from lt_adapter.bootstrap import install as install_lt_adapter
         install_lt_adapter()

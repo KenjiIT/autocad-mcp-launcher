@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>CAD Studio</title><meta name="description" content="Điều khiển AutoCAD bằng hội thoại qua MCP"/><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%231f2421%27/%3E%3Cpath d=%27M8 24 16 8l8 16M11.5 19h9%27 stroke=%27%23e8704a%27 stroke-width=%272.6%27 fill=%27none%27/%3E%3C/svg%3E"/></head>
+<body><div id="root"></div>
+<script>
+/* Chống "trắng xóa im lặng": nếu sau 4 giây giao diện vẫn chưa dựng được (lỗi tải module, lỗi cú pháp...), báo rõ thay vì để trang trống. */
+setTimeout(function () {
+  var r = document.getElementById("root");
+  if (r && !r.firstChild) r.innerHTML = '<div style="font:14px/1.6 system-ui;max-width:520px;margin:15vh auto;padding:0 20px"><b>Giao diện chưa tải được.</b><br>Thử tải lại trang (Ctrl+F5). Nếu vẫn trống: mở Console (F12) xem lỗi đỏ, rồi khởi động lại <code>npm run dev:web</code>.</div>';
+}, 4000);
+</script><script type="module" src="/src/main.tsx"></script></body></html>

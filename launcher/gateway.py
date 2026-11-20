@@ -22,13 +22,14 @@ import acad_pid
 from logfile import RotatingLog, start_logged
 import knowledge_propose
 import knowledge_read
+import litebim_bridge
 import remote_agent
 import skillgate
 import skillserve
 from cad_adapter import find_lt_window, prove_connection, prove_offline
 SERVERS = {
     "puran": ("autocad_puran", ROOT / "puran-water-autocad-mcp", 8875),
-    "beiming": ("autocad_beiming", ROOT / "autocad-beiming-mcp-custom", 8876),
+    "beiming": ("autocad_beiming", ROOT / "autocad-beiming-mcp", 8876),
 }
 DUTOAN_DIR = ROOT / "du-toan-mcp"
 DUTOAN_PORT = 8877
@@ -419,6 +420,28 @@ class DutoanService:
 
 
 dutoan = DutoanService()
+litebim = litebim_bridge.LiteBimBridge(product="litebim")
+litecad = litebim_bridge.LiteBimBridge(product="litecad")
+PIPE_BRIDGES = {"litebim": lambda: litebim, "litecad": lambda: litecad}  # tra lúc gọi để test thay được
+
+
+async def litebim_route(request: Request, bridge=None):
+    """MCP của LiteBIM hoặc LiteCAD qua pipe của chúng. Không dùng AutoCAD và không qua cổng chặn skill."""
+    if request.method == "GET":
+        return Response(status_code=405)
+    if request.method == "DELETE":
+        return Response(status_code=200)
+    try:
+        message = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "Invalid JSON-RPC request"}, status_code=400)
+    batch = message if isinstance(message, list) else [message]
+    if not all(isinstance(item, dict) for item in batch):
+        return JSONResponse({"error": "Invalid JSON-RPC request"}, status_code=400)
+    replies = [reply for reply in [await asyncio.to_thread((bridge or litebim).handle, item) for item in batch] if reply is not None]
+    if not replies:
+        return Response(status_code=202)
+    return JSONResponse(replies if isinstance(message, list) else replies[0])
 
 
 
@@ -560,6 +583,8 @@ async def queued_mcp_route(request: Request):
     """Serialize tool calls across agents through the active CAD process."""
     if request.path_params["key"] == "dutoan":
         return await dutoan.proxy(request)
+    if request.path_params["key"] in PIPE_BRIDGES:
+        return await litebim_route(request, PIPE_BRIDGES[request.path_params["key"]]())
     if request.method != "POST":
         return await mcp_route(request)
     try:
@@ -587,6 +612,8 @@ async def status_route(request: Request):
                          "queued_requests": board.queued_requests,
                          "active_request": board.active_request,
                          "dutoan": dutoan.status(),
+                         "litebim": litebim.status(),
+                         "litecad": litecad.status(),
                          "remote_agent": remote_agent.STATE.snapshot()})
 
 
@@ -616,7 +643,7 @@ def launcher_version():
 
 async def remote_status():
     """Cho khung hello của chế độ agent: MCP nào đang hoạt động và chế độ backend."""
-    servers = list(SERVERS) + (["dutoan"] if dutoan.available() else [])
+    servers = list(SERVERS) + (["dutoan"] if dutoan.available() else []) + [key for key in ("litebim", "litecad") if litebim_bridge.installed(key)]
     return {"active": board.active, "mode": board.mode, "servers": servers}
 
 
@@ -630,6 +657,8 @@ async def lifespan(_app):
     remote_task.cancel()
     await asyncio.gather(remote_task, return_exceptions=True)
     await dutoan.stop()
+    litebim.close()
+    litecad.close()
     await board.shutdown()
 
 

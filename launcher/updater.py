@@ -31,11 +31,18 @@ class UpdateError(RuntimeError):
     pass
 
 
-def version_key(value: str) -> tuple[int, int, int] | None:
-    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", str(value).strip(), re.IGNORECASE)
+def version_key(value: str) -> tuple[int, int, int, int, int] | None:
+    """``0.4.7`` → (0, 4, 7, 1, 0); ``0.4.7-beta.2`` → (0, 4, 7, 0, 2).
+
+    A beta sorts below the final release of the same number, so a machine running a beta
+    is offered the final release once it is published. Betas are GitHub pre-releases, which
+    the ``releases/latest`` endpoint never returns, so regular users are never offered one.
+    """
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)(?:-beta\.?(\d+))?", str(value).strip(), re.IGNORECASE)
     if not match:
         return None
-    return tuple(int(part) for part in match.groups())
+    major, minor, patch, beta = match.groups()
+    return (int(major), int(minor), int(patch), 0 if beta else 1, int(beta or 0))
 
 
 def _release_cache_path(repository: str) -> Path:
@@ -251,11 +258,35 @@ def apply_archive(archive: Path, root: Path, expected_version: str) -> None:
         shutil.rmtree(work, ignore_errors=True)
 
 
+def migrate_beiming_rename(root: Path) -> bool:
+    """v0.4.7 renamed ``autocad-beiming-mcp-custom`` to ``autocad-beiming-mcp``.
+
+    An update overlays the new folder but leaves the old one, with its ``.venv``, in place.
+    Move that ``.venv`` over and reinstall the project editable from the new path, so the
+    machine does not have to reinstall Beiming from scratch. Safe to call on every start.
+    """
+    old_venv = root / "autocad-beiming-mcp-custom" / ".venv"
+    project = root / "autocad-beiming-mcp"
+    if not old_venv.is_dir() or (project / ".venv").exists() or not (project / "pyproject.toml").is_file():
+        return False
+    shutil.move(str(old_venv), str(project / ".venv"))
+    log_dir = root / "launcher" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with (log_dir / "autocad_beiming-rename-install.log").open("w", encoding="utf-8") as log:
+        subprocess.run(
+            [str(project / ".venv" / "Scripts" / "python.exe"), "-m", "pip", "install", "-e", str(project)],
+            cwd=project, stdout=log, stderr=subprocess.STDOUT, timeout=900,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    return True
+
+
 def refresh_mcp_environments(root: Path) -> None:
     """Reconcile editable MCP installs with the updated project metadata."""
+    migrate_beiming_rename(root)
     for name, relative in (
         ("autocad_puran", "puran-water-autocad-mcp"),
-        ("autocad_beiming", "autocad-beiming-mcp-custom"),
+        ("autocad_beiming", "autocad-beiming-mcp"),
         ("dutoan", "du-toan-mcp"),
     ):
         project = root / relative

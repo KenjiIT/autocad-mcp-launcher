@@ -1,6 +1,6 @@
 # AutoCAD LT adapter
 
-This directory contains the AutoCAD LT transport and tool behavior kept outside the vendored Beiming source. `launcher/serve.py` installs it before importing `autocad_mcp.server` when serving `autocad-beiming-mcp-custom`.
+This directory contains the AutoCAD LT transport and tool behavior kept outside the vendored Beiming source. `launcher/serve.py` installs it before importing `autocad_mcp.server` when serving `autocad-beiming-mcp`.
 
 ## How it is loaded
 
@@ -17,8 +17,8 @@ This directory contains the AutoCAD LT transport and tool behavior kept outside 
 From the repository root in PowerShell:
 
 ```powershell
-$env:PYTHONPATH = "$PWD\lt-adapter\py;$PWD\autocad-beiming-mcp-custom\src"
-& .\autocad-beiming-mcp-custom\.venv\Scripts\python.exe -m pytest .\lt-adapter\tests -q
+$env:PYTHONPATH = "$PWD\lt-adapter\py;$PWD\autocad-beiming-mcp\src"
+& .\autocad-beiming-mcp\.venv\Scripts\python.exe -m pytest .\lt-adapter\tests -q
 ```
 
 The manual verifier is separate and refuses to run while the launcher server is listening on port 8876. Run it only with a disposable, empty `Drawing*.dwg` or a drawing under `AUTOCAD_MCP_LT_TEST_ROOT`.

@@ -22,6 +22,27 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+
+      - name: Build CAD Studio local (cadweb) with portable Node
+        shell: pwsh
+        run: |
+          Push-Location cadweb-src
+          npm ci --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { throw "npm ci failed" }
+          node scripts/pack.mjs ../cadweb
+          if ($LASTEXITCODE -ne 0) { throw "cadweb pack failed" }
+          Pop-Location
+          New-Item -ItemType Directory -Force cadweb/node | Out-Null
+          Invoke-WebRequest https://nodejs.org/dist/v22.12.0/win-x64/node.exe -OutFile cadweb/node/node.exe
+          $sums = (Invoke-WebRequest https://nodejs.org/dist/v22.12.0/SHASUMS256.txt).Content
+          $expected = ($sums -split "`n" | Where-Object { $_ -match ' win-x64/node.exe$' }) -replace ' .*$', ''
+          $actual = (Get-FileHash cadweb/node/node.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if (-not $expected -or $actual -ne $expected.Trim()) { throw "node.exe checksum mismatch" }
+
       - name: Verify release version and build portable package
         shell: pwsh
         env:
@@ -67,8 +88,11 @@ jobs:
           )
           $notesFile = "RELEASE-$env:GITHUB_REF_NAME.md"
           $title = "AutoCAD MCP Launcher $env:GITHUB_REF_NAME"
+          # Tag có hậu tố (v0.4.7-beta.1) → pre-release: tải về được, nhưng launcher của người dùng không tự cập nhật lên.
+          $extra = @()
+          if ($env:GITHUB_REF_NAME -match '-') { $extra += '--prerelease'; $extra += '--latest=false' }
           if (Test-Path $notesFile) {
-            gh release create $env:GITHUB_REF_NAME $assets --title $title --notes-file $notesFile
+            gh release create $env:GITHUB_REF_NAME $assets --title $title --notes-file $notesFile @extra
           } else {
-            gh release create $env:GITHUB_REF_NAME $assets --title $title --generate-notes
+            gh release create $env:GITHUB_REF_NAME $assets --title $title --generate-notes @extra
           }

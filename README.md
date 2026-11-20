@@ -2,17 +2,21 @@
 
 Ứng dụng Windows chạy ba MCP server cho Codex, Claude Code, Claude Desktop hoặc Cursor: hai MCP AutoCAD và công cụ dự toán `dutoan`, cả ba đều qua gateway HTTP. App khởi động mà không cần AutoCAD. Khi agent gọi tool, gateway ưu tiên AutoCAD và `autocad_beiming`; nếu AutoCAD không chạy, agent hỏi người dùng trước khi chuyển sang tạo DXF bằng `ezdxf`. Nếu agent gọi tool của `autocad_puran`, gateway ngắt MCP cũ trước khi mở MCP mới.
 
-| MCP | Địa chỉ trong máy |
-| --- | --- |
-| Beiming custom MCP, derived from [beiming183-cloud/AutoCAD-MCP](https://github.com/beiming183-cloud/AutoCAD-MCP) | `http://127.0.0.1:8764/beiming/mcp` |
-| [puran-water/autocad-mcp](https://github.com/puran-water/autocad-mcp) | `http://127.0.0.1:8764/puran/mcp` |
-| `dutoan` (tra đơn giá, định mức, lập dự toán; 12 tool) | `http://127.0.0.1:8764/dutoan/mcp` |
+| MCP                                                                                                       | Địa chỉ trong máy                   |
+| --------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| Beiming MCP, derived from [beiming183-cloud/AutoCAD-MCP](https://github.com/beiming183-cloud/AutoCAD-MCP) | `http://127.0.0.1:8764/beiming/mcp` |
+| [puran-water/autocad-mcp](https://github.com/puran-water/autocad-mcp)                                     | `http://127.0.0.1:8764/puran/mcp`   |
+| `dutoan` (tra đơn giá, định mức, lập dự toán; 12 tool)                                                    | `http://127.0.0.1:8764/dutoan/mcp`  |
+| `litebim` (LiteBIM, phần mềm BIM giống Revit; 12 tool; chỉ khi máy có LiteBIM)                            | `http://127.0.0.1:8764/litebim/mcp` |
+| `litecad` (LiteCAD, CAD 2D đọc ghi DWG/DXF; chỉ khi máy có LiteCAD)                                       | `http://127.0.0.1:8764/litecad/mcp` |
 
 `dutoan` không dùng AutoCAD nên gateway chạy riêng, không qua bộ chọn MCP AutoCAD: một tiến trình (`du-toan-mcp/.venv`, cổng nội bộ 8877) phục vụ mọi agent, tự khởi động ở lần gọi đầu tiên.
 
+`litebim` và `litecad` cũng không dùng AutoCAD và không qua cổng chặn skill. Gateway nối tới named pipe `\\.\pipe\litebim-mcp-<tên người dùng Windows>` (LiteCAD: `litecad-mcp-<tên>`) mà ứng dụng tự mở khi bật MCP (Tùy chọn > AI, hoặc lệnh `MCP`, rồi chọn On): cùng đường mà `litebim-mcp.exe` của LiteBIM dùng, nhưng phục vụ qua HTTP để dùng chung cho mọi agent và chế độ agent từ xa. LiteBIM chưa mở thì agent vẫn kết nối được, danh sách tool rỗng, và lệnh gọi báo "LiteBIM chưa mở"; mở LiteBIM xong dùng được ngay. Các lệnh được xử lý tuần tự trên một kết nối. Tab Điều khiển có dòng trạng thái cho LiteBIM/LiteCAD (chỉ hiện sản phẩm đã cài). Nút **Tự thêm vào agent** thêm mục `litebim` và `litecad` khi máy có.
+
 Cài máy mới từng bước (kể cả tri thức chung, khóa gửi đề xuất và dữ liệu dự toán) xem [docs/HUONG-DAN-CAI-DAT-MAY-MOI.md](docs/HUONG-DAN-CAI-DAT-MAY-MOI.md). README này tóm tắt phần tải về, chạy app và nối agent.
 
-Puran được gắn dưới dạng Git submodule. Source Beiming đã được tách vào `autocad-beiming-mcp-custom` và tích hợp các tool sao chép theo lô, sao chép theo vùng giữa hai bản vẽ, và xóa theo lô. Skill đi kèm hướng dẫn agent nói rõ phương án trước khi sửa bản vẽ và đọc lại kết quả sau khi dùng tool. Skill là hướng dẫn cho agent; MCP mới là thành phần thao tác với AutoCAD.
+Puran được gắn dưới dạng Git submodule. Source Beiming đã được tách vào `autocad-beiming-mcp` và tích hợp các tool sao chép theo lô, sao chép theo vùng giữa hai bản vẽ, và xóa theo lô. Skill đi kèm hướng dẫn agent nói rõ phương án trước khi sửa bản vẽ và đọc lại kết quả sau khi dùng tool. Skill là hướng dẫn cho agent; MCP mới là thành phần thao tác với AutoCAD.
 
 
 ## 1. Tải về
@@ -108,6 +112,8 @@ Mở terminal trong project này và chạy:
 claude mcp add --transport http autocad_beiming http://127.0.0.1:8764/beiming/mcp
 claude mcp add --transport http autocad_puran http://127.0.0.1:8764/puran/mcp
 claude mcp add --transport http dutoan http://127.0.0.1:8764/dutoan/mcp
+claude mcp add --transport http litebim http://127.0.0.1:8764/litebim/mcp   # chỉ khi có LiteBIM
+claude mcp add --transport http litecad http://127.0.0.1:8764/litecad/mcp   # chỉ khi có LiteCAD
 ```
 
 Đã thêm `dutoan` kiểu cũ (stdio) thì chạy `claude mcp remove dutoan` trước rồi thêm lại bằng lệnh trên. Mở lại phiên Claude Code. Skill đã nằm tại `.claude/skills/autocad-agent-coordinator/SKILL.md`; có thể yêu cầu rõ: `/autocad-agent-coordinator` trước một việc CAD.
@@ -146,7 +152,7 @@ Dùng khi web, đăng nhập và dịch vụ chạy trên một server, còn MCP
 
 - **Bật:** tab **Cài đặt**, mục **Kết nối ra server (agent từ xa)**: tick **Bật kết nối ra server**, nhập **Địa chỉ server** (`wss://…`), **Mã máy** và **Token** do người quản lý server cấp, bấm **Lưu**. Lần đầu launcher tự cài thư viện `websockets` (cần mạng). Token không hiện lại sau khi lưu và không vào log.
 - Chạy trong gateway nên cần gateway đang chạy (**Bật kết nối cho agent**); máy dùng lâu dài nên bật **Tự bật MCP khi mở launcher** và **Khởi động cùng Windows**. Trạng thái (đã kết nối, đang nối lại, token bị từ chối) hiện ở tab Cài đặt, ở dòng trạng thái của tab Điều khiển và trong `/status`.
-- Server chỉ gọi được `/beiming/mcp`, `/puran/mcp`, `/dutoan/mcp` (không gọi được `/status`, `/…/select`, `/dutoan/stop`). Tool `launcher_set_backend` bị chặn với server (đổi bằng khóa `remote_blocked_tools` trong `launcher/state/settings.json`). Cổng chặn skill vẫn áp dụng cho từng phiên.
+- Server chỉ gọi được `/beiming/mcp`, `/puran/mcp`, `/dutoan/mcp`, `/litebim/mcp`, `/litecad/mcp` (không gọi được `/status`, `/…/select`, `/dutoan/stop`). Tool `launcher_set_backend` bị chặn với server (đổi bằng khóa `remote_blocked_tools` trong `launcher/state/settings.json`). Cổng chặn skill vẫn áp dụng cho từng phiên.
 - Ảnh từ `view get_screenshot` (gọi kèm `include_image`) được trả trực tiếp trong kết quả khi chế độ này bật; áp dụng khi tiến trình Beiming khởi động lại.
 - Đặc tả giao thức (khung, giới hạn, mã lỗi, ý nghĩa của `cancel`, phần đã và chưa kiểm): [docs/GIAO-THUC-AGENT-KET-NOI-RA.md](docs/GIAO-THUC-AGENT-KET-NOI-RA.md).
 
@@ -169,7 +175,7 @@ Gateway dùng backend `file_ipc` để làm việc với AutoCAD. App tạm thê
 
 Beiming custom có adapter `lt-adapter/` cho AutoCAD LT 2024 trở lên. Khi chỉ LT đang mở, launcher tự chọn luồng `file_ipc_lt`; cũng có thể đặt `AUTOCAD_MCP_BACKEND=file_ipc_lt` để chọn rõ ràng. Mở một bản vẽ trong LT trước khi kết nối. Nếu có nhiều cửa sổ LT, đặt `AUTOCAD_MCP_ACAD_PID` theo PID cần dùng.
 
-Trên LT, Python gửi lệnh qua cửa sổ AutoCAD và dispatcher AutoLISP, không gọi Python COM. Hãy thêm thư mục `autocad-beiming-mcp-custom/lisp-code` vào `TRUSTEDPATHS` của LT. Adapter đặt bản runtime của dispatcher upstream đã đổi tên hàm vào thư mục tin cậy đó, rồi nạp overlay từ `lt-adapter/lisp/mcp_dispatch_lt.lsp`; mã nguồn adapter vẫn nằm trong `lt-adapter/`. `drawing.context` trả `doc_id`, revision và lease token; lấy lại context khi chuyển bản vẽ.
+Trên LT, Python gửi lệnh qua cửa sổ AutoCAD và dispatcher AutoLISP, không gọi Python COM. Hãy thêm thư mục `autocad-beiming-mcp/lisp-code` vào `TRUSTEDPATHS` của LT. Adapter đặt bản runtime của dispatcher upstream đã đổi tên hàm vào thư mục tin cậy đó, rồi nạp overlay từ `lt-adapter/lisp/mcp_dispatch_lt.lsp`; mã nguồn adapter vẫn nằm trong `lt-adapter/`. `drawing.context` trả `doc_id`, revision và lease token; lấy lại context khi chuyển bản vẽ.
 
 Các đường riêng cho LT hiện gồm `entity.create_hatch` (polyline kín hoặc đường tròn), `delete_batching`, `block.define` (LINE, CIRCLE, ATTDEF), `copy_region_between_dwgs`, kiểm tra/tạo/chuyển/xóa layer, cập nhật system variable, đổi pattern hatch và tạo LINE từ JSON. Khi sao chép vùng, mở cả DWG nguồn và đích trong cùng một LT, kích hoạt nguồn, gọi `preview`, rồi dùng `source_handles` trả về để gọi `copy`. Các công cụ tạo hoặc sửa solid 3D không thuộc luồng LT này. DXF export, WBLOCK, quản lý nhiều document và các lệnh phụ thuộc giao diện trả `E_NOT_SUPPORTED_ON_LT`. Bốn luồng hatch, xóa theo lô, định nghĩa block và copy vùng đã được chạy trên AutoCAD LT 2027 với bản vẽ thử; không lưu các DWG thử.
 

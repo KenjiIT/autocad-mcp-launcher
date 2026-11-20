@@ -102,7 +102,7 @@ Token không bao giờ vào log (`launcher/logs/remote_agent.log` chỉ ghi tên
 ## 11. Trả lời năm câu của mục 5
 
 1. `board.forward` **không** phát luồng: nó đọc trọn thân rồi trả (xem mục 4).
-2. Ảnh: `view get_screenshot` ghi PNG vào `autocad-beiming-mcp-custom\output\previews\mcp-captures\` và Beiming **đã** có đường trả ảnh trực tiếp; launcher chỉ bật nó (mục 9). `render_preview` chỉ trả đường dẫn.
+2. Ảnh: `view get_screenshot` ghi PNG vào `autocad-beiming-mcp\output\previews\mcp-captures\` và Beiming **đã** có đường trả ảnh trực tiếp; launcher chỉ bật nó (mục 9). `render_preview` chỉ trả đường dẫn.
 3. Thư viện: chưa có `websockets` trong venv nào; launcher cài `websockets>=13` vào venv của gateway khi bật chế độ agent.
 4. Vòng lặp nằm trong tiến trình gateway.
 5. Khác đề xuất: ý nghĩa của `cancel` (mục 6), danh sách tool bị chặn (mục 7), khung `hello` có thêm `servers` đúng thực tế, phải relay `mcp-session-id` (mục 4), cổng chặn skill (mục 8), mã lỗi (mục 5).

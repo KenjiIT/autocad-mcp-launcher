@@ -31,4 +31,4 @@ Claude Desktop (chat, Cowork) có kho skill riêng, chỉ nhận skill tải lê
 
 ## AutoCAD LT
 
-Kết nối LT đi qua `lt-adapter/`, không phải mã gốc trong `autocad-beiming-mcp-custom/`. Muốn biết một tool có chạy trên LT hay không, gọi thao tác chỉ đọc của nó và đọc mã lỗi; nếu phải đọc mã, xem `lt-adapter/` trước.
+Kết nối LT đi qua `lt-adapter/`, không phải mã gốc trong `autocad-beiming-mcp/`. Muốn biết một tool có chạy trên LT hay không, gọi thao tác chỉ đọc của nó và đọc mã lỗi; nếu phải đọc mã, xem `lt-adapter/` trước.

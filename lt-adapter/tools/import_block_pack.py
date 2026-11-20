@@ -32,7 +32,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(REPO / "autocad-beiming-mcp-custom" / "src"))
+sys.path.insert(0, str(REPO / "autocad-beiming-mcp" / "src"))
 sys.path.insert(0, str(REPO / "lt-adapter" / "py"))
 os.environ.setdefault("AUTOCAD_MCP_BACKEND", "file_ipc")
 

@@ -24,16 +24,19 @@ INCLUDE = (
     ".claude",
     *(f"dist/{name}.zip" for name in SKILL_ARCHIVES),
     "puran-water-autocad-mcp",
-    "autocad-beiming-mcp-custom",
+    "autocad-beiming-mcp",
     "du-toan-mcp",
 )
+# CAD Studio local, prebuilt by `node cadweb-src/scripts/pack.mjs cadweb` plus a portable node.exe.
+# Optional so a local build without Node still works; CI always produces it.
+OPTIONAL = ("cadweb",)
 SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "logs", "output", ".local-data", "bin", "obj"}
 SKIP_SUFFIXES = {".dwg"}  # User drawings must not be bundled with the launcher.
 SKIP_PATHS = {("launcher", "state"), ("du-toan-mcp", "data")}  # Per-machine settings, including the team key; never bundled.
 
 
 def files_to_package():
-    for entry in INCLUDE:
+    for entry in INCLUDE + tuple(name for name in OPTIONAL if (ROOT / name).exists()):
         path = ROOT / entry
         if not path.exists():
             raise FileNotFoundError(f"Missing package input: {path}")
@@ -49,7 +52,7 @@ def files_to_package():
 
 
 def main():
-    for repo in ("puran-water-autocad-mcp", "autocad-beiming-mcp-custom"):
+    for repo in ("puran-water-autocad-mcp", "autocad-beiming-mcp"):
         if not (ROOT / repo / "pyproject.toml").is_file():
             raise RuntimeError(f"Missing {repo} source; initialize Git submodules first")
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)

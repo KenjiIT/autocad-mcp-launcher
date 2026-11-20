@@ -1,0 +1,518 @@
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { dialog } from "./Dialog";
+import { MAX_IMAGES, prepareImage, type Att } from "./attach";
+import { ModelMenu } from "./ModelMenu";
+import { AskCard, type AskItem } from "./AskCard";
+import { CopyButton, Markdown } from "./Markdown";
+import { collect, SessionPanel } from "./SessionPanel";
+import { answerAsk, chat, delConv, getQuota, listModels, type Quota, type WinState, WIN_NAME, tightest, listSkills, type ModelInfo, type Usage, NO_USAGE, addUsage, type Skill, fetchImage, getConv, listConvs, newId, niceError, putConv, type Content, type ConvMeta } from "./api";
+
+type Item =
+  | { kind: "user"; text: string; images?: Content[] }
+  | { kind: "text"; text: string }
+  | { kind: "tool"; id: string; name: string; server?: string; input: unknown; done?: boolean; isError?: boolean; content?: Content[] }
+  | { kind: "note"; text: string }
+  | AskItem;
+
+/** Câu hỏi chưa được trả lời mà lượt chat đã kết thúc (hoặc nạp lại từ bản lưu) thì không còn trả lời được nữa. */
+const expireAsks = (list: Item[]): Item[] => list.map(x => (x.kind === "ask" && !x.answers && !x.expired ? { ...x, expired: true } : x));
+
+/** Ảnh: dữ liệu base64 (vừa nhận) hoặc url trên gateway (đã lưu, cần token nên tải bằng fetch). Luôn trả về blob URL để mở/tải được. */
+function useImage(c: Content) {
+  const [src, setSrc] = useState<string | undefined>();
+  const [bad, setBad] = useState(false);
+  useEffect(() => {
+    let off = false, obj: string | undefined;
+    const done = (u: string) => { obj = u; if (!off) setSrc(u); else URL.revokeObjectURL(u); };
+    if (c.url) fetchImage(c.url).then(done).catch(() => !off && setBad(true));
+    else if (c.data) fetch(`data:${c.mimeType};base64,${c.data}`).then(r => r.blob()).then(b => done(URL.createObjectURL(b))).catch(() => !off && setBad(true));
+    return () => { off = true; if (obj) URL.revokeObjectURL(obj); };
+  }, [c.url, c.data, c.mimeType]);
+  return { src, bad };
+}
+
+/** Ảnh chụp từ MCP thường nằm trong canvas lớn hơn cửa sổ AutoCAD, thừa viền đen thuần. Cắt viền đó (chỉ khi thừa đáng kể). */
+function useTrimmed(src?: string) {
+  const [out, setOut] = useState<string | undefined>();
+  useEffect(() => {
+    if (!src) return;
+    let off = false, obj: string | undefined;
+    const im = new Image();
+    im.onload = () => {
+      const w = im.naturalWidth, h = im.naturalHeight;
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+      const g = cv.getContext("2d", { willReadFrequently: true }); if (!g) return;
+      g.drawImage(im, 0, 0);
+      const px = g.getImageData(0, 0, w, h).data;
+      const lit = (x: number, y: number) => { const i = (y * w + x) * 4; return px[i] + px[i + 1] + px[i + 2] > 24; };
+      let r = w - 1, b = h - 1, l = 0, t = 0;
+      const colLit = (x: number) => { for (let y = 0; y < h; y += 2) if (lit(x, y)) return true; return false; };
+      const rowLit = (y: number) => { for (let x = 0; x < w; x += 2) if (lit(x, y)) return true; return false; };
+      while (r > 0 && !colLit(r)) r--;
+      while (l < r && !colLit(l)) l++;
+      while (b > 0 && !rowLit(b)) b--;
+      while (t < b && !rowLit(t)) t++;
+      const cw = r - l + 1, ch = b - t + 1;
+      if (cw * ch > w * h * 0.95 || cw < 50 || ch < 50) return;       // không đáng kể: giữ nguyên ảnh gốc
+      const o = document.createElement("canvas"); o.width = cw; o.height = ch;
+      o.getContext("2d")!.drawImage(cv, l, t, cw, ch, 0, 0, cw, ch);
+      o.toBlob(bl => { if (!bl) return; const u = URL.createObjectURL(bl); if (off) URL.revokeObjectURL(u); else { obj = u; setOut(u); } }, "image/png");
+    };
+    im.src = src;
+    return () => { off = true; if (obj) URL.revokeObjectURL(obj); };
+  }, [src]);
+  return out ?? src;
+}
+
+/** Ảnh nằm trong khung chat (không bị thu gọn), có nút mở ảnh lớn và tải về. */
+function Shot({ c }: { c: Content }) {
+  const { src: raw, bad } = useImage(c);
+  const src = useTrimmed(raw);
+  if (bad) return <p className="hint">Không tải được ảnh.</p>;
+  if (!src) return <div className="skel" aria-label="Đang tải ảnh" />;
+  const ext = (c.mimeType ?? "image/png").split("/")[1]?.replace("jpeg", "jpg") ?? "png";
+  return (
+    <figure className="shot">
+      <a href={src} target="_blank" rel="noreferrer" title="Mở ảnh lớn"><img src={src} alt="Ảnh từ AutoCAD" /></a>
+      <figcaption>
+        <a href={src} target="_blank" rel="noreferrer">Mở ảnh lớn</a>
+        <a href={src} download={`autocad-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${ext}`}>Tải về</a>
+      </figcaption>
+    </figure>
+  );
+}
+
+function Img({ c }: { c: Content }) {
+  const { src, bad } = useImage(c);
+  if (bad) return <p className="hint">Không tải được ảnh đã lưu.</p>;
+  return src ? <img src={src} alt="Kết quả từ tool" /> : <div className="skel" aria-label="Đang tải ảnh" />;
+}
+
+/** Đếm giây từ lúc tool bắt đầu, để biết nó đang chạy hay đã treo (có tool CAD chạy tới 10 phút). */
+function Elapsed() {
+  const [s, setS] = useState(0);
+  useEffect(() => { const t = setInterval(() => setS(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  return <>{s < 60 ? `${s} giây` : `${Math.floor(s / 60)} phút ${s % 60} giây`}</>;
+}
+
+function ToolCard({ t }: { t: Extract<Item, { kind: "tool" }> }) {
+  // Tool Read chỉ là Claude tự mở lại đúng ảnh đó để xem; ảnh đã hiện ở lần chụp nên không lặp ra ngoài.
+  const outside = t.name !== "Read";
+  const shots = outside ? t.content?.filter(c => c.type === "image") ?? [] : [];
+  // Tool "skills" đang nạp một skill cụ thể thì hiện tên skill thay cho tên server.
+  const skill = t.name === "skills" ? (t.input as { name?: unknown } | null)?.name : undefined;
+  const tag = typeof skill === "string" && skill ? skill : t.server;
+  return (
+    <>
+      <details className={`tool ${t.isError ? "err" : ""}`}>
+        <summary><b className={`dot ${t.done ? (t.isError ? "bad" : "ok") : "run"}`} />{t.name}{tag && <small className="srvtag">{tag}</small>}<small>{t.done ? (t.isError ? "lỗi" : "xong") : <>đang chạy · <Elapsed /></>}</small></summary>
+        <div className="tool-copy"><CopyButton text={JSON.stringify(t.input, null, 2)} label="Chép tham số" /></div>
+        <pre>{JSON.stringify(t.input, null, 2)}</pre>
+        {t.content?.map((c, i) => c.type === "image" ? (outside ? null : <Img key={i} c={c} />) : <pre key={i}>{(c.text ?? "").slice(0, 4000)}</pre>)}
+      </details>
+      {shots.map((c, i) => <Shot key={c.url ?? i} c={c} />)}
+    </>
+  );
+}
+
+/** Đầu vào của phiên = phần mới + phần đọc từ bộ nhớ đệm + phần ghi vào bộ nhớ đệm (cả ba đều là token Claude phải xử lý). */
+const usageIn = (u: Usage) => u.input + u.cacheRead + u.cacheWrite;
+const fmtTok = (n: number) => (n < 1000 ? String(n) : `${(n / 1000).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}k`);
+const pctOf = (w: WinState) => Math.min(100, Math.round((w.used / w.limit!) * 100));
+const levelOf = (p: number) => (p >= 100 ? " qbar-full" : p >= 80 ? " qbar-warn" : "");
+/** Thời điểm đặt lại, viết ngắn: cùng ngày thì chỉ giờ, khác ngày thì thêm ngày. */
+const resetText = (t: number) => {
+  const d = new Date(t);
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay ? `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")} hôm nay`
+    : d.toLocaleString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+};
+
+/** Hạn mức token: thanh nhỏ hiện cửa sổ căng nhất; bấm vào mới mở bảng có cả ba cửa sổ 5 giờ / tuần / tháng. */
+function QuotaBar({ q }: { q: Quota }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const lim = q.wins.filter(w => w.limit);
+  const top = tightest(q.wins)!;
+  const pct = pctOf(top);
+  const nf = (n: number) => n.toLocaleString("vi-VN");
+  const level = levelOf(pct);
+
+  // Bấm ra ngoài hoặc Esc thì đóng (tooltip mặc định của trình duyệt xấu nên dùng bảng nhỏ tự vẽ).
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => { if (!root.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+
+  return (
+    <div className="qwrap" ref={root}>
+      <button type="button" className={`qbtn${level}`} aria-expanded={open} onClick={() => setOpen(o => !o)}
+        aria-label={`Hạn mức token ${WIN_NAME[top.win]}: đã dùng ${pct} phần trăm. Bấm để xem cả ba mức`}>
+        <span className={`qbar${level}`}><i style={{ width: `${pct}%` }} /></span>
+        <span className={`qpct${level}`}>{pct}%</span>
+      </button>
+      {open && (
+        <div className="qpop" role="dialog" aria-label="Hạn mức token">
+          <p className="qpop-head">Hạn mức token</p>
+          {lim.map(w => {
+            const p = pctOf(w), lv = levelOf(p);
+            return (
+              <div className="qpop-win" key={w.win}>
+                <p className="qpop-num"><span className="qpop-win-name">Mỗi {WIN_NAME[w.win]}</span> <b>{nf(w.used)}</b> / {nf(w.limit!)} <span className={`qpop-pct${lv}`}>({p}%)</span></p>
+                <div className={`qbar qbar-wide${lv}`}><i style={{ width: `${p}%` }} /></div>
+                <p className="qpop-reset">{p >= 100 ? "Hết mức — lượt mới bị chặn tới" : "Đặt lại"} {resetText(w.resetAt)}</p>
+              </div>
+            );
+          })}
+          <p className="qpop-note">Chạm bất kỳ mức nào là lượt chat mới bị chặn tới khi mức đó đặt lại. Cần thêm thì nhờ quản trị viên nâng hạn mức.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const usageTip = (u: Usage) =>
+  `Đầu vào mới ${u.input.toLocaleString("vi-VN")} · đọc từ bộ nhớ đệm ${u.cacheRead.toLocaleString("vi-VN")} · ghi vào bộ nhớ đệm ${u.cacheWrite.toLocaleString("vi-VN")} · đầu ra ${u.output.toLocaleString("vi-VN")}` +
+  (u.costUsd ? ` · chi phí ước tính theo Claude CLI $${u.costUsd.toLocaleString("vi-VN", { maximumFractionDigits: 4 })}` : "");
+
+const ago = (t: number) => {
+  const m = Math.round((Date.now() - t) / 60000);
+  if (m < 1) return "vừa xong"; if (m < 60) return `${m} phút trước`;
+  const h = Math.round(m / 60); if (h < 24) return `${h} giờ trước`;
+  return new Date(t).toLocaleDateString("vi-VN");
+};
+
+export function Chat({ epoch }: { epoch: number }) {
+  const [convs, setConvs] = useState<ConvMeta[]>([]);
+  const [curId, setCurId] = useState(newId);
+  const [items, setItems] = useState<Item[]>([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [listErr, setListErr] = useState("");
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [model, setModel] = useState("");                  // model của phiên đang mở; lưu cùng hội thoại
+  const [usage, setUsageState] = useState<Usage>(NO_USAGE);  // token đã dùng của phiên này
+  const usageRef = useRef<Usage>(NO_USAGE);                // bản mới nhất, cho persist() (state trong closure có thể cũ)
+  const setUsage = (u: Usage) => { usageRef.current = u; setUsageState(u); };
+  const defModel = useRef("");
+  const [quota, setQuota] = useState<Quota | null>(null);     // hạn mức token tháng của tài khoản này (null = chưa biết hoặc phiên dịch vụ)
+  const refreshQuota = () => { getQuota().then(setQuota).catch(() => setQuota(null)); };
+  const [sel, setSel] = useState(0);
+  const [menuOff, setMenuOff] = useState(false); // Esc đóng menu tới khi gõ tiếp
+  const [failed, setFailed] = useState<string | null>(null);   // tin nhắn vừa gửi lỗi, giữ lại để gửi lại
+  const [atts, setAtts] = useState<Att[]>([]);                  // ảnh đang đính vào tin sắp gửi
+  const [attErr, setAttErr] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const dropAtts = (list: Att[]) => list.forEach(a => URL.revokeObjectURL(a.preview));
+  const addFiles = async (files: File[]) => {
+    const imgs = files.filter(f => f.type.startsWith("image/"));
+    if (!imgs.length) return;
+    const room = MAX_IMAGES - atts.length;
+    if (room <= 0) { setAttErr(`Tối đa ${MAX_IMAGES} ảnh mỗi tin nhắn.`); return; }
+    const results = await Promise.allSettled(imgs.slice(0, room).map(prepareImage));
+    const ok = results.flatMap(r => r.status === "fulfilled" ? [r.value] : []);
+    const bad = results.flatMap(r => r.status === "rejected" ? [String(r.reason?.message ?? r.reason)] : []);
+    setAttErr(bad[0] ?? (imgs.length > room ? `Chỉ nhận tối đa ${MAX_IMAGES} ảnh, đã bỏ bớt.` : ""));
+    if (ok.length) setAtts(p => [...p, ...ok].slice(0, MAX_IMAGES));
+  };
+  const [sideOpen, setSideOpen] = useState(false);             // màn hình hẹp: mở/đóng danh sách hội thoại
+  const itemsRef = useRef<Item[]>([]);
+  const history = useRef<unknown[]>([]);        // chế độ API: messages định dạng Anthropic
+  const sessionId = useRef<string | undefined>(undefined); // chế độ CLI: nối tiếp phiên cũ
+  const abort = useRef<AbortController | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  // Ô nhập tự cao lên theo nội dung (tối đa ~8 dòng), gửi xong thì co lại.
+  useEffect(() => { const t = taRef.current; if (t) { t.style.height = "auto"; t.style.height = `${Math.min(t.scrollHeight, 200)}px`; } }, [input]);
+
+  // Chỉ tự cuộn khi người dùng đang ở gần đáy. Đang cuộn lên đọc lại thì để yên, và hiện nút "xuống cuối".
+  const msgsRef = useRef<HTMLDivElement>(null);
+  const [atBottom, setAtBottom] = useState(true);
+  const nearBottom = () => {
+    const el = msgsRef.current;
+    return !el || el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
+  const toBottom = (smooth = true) => { endRef.current?.scrollIntoView({ block: "end", behavior: smooth ? "smooth" : "auto" }); setAtBottom(true); };
+
+  // Mở một hội thoại cũ: phải cuộn xuống đáy SAU khi nội dung mới đã vẽ xong (queueMicrotask chạy trước lúc React vẽ nên cuộn nhầm nội dung cũ),
+  // và giữ ở đáy khi ảnh trong thẻ tool tải xong làm trang dài thêm, cho tới khi người dùng tự cuộn.
+  const [openTick, setOpenTick] = useState(0);
+  const pinned = useRef(false);
+  useLayoutEffect(() => {
+    if (!openTick) return;
+    pinned.current = true;
+    endRef.current?.scrollIntoView({ block: "end", behavior: "instant" }); setAtBottom(true);   // "instant" vì .msgs có scroll-behavior:smooth: mở phiên cũ phải nhảy thẳng xuống đáy, không trượt cả nghìn px
+  }, [openTick]);
+  const unpin = () => { pinned.current = false; };
+
+  const setAll = (next: Item[]) => { itemsRef.current = next; setItems(next); };
+  const push = (fn: (p: Item[]) => Item[]) => {
+    const stick = nearBottom();
+    setAll(fn(itemsRef.current));
+    if (stick) queueMicrotask(() => endRef.current?.scrollIntoView({ block: "end" }));
+  };
+
+  // Tiêu đề tab báo khi lượt chạy xong trong lúc người dùng đang ở tab khác.
+  useEffect(() => {
+    const base = "CAD Studio";
+    if (busy) { document.title = `⏳ Đang chạy… · ${base}`; return; }
+    if (!document.hidden || !items.length) { document.title = base; return; }
+    document.title = `✓ Xong · ${base}`;
+    const back = () => { if (!document.hidden) document.title = base; };
+    document.addEventListener("visibilitychange", back);
+    return () => { document.removeEventListener("visibilitychange", back); document.title = base; };
+  }, [busy, items.length]);
+
+  const refresh = useCallback(() => listConvs().then(c => { setConvs(c); setListErr(""); }).catch(e => setListErr(niceError(e))), []);
+  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { listSkills().then(setSkills).catch(() => setSkills([])); }, [epoch]);
+  useEffect(() => {
+    listModels().then(r => { setModels(r.models); defModel.current = r.default; setModel(m => m || r.default); }).catch(() => setModels([]));
+    refreshQuota();
+  }, []);
+
+  // Menu "/": chỉ hiện khi đang gõ token đầu tiên của tin nhắn, ví dụ "/chung" (chưa có dấu cách).
+  const slashQ = /^\/([\w-]*)$/.exec(input)?.[1];
+  const matches = slashQ === undefined || menuOff ? [] :
+    skills.filter(s => (s.name + " " + s.description).toLowerCase().includes(slashQ.toLowerCase()))
+      .sort((a, b) => Number(b.name.includes(slashQ)) - Number(a.name.includes(slashQ)));
+  const slashRef = useRef<HTMLUListElement>(null);
+  useEffect(() => { slashRef.current?.querySelector("li.on")?.scrollIntoView({ block: "nearest" }); }, [sel, matches.length]);
+  const pickSkill = (name: string) => { setInput(`/${name} `); setSel(0); };
+
+  const persist = async (id: string) => {
+    const firstUser = itemsRef.current.find(i => i.kind === "user");
+    if (!firstUser) return;
+    try {
+      await putConv(id, {
+        ...(convs.some(c => c.id === id) ? {} : { title: (firstUser as { text: string }).text.slice(0, 60) || "Ảnh đính kèm" }),
+        items: itemsRef.current, history: history.current, sessionId: sessionId.current, model: model || undefined, usage: usageRef.current,
+      });
+      void refresh();
+    } catch (e) { setListErr(`Chưa lưu được cuộc trò chuyện: ${niceError(e)}`); }
+  };
+
+  const send = async (override?: string, overrideImgs?: Content[]) => {
+    const text = (override ?? input).trim();
+    const imgs: Content[] = overrideImgs ?? atts.map(a => ({ type: "image", mimeType: a.mime, data: a.data }));
+    if ((!text && !imgs.length) || busy) return;
+    const id = curId;
+    // "/ten-skill yêu cầu" -> chỉ Claude nạp đúng skill đó trước khi làm; khung chat vẫn hiện nguyên văn bạn gõ.
+    const m = /^\/([\w-]+)\s*([\s\S]*)$/.exec(text);
+    const skill = m && skills.find(s => s.name === m[1]);
+    const prompt = skill
+      ? `Hãy dùng skill "${skill.name}" (nạp bằng tool skills, operation=get, name=${skill.name}) cho yêu cầu sau.\n\n${m![2].trim() || "(Chưa có yêu cầu cụ thể: hãy hỏi tôi cần làm gì.)"}`
+      : text;
+    // Có ảnh: nội dung là mảng block kiểu Anthropic (ảnh trước, chữ sau). Gateway kiểm lại rồi chuyển cho từng chế độ chat.
+    const content = imgs.length
+      ? [...imgs.map(i => ({ type: "image", source: { type: "base64", media_type: i.mimeType, data: i.data } })), { type: "text", text: prompt || "Hãy xem ảnh đính kèm." }]
+      : prompt;
+    setInput(""); setBusy(true); setFailed(null); setAttErr("");
+    if (overrideImgs === undefined) { dropAtts(atts); setAtts([]); }
+    push(p => [...p, { kind: "user", text, ...(imgs.length ? { images: imgs } : {}) }]);
+    queueMicrotask(() => toBottom(false));      // tự gửi thì luôn kéo xuống xem câu trả lời
+    const ac = new AbortController(); abort.current = ac;
+    try {
+      await chat([...history.current, { role: "user", content }], sessionId.current, e => {
+        if (e.event === "text") push(p => {
+          const last = p[p.length - 1];
+          return last?.kind === "text" ? [...p.slice(0, -1), { kind: "text", text: last.text + e.data }] : [...p, { kind: "text", text: e.data }];
+        });
+        else if (e.event === "tool_use") push(p => [...p, { kind: "tool", ...e.data }]);
+        else if (e.event === "tool_result") push(p => p.map(x => x.kind === "tool" && x.id === e.data.id ? { ...x, done: true, isError: e.data.isError, content: e.data.content } : x));
+        else if (e.event === "notice") push(p => [...p, { kind: "note", text: e.data }]);
+        // Lỗi báo trong luồng (không ném ngoại lệ) cũng là lượt hỏng: giữ tin đã gõ để gửi lại.
+        else if (e.event === "error") { push(p => [...p, { kind: "note", text: e.data }]); setFailed(text || "ảnh"); }
+        else if (e.event === "usage") setUsage(addUsage(usageRef.current, e.data));
+        else if (e.event === "ask") push(p => [...p, { kind: "ask", id: e.data.id, questions: e.data.questions }]);
+        else if (e.event === "done") { history.current = e.data.messages; sessionId.current = e.data.sessionId; }
+      }, ac.signal, model || undefined);
+    } catch (e) {
+      push(p => [...p, { kind: "note", text: ac.signal.aborted ? "Đã dừng." : niceError(e) }]);
+      if (!ac.signal.aborted) setFailed(text || "ảnh");      // giữ lại tin đã gõ (kèm ảnh) để gửi lại, không bắt gõ lại từ đầu
+    } finally { setAll(expireAsks(itemsRef.current)); setBusy(false); abort.current = null; refreshQuota(); await persist(id); }
+  };
+
+  /** Gửi lại tin nhắn vừa lỗi: bỏ tin của mình và dòng báo lỗi ở cuối, rồi gửi lại nguyên văn. */
+  const retry = () => {
+    if (!failed || busy) return;
+    const list = [...itemsRef.current];
+    while (list.length && list[list.length - 1].kind === "note") list.pop();
+    const u = list[list.length - 1];
+    let text = failed === "ảnh" ? "" : failed, imgs: Content[] = [];
+    if (u?.kind === "user") { text = u.text; imgs = u.images ?? []; list.pop(); }   // gửi lại cả ảnh đã đính, không lấy ảnh đang soạn dở
+    setAll(list); setFailed(null);
+    void send(text, imgs);
+  };
+
+  const reset = () => { dropAtts(atts); setAtts([]); setAttErr(""); abort.current?.abort(); history.current = []; sessionId.current = undefined; setAll([]); setCurId(newId()); setModel(defModel.current); setUsage(NO_USAGE); };
+
+  const open = async (id: string) => {
+    if (busy || id === curId) return;
+    try {
+      const c = await getConv(id);
+      history.current = c.history ?? []; sessionId.current = c.sessionId;
+      setAll(expireAsks((c.items ?? []) as Item[])); setCurId(id); setListErr("");
+      setUsage(c.usage ?? NO_USAGE);
+      setModel(c.model && models.some(m => m.id === c.model) ? c.model : defModel.current);   // model đã lưu bị gỡ khỏi danh sách thì quay về mặc định
+      setOpenTick(t => t + 1);
+    } catch (e) { setListErr(niceError(e)); }
+  };
+
+  const remove = async (id: string) => {
+    if (!(await dialog.confirm("Xóa cuộc trò chuyện này?", { body: "Không khôi phục được.", okText: "Xóa", danger: true }))) return;
+    try { await delConv(id); if (id === curId) reset(); void refresh(); }
+    catch (e) { setListErr(niceError(e)); }
+  };
+
+  const rename = async (c: ConvMeta) => {
+    const t = (await dialog.prompt("Tên mới cho cuộc trò chuyện", c.title))?.trim();
+    if (!t || t === c.title) return;
+    try { await putConv(c.id, { title: t }); void refresh(); } catch (e) { setListErr(niceError(e)); }
+  };
+
+  return (
+    <div className={`chatwrap${sideOpen ? " side-open" : ""}`}>
+      {sideOpen && <div className="side-veil" onClick={() => setSideOpen(false)} aria-hidden="true" />}
+      <aside className="convs" aria-label="Các cuộc trò chuyện" onClick={e => { const b = (e.target as HTMLElement).closest("button"); if (b && !b.closest(".sres-head") && !b.classList.contains("sres-row")) setSideOpen(false); }}>
+        <button className="primary newchat" onClick={reset} disabled={busy}>Cuộc mới</button>
+        {listErr && <p className="err-msg small" role="alert">{listErr}</p>}
+        <div className="conv-list">
+        <ul>
+          {convs.map(c => (
+            <li key={c.id} className={c.id === curId ? "on" : ""}>
+              <button className="pick" onClick={() => void open(c.id)} disabled={busy && c.id !== curId} title={c.title}>
+                <span className="t">{c.title}</span><small>{ago(c.updatedAt)}</small>
+              </button>
+              <span className="acts">
+                <button className="ghost" onClick={() => void rename(c)} aria-label={`Đổi tên ${c.title}`} title="Đổi tên">Sửa</button>
+                <button className="ghost" onClick={() => void remove(c.id)} aria-label={`Xóa ${c.title}`} title="Xóa">Xóa</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+        {!convs.length && !listErr && <p className="hint small">Chưa có cuộc trò chuyện nào được lưu.</p>}
+        </div>
+        <SessionPanel res={collect(items)} onShot={i => {
+          const el = msgsRef.current?.querySelectorAll(".shot")[i];
+          if (el) { unpin(); el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+        }} />
+      </aside>
+
+      <div className={`chat${items.length === 0 ? " fresh" : ""}`}>
+        <button className="side-btn" onClick={() => setSideOpen(true)} aria-label="Mở danh sách hội thoại">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" /></svg>
+          <span>Hội thoại</span>
+        </button>
+        <div className="msgs" ref={msgsRef} onScroll={() => setAtBottom(nearBottom())}
+          onWheel={unpin} onTouchMove={unpin} onKeyDown={unpin} onPointerDown={unpin}
+          onLoadCapture={() => { if (pinned.current) endRef.current?.scrollIntoView({ block: "end", behavior: "instant" }); }}>
+          {items.length === 0 && (
+            <div className="welcome">
+              <h1>Bạn muốn làm gì với bản vẽ?</h1>
+              <p>Mô tả việc cần làm, trợ lý sẽ gọi các tool AutoCAD để thực hiện và báo lại từng bước.</p>
+            </div>
+          )}
+          {items.map((it, i) => it.kind === "tool" ? <ToolCard key={i} t={it} /> :
+            it.kind === "ask" ? <AskCard key={it.id} item={it} onAnswer={async answers => {
+              await answerAsk(it.id, answers);
+              push(p => p.map(x => (x.kind === "ask" && x.id === it.id ? { ...x, answers } : x)));
+            }} /> :
+            it.kind === "text" ? (
+              <div key={i} className="bubble text">
+                <Markdown text={it.text} />
+                <CopyButton text={it.text} className="copy bubble-copy" />
+              </div>
+            ) :
+            <div key={i} className={`bubble ${it.kind}`} role={it.kind === "note" ? "alert" : undefined}>
+              {it.kind === "user" && it.images?.length ? <div className="user-imgs">{it.images.map((c, j) => <Img key={c.url ?? j} c={c} />)}</div> : null}
+              {it.text}
+              {it.kind === "note" && failed && i === items.length - 1 &&
+                <button className="retry" onClick={retry} disabled={busy}>Gửi lại</button>}
+            </div>)}
+          {busy && items[items.length - 1]?.kind !== "text" && !(items[items.length - 1]?.kind === "ask" && !(items[items.length - 1] as AskItem).answers)
+            && <div className="typing" aria-label="Đang xử lý"><span /><span /><span /></div>}
+          <div ref={endRef} />
+        </div>
+        {!atBottom && items.length > 0 && (
+          <button className="to-bottom" onClick={() => toBottom()} aria-label="Xuống cuối cuộc trò chuyện" title="Xuống cuối">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5" /></svg>
+          </button>
+        )}
+        <div className={`composer${dragOver ? " drop" : ""}`}
+          onDragOver={e => { if ([...e.dataTransfer.types].includes("Files")) { e.preventDefault(); setDragOver(true); } }}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+          onDrop={e => { setDragOver(false); const fs = Array.from(e.dataTransfer.files); if (fs.length) { e.preventDefault(); void addFiles(fs); } }}>
+          {atts.length > 0 && (
+            <div className="att-strip" aria-label="Ảnh đính kèm">
+              {atts.map(a => (
+                <div key={a.id} className="att">
+                  <img src={a.preview} alt="Ảnh đính kèm" />
+                  <button className="att-x" aria-label="Bỏ ảnh này" title="Bỏ ảnh này"
+                    onClick={() => { URL.revokeObjectURL(a.preview); setAtts(p => p.filter(x => x.id !== a.id)); setAttErr(""); }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {attErr && <p className="att-err" role="alert">{attErr}</p>}
+          {matches.length > 0 && (
+            <ul ref={slashRef} className="slash" role="listbox" aria-label="Gợi ý skill">
+              {matches.map((s, i) => (
+                <li key={s.name} role="option" aria-selected={i === sel} className={i === sel ? "on" : ""}
+                  onMouseDown={e => { e.preventDefault(); pickSkill(s.name); }} onMouseEnter={() => setSel(i)}>
+                  <b>/{s.name}</b><small>{s.description.split(/[.\-]\s/)[0].slice(0, 110)}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+          <textarea ref={taRef} rows={1} value={input} placeholder="Bạn cần làm gì với bản vẽ? Gõ / để chọn skill, dán ảnh (Ctrl+V) để đính kèm"
+            onPaste={e => {
+              const fs = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
+              if (fs.length) { e.preventDefault(); void addFiles(fs); }   // dán chữ thường vẫn như cũ
+            }}
+            onChange={e => { setInput(e.target.value); setSel(0); setMenuOff(false); }}
+            onKeyDown={e => {
+              if (matches.length) {
+                if (e.key === "ArrowDown") { e.preventDefault(); setSel(i => (i + 1) % matches.length); return; }
+                if (e.key === "ArrowUp") { e.preventDefault(); setSel(i => (i - 1 + matches.length) % matches.length); return; }
+                if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSkill(matches[sel].name); return; }
+                if (e.key === "Escape") { e.preventDefault(); setMenuOff(true); return; }
+              }
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(); }
+            }} />
+          <div className="comp-bar">
+            {usageIn(usage) + usage.output > 0
+              ? <span className="usage" tabIndex={0} title={usageTip(usage)} aria-label={`Token của phiên này: ${usageTip(usage)}`}>
+                  <b>{fmtTok(usageIn(usage) + usage.output)}</b> token<span className="usage-split"> · vào {fmtTok(usageIn(usage))} · ra {fmtTok(usage.output)}</span></span>
+              : <span className="comp-hint">Enter gửi · Shift+Enter xuống dòng</span>}
+            {quota && tightest(quota.wins) ? <QuotaBar q={quota} /> : null}
+            <div className="comp-right">
+              <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden
+                onChange={e => { void addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
+              <button className="attach" onClick={() => fileRef.current?.click()} disabled={busy || atts.length >= MAX_IMAGES}
+                aria-label="Đính kèm ảnh" title={`Đính kèm ảnh (tối đa ${MAX_IMAGES}). Cũng có thể dán hoặc kéo thả vào khung chat.`}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 7.4 7.7 12.9a3.2 3.2 0 0 1-4.5-4.5l5.6-5.6a2.1 2.1 0 0 1 3 3L6.3 11.3a1 1 0 0 1-1.5-1.5l5-5" /></svg>
+              </button>
+              {models.length > 0 && <ModelMenu models={models} value={model} onChange={setModel} disabled={busy} />}
+              {busy
+                ? <button className="send stop" onClick={() => abort.current?.abort()} aria-label="Dừng" title="Dừng"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /></svg></button>
+                : <button className="send" onClick={() => void send()} disabled={!input.trim() && !atts.length} aria-label="Gửi" title="Gửi"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" /></svg></button>}
+            </div>
+          </div>
+        </div>
+        {items.length === 0 && (
+          <div className="chips under">
+            {["Liệt kê các layer trong bản vẽ đang mở", "Đếm số block theo tên", "Chụp ảnh bản vẽ hiện tại"].map(s =>
+              <button key={s} onClick={() => { setInput(s); taRef.current?.focus(); }}>{s}</button>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

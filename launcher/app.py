@@ -10,6 +10,7 @@ import threading
 import time
 import tkinter as tk
 import urllib.request
+import webbrowser
 import winreg
 import zipfile
 from pathlib import Path
@@ -17,10 +18,12 @@ from tkinter import filedialog, messagebox, ttk
 
 import agentconfig
 import agentnote
+import cadweb_local
 import dutoan_data
 import install_ui
 import remote_agent
 import knowledge
+import litebim_bridge
 import knowledge_propose
 from logfile import RotatingLog, start_logged
 from skillzip import build_skill_zips
@@ -33,7 +36,7 @@ LOG_DIR = ROOT / "launcher" / "logs"
 SETTINGS_FILE = ROOT / "launcher" / "state" / "settings.json"
 REPOS = {
     "puran": ROOT / "puran-water-autocad-mcp",
-    "beiming": ROOT / "autocad-beiming-mcp-custom",
+    "beiming": ROOT / "autocad-beiming-mcp",
 }
 NAMES = {"puran": "autocad_puran", "beiming": "autocad_beiming"}
 UPDATE_REPO = "KenjiIT/autocad-mcp-launcher"
@@ -172,7 +175,9 @@ def agent_context():
         bridge_python=str(python_in(REPOS["puran"])),
         bridge_script=str(ROOT / "launcher" / "stdio_bridge.py"),
         # dutoan cũng qua gateway (HTTP) nhưng không dùng AutoCAD.
-        dutoan=(DUTOAN_DIR / "src" / "dutoan_mcp" / "server.py").is_file())
+        dutoan=(DUTOAN_DIR / "src" / "dutoan_mcp" / "server.py").is_file(),
+        litebim=litebim_bridge.installed("litebim"),
+        litecad=litebim_bridge.installed("litecad"))
 
 
 def config_for(agent):
@@ -207,6 +212,9 @@ class App(tk.Tk):
         self.knowledge_auto_var = tk.BooleanVar(value=load_settings().get("knowledge_auto_update", True) is not False)
         self.dutoan_auto_var = tk.BooleanVar(value=load_settings().get("dutoan_auto_update", True) is not False)
         self.dutoan_busy = False
+        self.cadweb = cadweb_local.CadWebLocal(ROOT, LOG_DIR)
+        self.cadweb_auto_var = tk.BooleanVar(value=load_settings().get("cadweb_local_auto", True) is not False)
+        self.cadweb_busy = False
         self.build()
         self.refresh_knowledge_status()
         self.refresh_config()
@@ -253,6 +261,21 @@ class App(tk.Tk):
                          else "○  dutoan  ·  Chưa có dữ liệu (xem Cài đặt, mục Dữ liệu dự toán)")
         self.dutoan_label = ttk.Label(main, text=dutoan_status)
         self.dutoan_label.pack(anchor="w", pady=3)
+        self.cadweb_row = None
+        if cadweb_local.project_dir(ROOT):   # chỉ hiện nếu máy này có clone cad-web-local cạnh mcp/
+            self.cadweb_row = ttk.Frame(main)
+            self.cadweb_row.pack(anchor="w", pady=3, fill="x")
+            self.cadweb_label = ttk.Label(self.cadweb_row, text="○  CAD Studio (local)  ·  Chưa mở")
+            self.cadweb_label.pack(side="left")
+            self.cadweb_open_btn = ttk.Button(self.cadweb_row, text="Mở CAD Studio (local)", command=self.open_cadweb_local)
+            self.cadweb_open_btn.pack(side="left", padx=(10, 0))
+        self.pipe_labels = {}
+        for key in ("litebim", "litecad"):
+            if litebim_bridge.installed(key):  # chỉ hiện sản phẩm có cài trên máy này
+                title = litebim_bridge.PRODUCTS[key][0]
+                label = ttk.Label(main, text=f"○  {title}  ·  Chưa kiểm tra")
+                label.pack(anchor="w", pady=3)
+                self.pipe_labels[key] = label
         ttk.Label(main, textvariable=self.status, foreground="#225c53",
                   wraplength=690).pack(anchor="w", pady=(11, 16))
         row = ttk.Frame(main)
@@ -392,6 +415,14 @@ class App(tk.Tk):
         self.dutoan_status.pack(anchor="w", pady=(6, 0))
         ttk.Checkbutton(frame, text="Tự cập nhật dữ liệu dự toán từ cổng nhóm khi mở launcher",
                         variable=self.dutoan_auto_var, command=self.save_dutoan_auto_setting).pack(anchor="w", pady=(4, 0))
+        if cadweb_local.project_dir(ROOT):   # chỉ hiện nếu máy này có clone cad-web-local cạnh mcp/
+            ttk.Separator(frame).pack(fill="x", pady=12)
+            ttk.Label(frame, text="CAD Studio (local)", font=("Segoe UI", 13, "bold")).pack(anchor="w")
+            ttk.Label(frame,
+                      text="Web chat gọi MCP ngay trên máy này (không đăng nhập, không máy CAD từ xa) — chạy ngay trong launcher, không cần cài thêm.",
+                      foreground="#65736f", wraplength=650, justify="left").pack(anchor="w", pady=(5, 6))
+            ttk.Checkbutton(frame, text="Tự mở CAD Studio (local) khi bật kết nối cho agent",
+                            variable=self.cadweb_auto_var, command=self.save_cadweb_auto_setting).pack(anchor="w", pady=(4, 0))
         ttk.Separator(frame).pack(fill="x", pady=12)
         ttk.Label(frame, text="Kết nối ra server (agent từ xa)", font=("Segoe UI", 13, "bold")).pack(anchor="w")
         ttk.Label(frame,
@@ -1004,6 +1035,7 @@ class App(tk.Tk):
                     raise RuntimeError("Cổng 8764 đã được chương trình khác sử dụng")
                 self.gateway = AdoptedGateway(pid)
                 self.events.put(("status", "Gateway đã chạy sẵn trên cổng 8764; app dùng lại nó."))
+                self._maybe_start_cadweb()
                 return
             self.log = RotatingLog(LOG_DIR / "gateway.log")
             command = [str(python_in(REPOS["puran"])), str(ROOT / "launcher" / "gateway.py")]
@@ -1017,6 +1049,7 @@ class App(tk.Tk):
             else:
                 raise RuntimeError("Gateway chưa mở cổng 8764")
             self.events.put(("status", "Gateway sẵn sàng. Agent sẽ thử AutoCAD khi gọi tool; nếu không có AutoCAD, agent sẽ hỏi bạn trước khi xuất DXF."))
+            self._maybe_start_cadweb()
         except Exception as exc:
             kill_tree(self.gateway)
             self.gateway = None
@@ -1035,7 +1068,52 @@ class App(tk.Tk):
             self.log = None
         for key in REPOS:
             self.labels[key].configure(text=f"○  {NAMES[key]}  ·  Chưa khởi chạy")
+        self.cadweb.stop()
+        if self.cadweb_row:
+            self.cadweb_label.configure(text="○  CAD Studio (local)  ·  Chưa mở")
         self.status.set("Đã dừng gateway và MCP đang hoạt động")
+
+    def _maybe_start_cadweb(self):
+        """Best-effort: tự mở CAD Studio (local) cùng gateway, nếu máy này có project và đã bật tùy chọn."""
+        if not self.cadweb_row or not self.cadweb_auto_var.get():
+            return
+        try:
+            self.cadweb.start()
+        except Exception as exc:
+            self.events.put(("cadweb_status", f"○  CAD Studio (local)  ·  {exc}"))
+            return
+        self.events.put(("cadweb_status", "●  CAD Studio (local)  ·  Đang khởi động… bấm \"Mở CAD Studio (local)\" để vào"))
+
+    def open_cadweb_local(self):
+        if self.cadweb_busy:
+            return
+        self.cadweb_busy = True
+        self.cadweb_open_btn.configure(state="disabled")
+        self.cadweb_label.configure(text="○  CAD Studio (local)  ·  Đang mở…")
+        threading.Thread(target=self._open_cadweb_worker, daemon=True).start()
+
+    def _open_cadweb_worker(self):
+        try:
+            self.cadweb.start()
+            port = self.cadweb.wait_web()
+        except Exception as exc:
+            self.events.put(("cadweb_status", f"○  CAD Studio (local)  ·  {exc}"))
+        else:
+            if port:
+                webbrowser.open(f"http://localhost:{port}")
+                self.events.put(("cadweb_status", f"●  CAD Studio (local)  ·  Đang mở (http://localhost:{port})"))
+            else:
+                self.events.put(("cadweb_status", "○  CAD Studio (local)  ·  Chưa thấy web sẵn sàng; xem launcher/logs/cadweb-local-*.log"))
+        finally:
+            self.events.put(("cadweb_ready", ""))
+
+    def save_cadweb_auto_setting(self):
+        enabled = bool(self.cadweb_auto_var.get())
+        try:
+            save_setting("cadweb_local_auto", enabled)
+        except OSError as exc:
+            self.cadweb_auto_var.set(not enabled)
+            messagebox.showerror("Không lưu được cài đặt", str(exc), parent=self)
 
     def check_for_updates(self):
         if self.closing or self.updating:
@@ -1194,6 +1272,13 @@ class App(tk.Tk):
                     self.busy = False
                     self.start_btn.configure(state="normal")
                     self.stop_btn.configure(state="normal")
+                elif kind == "cadweb_status":
+                    if self.cadweb_row:
+                        self.cadweb_label.configure(text=value)
+                elif kind == "cadweb_ready":
+                    self.cadweb_busy = False
+                    if self.cadweb_row:
+                        self.cadweb_open_btn.configure(state="normal")
                 elif kind == "update_available":
                     self.offer_update(value)
                 elif kind == "update_progress":
@@ -1232,6 +1317,8 @@ class App(tk.Tk):
                 remote_text = remote_agent.describe(state.get("remote_agent"))
                 if remote_text:
                     status_text += f" · Server: {remote_text}"
+                for key, label in self.pipe_labels.items():
+                    label.configure(text=litebim_bridge.describe(key, state.get(key)))
                 self.status.set(status_text)
                 self.remote_live.configure(text="Trạng thái: " + (remote_text or "đang tắt."))
             except (OSError, ValueError, KeyError):
@@ -1247,4 +1334,10 @@ class App(tk.Tk):
 
 
 if __name__ == "__main__":
+    try:
+        from updater import migrate_beiming_rename
+
+        migrate_beiming_rename(ROOT)
+    except Exception:
+        pass   # best-effort; nếu hỏng, launcher sẽ báo Beiming chưa cài và cho cài lại
     App().mainloop()

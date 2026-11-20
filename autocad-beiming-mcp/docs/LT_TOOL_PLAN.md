@@ -45,7 +45,7 @@ Trong `lt_file_ipc.py`, tool nào chưa có nhánh LT thì trả ngay lỗi rõ 
 ## Giai đoạn 1 — Chuẩn bị (30–45 phút, cần người dùng)
 
 1. Người dùng mở một DWG thử riêng có sẵn line, circle, polyline kín, hatch; và một DWG thứ hai cho copy giữa hai bản vẽ.
-2. Cài `pytest` vào `.venv` của `autocad-beiming-mcp-custom`.
+2. Cài `pytest` vào `.venv` của `autocad-beiming-mcp`.
 3. Viết script probe gọi backend LT trực tiếp, chạy được từng tool một.
 4. Thêm kiểm tra cân bằng dấu ngoặc cho `mcp_dispatch.lsp` vào bộ test (hai lỗi trước đều là thiếu `)`).
 

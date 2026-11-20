@@ -28,7 +28,7 @@ Ví dụ Codex (`~/.codex/config.toml`):
 ```toml
 [mcp_servers.autocad_beiming_custom]
 command = "uv"
-args = ["--directory", "C:/path/to/autocad-beiming-mcp-custom", "run", "autocad-beiming-mcp"]
+args = ["--directory", "C:/path/to/autocad-beiming-mcp", "run", "autocad-beiming-mcp"]
 ```
 
 Sau khi sửa cấu hình, khởi động lại MCP client để nạp danh sách tool.

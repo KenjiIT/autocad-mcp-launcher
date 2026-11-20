@@ -15,7 +15,7 @@ CAD_CHECK = "import mcp, ezdxf, autocad_mcp"
 DUTOAN_CHECK = "import mcp, sqlalchemy, dutoan_mcp"
 REPOS = (
     ("autocad_puran", ROOT / "puran-water-autocad-mcp"),
-    ("autocad_beiming", ROOT / "autocad-beiming-mcp-custom"),
+    ("autocad_beiming", ROOT / "autocad-beiming-mcp"),
     ("dutoan", ROOT / "du-toan-mcp"),
 )
 CHECKS = {"dutoan": DUTOAN_CHECK}
@@ -73,6 +73,17 @@ def prepare():
                 LOG_DIR.mkdir(parents=True, exist_ok=True)
                 log_path = LOG_DIR / f"{name}-install.log"
                 with log_path.open("w", encoding="utf-8") as log:
+                    pip_check = subprocess.run(
+                        [str(python), "-m", "pip", "--version"],
+                        stdout=log, stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NO_WINDOW)
+                    if pip_check.returncode:
+                        bootstrap = subprocess.run(
+                            [str(python), "-m", "ensurepip", "--upgrade"],
+                            stdout=log, stderr=subprocess.STDOUT,
+                            creationflags=subprocess.CREATE_NO_WINDOW)
+                        if bootstrap.returncode:
+                            raise RuntimeError(f"Không thể khôi phục pip cho {name}. Xem {log_path}")
                     process = subprocess.run(
                         [str(python), "-m", "pip", "install", "-e", str(repo)],
                         stdout=log, stderr=subprocess.STDOUT,

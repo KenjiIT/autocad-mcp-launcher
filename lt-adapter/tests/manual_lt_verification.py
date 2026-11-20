@@ -17,7 +17,7 @@ from typing import Any, Awaitable, Callable
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "lt-adapter" / "py"))
-sys.path.insert(0, str(ROOT / "autocad-beiming-mcp-custom" / "src"))
+sys.path.insert(0, str(ROOT / "autocad-beiming-mcp" / "src"))
 
 from lt_adapter.lt_file_ipc import LtFileIPCBackend  # noqa: E402
 from lt_adapter.lt_verify import (  # noqa: E402
