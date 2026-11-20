@@ -180,10 +180,21 @@ class TrayIcon:
         self.nid.uID = 1
         self.nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP
         self.nid.uCallbackMessage = WM_TRAY
-        self.nid.hIcon = self.user32.LoadIconW(None, IDI_APPLICATION)
+        self.user32.LoadImageW.argtypes = [
+            wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT,
+            ctypes.c_int, ctypes.c_int, wintypes.UINT]
+        self.user32.LoadImageW.restype = wintypes.HICON
+        self.user32.DestroyIcon.argtypes = [wintypes.HICON]
+        icon_path = Path(__file__).with_name("launcher-plan-flat-v3.ico")
+        self.custom_icon = self.user32.LoadImageW(
+            None, str(icon_path), 1, self.user32.GetSystemMetrics(49),
+            self.user32.GetSystemMetrics(50), 0x10)  # IMAGE_ICON, small icon size, LR_LOADFROMFILE
+        self.nid.hIcon = self.custom_icon or self.user32.LoadIconW(None, IDI_APPLICATION)
         self.nid.szTip = "AutoCAD MCP Launcher"
         self.added = bool(self.shell32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(self.nid)))
         if not self.added:
+            if self.custom_icon:
+                self.user32.DestroyIcon(self.custom_icon)
             self.user32.DestroyWindow(self.hwnd)
             self.user32.UnregisterClassW(self.class_name, self.instance)
             raise ctypes.WinError()
@@ -220,6 +231,9 @@ class TrayIcon:
         if self.added:
             self.shell32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(self.nid))
             self.added = False
+        if self.custom_icon:
+            self.user32.DestroyIcon(self.custom_icon)
+            self.custom_icon = None
         if self.hwnd:
             self.user32.DestroyWindow(self.hwnd)
             self.hwnd = None

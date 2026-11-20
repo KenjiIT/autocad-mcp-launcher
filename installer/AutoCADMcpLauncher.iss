@@ -19,7 +19,8 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 UsePreviousAppDir=yes
 UninstallDisplayName=AutoCAD MCP Launcher
-UninstallDisplayIcon={app}\Start AutoCAD MCP.vbs
+SetupIconFile={#SourceRoot}\launcher\launcher-plan-flat-v3.ico
+UninstallDisplayIcon={app}\launcher\launcher-plan-flat-v3.ico
 OutputDir=..\dist
 OutputBaseFilename=AutoCAD-MCP-Launcher-Setup-{#AppVersion}
 Compression=lzma2/ultra64
@@ -39,8 +40,8 @@ Name: "desktopicon"; Description: "Tạo shortcut trên Desktop"; GroupDescripti
 Source: "{#SourceRoot}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\AutoCAD MCP Launcher"; Filename: "{app}\Start AutoCAD MCP.vbs"; WorkingDir: "{app}"
-Name: "{autodesktop}\AutoCAD MCP Launcher"; Filename: "{app}\Start AutoCAD MCP.vbs"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\AutoCAD MCP Launcher"; Filename: "{app}\Start AutoCAD MCP.vbs"; IconFilename: "{app}\launcher\launcher-plan-flat-v3.ico"; WorkingDir: "{app}"
+Name: "{autodesktop}\AutoCAD MCP Launcher"; Filename: "{app}\Start AutoCAD MCP.vbs"; IconFilename: "{app}\launcher\launcher-plan-flat-v3.ico"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\Start AutoCAD MCP.vbs"; Description: "Khởi chạy AutoCAD MCP Launcher"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent

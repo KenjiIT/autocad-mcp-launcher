@@ -17,6 +17,7 @@ Thêm:
 Đổi:
 
 - Thư mục Beiming đổi tên từ `autocad-beiming-mcp-custom` thành `autocad-beiming-mcp`. Lần mở đầu tiên sau khi cập nhật, launcher tự chuyển `.venv` cũ sang thư mục mới và cài lại Beiming từ đó, không cần cài từ đầu.
+- **Icon mới** cho launcher: cửa sổ, khay hệ thống, shortcut Start/Desktop và bộ cài.
 - Cài MCP: nếu `.venv` mất `pip` thì tự khôi phục bằng `ensurepip` trước khi cài.
 
 Cần làm:
@@ -48,6 +49,7 @@ Added:
 Changed:
 
 - The Beiming folder is renamed from `autocad-beiming-mcp-custom` to `autocad-beiming-mcp`. On the first start after updating, the launcher moves the old `.venv` into the new folder and reinstalls Beiming from there, so there is no full reinstall.
+- **New launcher icon**: window, system tray, Start/Desktop shortcuts and the installer.
 - MCP install: if a `.venv` has lost `pip`, it is restored with `ensurepip` before installing.
 
 To do:

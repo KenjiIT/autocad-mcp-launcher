@@ -187,6 +187,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("AutoCAD MCP Launcher")
+        self.iconbitmap(default=str(Path(__file__).with_name("launcher-plan-flat-v3.ico")))
         self.geometry("760x700")
         self.minsize(650, 620)
         self.gateway = None
