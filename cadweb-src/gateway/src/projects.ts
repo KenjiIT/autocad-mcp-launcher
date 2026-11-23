@@ -1,11 +1,11 @@
 import { randomBytes } from "node:crypto";
-import { copyFileSync, cpSync, rmSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, copyFileSync, cpSync, rmSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path";
-import { listConversations, putConversation, removeScopeData, type Scope } from "./store.js";
+import { LOCAL_DIR, listConversations, mergeInto, putConversation, removeScopeData, type Scope } from "./store.js";
 
-// Dự án kiểu Orca: mỗi dự án là MỘT THƯ MỤC trên máy. Hội thoại và ảnh của dự án lưu riêng (data/projects/<id>/),
+// Dự án kiểu Orca: mỗi dự án là MỘT THƯ MỤC trên máy. Hội thoại và ảnh của dự án lưu trong chính thư mục đó (<dir>/.cadstudio/),
 // còn Claude CLI / Codex chạy với thư mục làm việc là thư mục dự án và được đọc/ghi file trong đó.
 // Luôn có ít nhất một dự án: máy mới tự có dự án "master" kèm một phiên chat.
 const DATA = process.env.CAD_DATA_DIR ?? fileURLToPath(new URL("../data/", import.meta.url));
@@ -17,30 +17,55 @@ export type Project = { id: string; name: string; dir: string | null; createdAt:
 
 const load = (): Project[] => { try { return JSON.parse(readFileSync(FILE, "utf8")); } catch { return []; } };
 const save = (list: Project[]) => { mkdirSync(DATA, { recursive: true }); writeFileSync(FILE + ".tmp", JSON.stringify(list, null, 2)); renameSync(FILE + ".tmp", FILE); };
-const scopeFor = (id: string): Scope => ({ kind: "project", id });
+const scopeFor = (p: Project): Scope => ({ kind: "project", id: p.id, dir: p.dir ?? undefined });
 
 /** Một phiên chat trống để dự án mới có sẵn chỗ bắt đầu (hiện ngay trong cây dự án). */
-const addStarter = (id: string) => putConversation(scopeFor(id), randomBytes(8).toString("hex"), { title: STARTER_TITLE, items: [], history: [] });
+const addStarter = (p: Project) => putConversation(scopeFor(p), randomBytes(8).toString("hex"), { title: STARTER_TITLE, items: [], history: [] });
 
-/** Máy mới: tạo dự án "master" + một phiên chat. Hội thoại của dự án "Chung" cũ (data/users/local) chuyển vào master. */
-function ensureDefault(): Project[] {
-  const list = load();
-  const legacy = join(DATA, "users", "local");
-  if (list.length && !existsSync(legacy)) return list;
-  const dir = join(PROJECTS_ROOT, "master");
-  mkdirSync(dir, { recursive: true });
-  const master: Project = { id: randomBytes(6).toString("hex"), name: "master", dir, createdAt: Date.now() };
-  if (existsSync(legacy)) {
-    const to = join(DATA, "projects", master.id);
-    mkdirSync(join(DATA, "projects"), { recursive: true });
-    renameSync(legacy, to);
-    // Phiên Claude CLI cũ chạy ở thư mục tạm, không nối tiếp được trong thư mục master: bỏ để bắt đầu phiên mới.
-    rmSync(join(to, "cli-sessions.json"), { force: true });
+/**
+ * Chuyển một lần dữ liệu cũ trong thư mục app sang .cadstudio/ của dự án:
+ *   data/projects/<id>  -> dự án <id> (nếu còn và có thư mục), không thì dự án mặc định (đầu danh sách);
+ *   data/users/<x>      -> dự án mặc định (chat từ trước khi có dự án).
+ * mergeInto chỉ xóa thư mục cũ sau khi đã chép đủ. Lỗi (ổ đĩa rút, thư mục dự án mất…) thì để nguyên, lần sau thử lại.
+ */
+function migrateLegacy(list: Project[]) {
+  const def = list.find(p => p.dir && existsSync(p.dir));
+  for (const kind of ["projects", "users"] as const) {
+    const base = join(DATA, kind);
+    if (!existsSync(base)) continue;
+    for (const id of readdirSync(base)) {
+      const own = kind === "projects" ? list.find(p => p.id === id && p.dir && existsSync(p.dir)) : undefined;
+      const known = kind === "projects" && list.some(p => p.id === id);
+      if (known && !own) continue;   // dự án không thư mục (dữ liệu ở lại thư mục app) hoặc thư mục đang vắng (thử lại lần sau)
+      const target = own ?? def;
+      if (!target) continue;
+      try {
+        // Phiên Claude CLI của chat "Chung" cũ chạy ở thư mục tạm, không nối tiếp được trong thư mục dự án.
+        if (kind === "users") rmSync(join(base, id, "cli-sessions.json"), { force: true });
+        const n = mergeInto(join(base, id), scopeFor(target));
+        if (n) console.log(`chuyển ${n} hội thoại từ data/${kind}/${id} sang ${join(target.dir!, LOCAL_DIR)}`);
+      } catch (e: any) { console.error(`không chuyển được data/${kind}/${id}:`, e?.message ?? e); }
+    }
   }
-  const all = [master, ...list];
-  save(all);
-  if (!listConversations(scopeFor(master.id)).length) addStarter(master.id);
-  return all;
+}
+
+/** Máy mới: tạo dự án "master" + một phiên chat. Lần đầu chạy bản mới thì chuyển chat cũ sang .cadstudio/ của dự án. */
+let migrated = false;
+function ensureDefault(): Project[] {
+  let list = load();
+  if (!list.length) {
+    const dir = join(PROJECTS_ROOT, "master");
+    mkdirSync(dir, { recursive: true });
+    list = [{ id: randomBytes(6).toString("hex"), name: "master", dir, createdAt: Date.now() }];
+    save(list);
+  }
+  if (!migrated) {
+    migrated = true;
+    migrateLegacy(list);
+    const first = list[0];
+    if (first.dir && existsSync(first.dir) && !listConversations(scopeFor(first)).length) addStarter(first);
+  }
+  return list;
 }
 
 /** Dự án ghim lên đầu, còn lại giữ thứ tự tạo. */
@@ -51,7 +76,7 @@ export const getProject = (id: string | undefined | null): Project | undefined =
 /** Phạm vi lưu hội thoại của một dự án; dự án không tồn tại thì null. */
 export function scopeOf(id: string | undefined | null): Scope | null {
   const p = getProject(id);
-  return p ? scopeFor(p.id) : null;
+  return p ? scopeFor(p) : null;
 }
 
 const safeFolder = (name: string) => name.replace(/[<>:"/\\|?*\x00-\x1f]/g, " ").replace(/\s+/g, " ").trim().replace(/[. ]+$/, "").slice(0, 80);
@@ -75,8 +100,54 @@ export function createProject(name: unknown, dir: unknown): { project: Project }
   if (list.some(p => p.dir && resolve(p.dir).toLowerCase() === folder.toLowerCase())) return { error: "Thư mục này đã thuộc một dự án khác." };
   const project: Project = { id: randomBytes(6).toString("hex"), name: n, dir: folder, createdAt: Date.now() };
   save([...list, project]);
-  addStarter(project.id);
+  // Thư mục đã từng mở trong CAD Studio (có .cadstudio/ với chat cũ, vd. sau khi cài lại app): giữ nguyên, không thêm phiên trống.
+  if (!listConversations(scopeFor(project)).length) addStarter(project);
   return { project };
+}
+
+/**
+ * "Mở dự án có sẵn": thư mục đã là dự án thì trả lại dự án đó (existed), không tạo trùng.
+ * Chưa là dự án thì tạo với tên = tên thư mục (trùng tên thì thêm số). sessions = số phiên chat sẵn có trong .cadstudio/.
+ */
+export function openProject(dir: unknown): { project: Project; existed: boolean; sessions: number } | { error: string } {
+  const raw = typeof dir === "string" ? dir.trim() : "";
+  if (!raw || !isAbsolute(raw)) return { error: "Thư mục phải là đường dẫn đầy đủ, ví dụ D:\\Du an\\Toa A." };
+  const folder = resolve(raw);
+  if (!existsSync(folder) || !statSync(folder).isDirectory()) return { error: "Không thấy thư mục này trên máy." };
+  const list = listProjects();
+  const same = list.find(p => p.dir && resolve(p.dir).toLowerCase() === folder.toLowerCase());
+  if (same) return { project: same, existed: true, sessions: listConversations(scopeFor(same)).length };
+  const cd = join(folder, LOCAL_DIR, "conversations");   // đếm chat cũ trong .cadstudio/ mà không tạo gì trong thư mục
+  const sessions = existsSync(cd) ? readdirSync(cd).filter(f => f.endsWith(".json")).length : 0;
+  const stem = (basename(folder) || "Dự án").slice(0, 70);
+  let name = stem;
+  for (let i = 2; list.some(p => p.name.toLowerCase() === name.toLowerCase()); i++) name = `${stem} (${i})`;
+  const r = createProject(name, folder);
+  return "error" in r ? r : { project: r.project, existed: false, sessions };
+}
+
+/** Tìm thư mục theo TÊN (kéo thả từ Explorer, trình duyệt không cho đường dẫn) ở vài chỗ quen thuộc, sâu 2 cấp. */
+export function locateFolder(name: unknown, roots: string[] = defaultRoots()): string[] {
+  const n = typeof name === "string" ? name.trim() : "";
+  if (!n || /[\/]/.test(n) || n === "." || n === "..") return [];
+  const out = new Set<string>();
+  const walk = (d: string, depth: number) => {
+    let ents: import("node:fs").Dirent[];
+    try { ents = readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      if (!e.isDirectory() || e.name.startsWith(".") || e.name === "node_modules") continue;
+      const full = join(d, e.name);
+      if (e.name.toLowerCase() === n.toLowerCase()) out.add(full);
+      if (depth > 1 && out.size < 10) walk(full, depth - 1);
+    }
+  };
+  for (const r of roots) if (existsSync(r)) walk(r, 2);
+  return [...out];
+}
+
+function defaultRoots(): string[] {
+  const h = homedir();
+  return [PROJECTS_ROOT, join(h, "Desktop"), join(h, "Documents"), join(h, "Downloads"), join(h, "OneDrive", "Desktop"), join(h, "OneDrive", "Documents"), h];
 }
 
 /** Đổi tên và/hoặc ghim/bỏ ghim (trường nào không gửi thì giữ nguyên). */
@@ -96,18 +167,92 @@ export function updateProject(id: string, b: { name?: unknown; pinned?: unknown;
 }
 
 /** Bỏ dự án khỏi CAD Studio cùng hội thoại của nó. KHÔNG xóa thư mục dự án trên máy. */
+/** Số file và dung lượng của thư mục dự án (dừng đếm ở ``cap`` file để không treo với thư mục rất lớn). */
+export function folderStats(dir: string, cap = 200_000): { files: number; bytes: number; capped: boolean } {
+  let files = 0, bytes = 0, capped = false;
+  const walk = (d: string) => {
+    if (capped) return;
+    let ents: import("node:fs").Dirent[];
+    try { ents = readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      const full = join(d, e.name);
+      if (e.isSymbolicLink()) continue;
+      if (e.isDirectory()) walk(full);
+      else if (e.isFile()) {
+        files++;
+        try { bytes += statSync(full).size; } catch { /* file đang bị khoá vẫn đếm */ }
+        if (files >= cap) { capped = true; return; }
+      }
+    }
+  };
+  if (existsSync(dir)) walk(dir);
+  return { files, bytes, capped };
+}
+
+const norm = (p: string) => resolve(p).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+const isInside = (child: string, parent: string) => norm(child).startsWith(norm(parent) + "/");
+
+/**
+ * Lý do KHÔNG được xóa thư mục dự án (null = được xóa): ổ gốc, thư mục home, Desktop/Documents/Downloads,
+ * thư mục CAD Studio/projects (hoặc cha của nó), thư mục chứa hay nằm trong thư mục dự án khác.
+ * ``protectedDirs`` tách ra tham số để kiểm thử.
+ */
+export function deleteFolderProblem(p: Project, all: Project[], protectedDirs: string[] = defaultProtected()): string | null {
+  if (!p.dir) return "Dự án này không gắn thư mục trên máy.";
+  const dir = norm(p.dir);
+  if (/^[a-z]:$/.test(dir) || resolve(p.dir) === resolve(p.dir, "..")) return "Thư mục dự án là ổ đĩa gốc; không xóa.";
+  for (const d of protectedDirs) {
+    if (dir === norm(d)) return `Thư mục ${p.dir} là thư mục hệ thống/quan trọng của tài khoản; không xóa.`;
+    if (isInside(d, p.dir)) return `Thư mục ${p.dir} chứa ${d}; không xóa.`;
+  }
+  for (const o of all) {
+    if (o.id === p.id || !o.dir) continue;
+    if (norm(o.dir) === dir) return `Thư mục này cũng là của dự án "${o.name}"; không xóa.`;
+    if (isInside(o.dir, p.dir)) return `Thư mục này chứa thư mục của dự án "${o.name}" (${o.dir}); không xóa.`;
+    if (isInside(p.dir, o.dir)) return `Thư mục này nằm trong thư mục của dự án "${o.name}"; không xóa.`;
+  }
+  return null;
+}
+
+function defaultProtected(): string[] {
+  const h = homedir();
+  const out = [h, join(h, "Desktop"), join(h, "Documents"), join(h, "Downloads"), join(h, "OneDrive"),
+    join(h, "OneDrive", "Desktop"), join(h, "OneDrive", "Documents"), PROJECTS_ROOT, dirname(PROJECTS_ROOT)];
+  return out;
+}
+
+/** File đang bị chương trình khác giữ (không mở ghi được), tối đa ``max`` file. */
+export function lockedFiles(dir: string, max = 5): string[] {
+  const out: string[] = [];
+  const walk = (d: string) => {
+    if (out.length >= max) return;
+    let ents: import("node:fs").Dirent[];
+    try { ents = readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      if (out.length >= max) return;
+      const full = join(d, e.name);
+      if (e.isSymbolicLink()) continue;
+      if (e.isDirectory()) { walk(full); continue; }
+      try { const fd = openSync(full, "r+"); closeSync(fd); }
+      catch (err: any) { if (err?.code === "EBUSY" || err?.code === "EPERM" || err?.code === "EACCES") out.push(full); }
+    }
+  };
+  if (existsSync(dir)) walk(dir);
+  return out;
+}
+
 export function deleteProject(id: string): boolean | "last" {
   const list = load();
   if (!list.some(p => p.id === id)) return false;
   if (list.length === 1) return "last";
   save(list.filter(p => p.id !== id));
-  removeScopeData({ kind: "project", id });
+  removeScopeData({ kind: "project", id });   // chỉ dữ liệu trong thư mục app; .cadstudio/ ở lại để mở lại dự án là thấy chat
   return true;
 }
 
 // ---- File trong thư mục dự án (cây file ở cột phải) ----
 export type Entry = { name: string; path: string; dir: boolean; size: number; mtime: number };
-const HIDDEN = new Set([".git", "node_modules", ".venv", "__pycache__"]);
+const HIDDEN = new Set([".git", LOCAL_DIR, "node_modules", ".venv", "__pycache__"]);
 
 /** Đường dẫn con nằm TRONG thư mục dự án; ra ngoài (../, ổ khác) thì null. */
 export function inside(p: Project, sub: string): string | null {

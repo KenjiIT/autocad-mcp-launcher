@@ -26,6 +26,17 @@ const INTEXT = new RegExp(`(?:[A-Za-z]:\\\\{1,2}|\\\\{2,4}|/)[^\\s"'<>|?*\\r\\n]
 const looksPath = (s: string) => s.length < 400 && /[\\/]/.test(s) && ENDS.test(s);
 const tidy = (s: string) => s.replace(/\\{2}/g, "\\").trim();
 export const baseName = (p: string) => p.split(/[\\/]/).pop() || p;
+/** Khoá gộp: cùng một tệp dù viết \ hay /, hoa hay thường. */
+export const pathKey = (p: string) => p.replace(/\\/g, "/").replace(/\/{2,}/g, "/").toLowerCase();
+/** Nhãn hiển thị: tên tệp; trùng tên (khác đường dẫn) thì thêm thư mục cha, ví dụ "thiet-ke-phong-nha/SKILL.md". */
+export function fileLabels(paths: string[]): string[] {
+  const count = new Map<string, number>();
+  for (const p of paths) { const b = baseName(p).toLowerCase(); count.set(b, (count.get(b) ?? 0) + 1); }
+  return paths.map(p => {
+    const parts = p.split(/[\\/]/).filter(Boolean);
+    return (count.get(baseName(p).toLowerCase()) ?? 0) > 1 && parts.length > 1 ? parts.slice(-2).join("/") : baseName(p);
+  });
+}
 
 /** Quét mọi chuỗi trong tham số tool (quét giá trị thật, không quét JSON, để không phải lo dấu thoát). */
 function walk(v: unknown, out: string[], depth = 0) {
@@ -66,7 +77,7 @@ export function collect(items: readonly unknown[]): Res {
     }
     for (const p0 of found) {
       const p = tidy(p0);
-      const k = p.toLowerCase();
+      const k = pathKey(p);
       if (!p || seen.has(k)) continue;
       seen.add(k);
       files.push({ path: p, tool });
@@ -77,12 +88,12 @@ export function collect(items: readonly unknown[]): Res {
 
 export const resEmpty = (r: Res) => !r.shots.length && !r.files.length && !r.uploads && !r.skills.length && !r.servers.length;
 
-function Copyable({ path }: { path: string }) {
+function Copyable({ path, label }: { path: string; label: string }) {
   const [ok, setOk] = useState(false);
   return (
     <button type="button" className="sres-row" title={`${path}\nBấm để chép đường dẫn`}
       onClick={() => { void navigator.clipboard.writeText(path).then(() => { setOk(true); setTimeout(() => setOk(false), 1200); }); }}>
-      <span className="sres-name">{baseName(path)}</span>
+      <span className="sres-name">{label}</span>
       <small className="sres-tag">{ok ? "đã chép" : (baseName(path).split(".").pop() ?? "").toLowerCase()}</small>
     </button>
   );
@@ -116,7 +127,10 @@ export function SessionPanel({ res, onShot }: { res: Res; onShot: (i: number) =>
           {res.files.length > 0 && (
             <div className="sres-group">
               <p className="sres-cap">Tệp đã nhắc tới ({res.files.length})</p>
-              {res.files.slice(-10).map(f => <Copyable key={f.path} path={f.path} />)}
+              {(() => {
+                const shown = res.files.slice(-10), labels = fileLabels(shown.map(f => f.path));
+                return shown.map((f, i) => <Copyable key={pathKey(f.path)} path={f.path} label={labels[i]} />);
+              })()}
             </div>
           )}
           <div className="sres-group">

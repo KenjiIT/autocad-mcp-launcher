@@ -9,12 +9,33 @@ Skill này là **bộ lăng kính đánh giá và đề xuất bố trí** (côn
 
 Đơn vị, layer, chữ, kích thước, Layout theo [autocad-start-construction-drawing](../autocad-start-construction-drawing/SKILL.md). Nội thất và thiết bị vệ sinh tra [autocad-block-library](../autocad-block-library/SKILL.md) trước khi vẽ tay. Chung cư: kết cấu và giao thông chung đi trước, xem [autocad-apartment-floor-plan](../autocad-apartment-floor-plan/SKILL.md).
 
+## Lộ trình thiết kế nhà (đi đúng thứ tự, không bỏ bước)
+
+Khi người dùng nhờ thiết kế một ngôi nhà (hay một tầng, một căn), đi đúng 6 bước sau. Mỗi bước xong mới sang bước kế.
+
+1. **Thu thập thông tin lô đất và nhu cầu.** Kích thước và hình dạng lô, hướng, mặt tiền/đường, khoảng lùi, số tầng; số người, số phòng ngủ, WC, phòng thờ, gara, sân vườn, ngân sách... Hỏi gom một lần bằng câu hỏi lựa chọn (`AskUserQuestion` hoặc tool ask_user), điều gì đã rõ thì không hỏi lại.
+2. **Chọn hướng tổ chức / phong cách** (ví dụ chữ L có sân vườn, một khối gọn, giếng trời giữa nhà...). Hỏi bằng lựa chọn, mỗi lựa chọn một dòng mô tả ngắn.
+3. **Tự đưa ra 2-3 phương án mặt bằng KHÁC NHAU trong hướng đã chọn.** Mỗi phương án là một HÌNH mặt bằng SVG theo tỷ lệ (theo mục "Trình bày phương án mặt bằng" bên dưới), các hình đặt cạnh nhau, kèm **bảng so sánh ngắn**: diện tích sàn, diện tích hành lang, ưu/nhược, kết quả 6 phép thử của skill này (đạt/trượt). Đây là việc mặc định: KHÔNG hỏi người dùng "muốn xem phương án thế nào" (dựng cả, mô tả bằng bảng, chỉ dựng một phương án...), KHÔNG mô tả phương án bằng chữ thay cho hình.
+4. **Hỏi chọn phương án** (có thể kèm chỉnh sửa nhỏ). Chưa chọn thì không đi tiếp.
+5. **Dựng mô hình 3D / bản vẽ CAD của phương án đã chọn.** KHÔNG dựng 3D hay vẽ CAD trước bước này.
+6. **Hoàn thiện:** mặt đứng, mặt cắt, thống kê diện tích/cửa/vật liệu, rà lại 6 phép thử trên mô hình đã dựng.
+
 ## Cách dùng
 
 1. **Đứng ở lối vào, vẽ các trục tầm nhìn** (đường nhìn từ cửa chính đi vào). Mỗi trục nhìn thấy gì thì ghi lại.
 2. **Chạy 6 phép thử** bên dưới lên phương án (của người dùng hoặc của mình). Phép thử nào trượt thì nêu lỗi, đề xuất sửa, nói rõ đổi diện tích thế nào.
 3. **Báo cáo ngắn:** phép thử nào đạt/trượt, lý do, phương án sửa. Có hai cách sửa khác nhau thật sự thì hỏi người dùng bằng `AskUserQuestion`.
 4. Khi sửa trong DWG: làm trên layer hoặc bản sao phương án riêng, không đè bản gốc, không lưu khi chưa hỏi.
+
+## Trình bày phương án mặt bằng: vẽ thành HÌNH, không dùng sơ đồ chữ
+
+Mọi phương án mặt bằng đưa ra cho người dùng xem hay chọn phải là **hình sơ đồ mặt bằng vẽ theo tỷ lệ (SVG)**, không phải sơ đồ chữ/ASCII (kiểu `[ PN1 ][ WC ]`), không phải bảng chữ mô tả vị trí phòng.
+
+- Mỗi hình có: tường (nét đậm, dày theo tỷ lệ), cửa đi kèm cung mở, cửa sổ, tên phòng và diện tích (m²) trong từng phòng, kích thước tổng hai phương và các trục chính, mũi tên hướng Bắc, lối vào/mặt tiền (ghi rõ phía đường). Có thang thì vẽ bậc và mũi tên lên.
+- Mỗi phương án một hình, cùng tỷ lệ, đặt cạnh nhau để so sánh; dưới mỗi hình là vài dòng ưu/nhược và chỉ số chính (diện tích sàn, diện tích hành lang, số phòng).
+- Lưu từng hình thành file trong thư mục dự án, ví dụ `phuong-an/PA-A.svg`, `phuong-an/PA-B.svg` (nhiều tầng: `phuong-an/PA-A-tang-1.svg`…), rồi chèn vào câu trả lời: nhắc đường dẫn file (CAD Studio hiện ảnh từ đường dẫn) hoặc đặt nguyên nội dung SVG trong khối ```svg. Không ghi được file thì chỉ dùng khối ```svg.
+- SVG tự chứa: có `viewBox` theo mét hoặc mm, chữ dùng font hệ thống, không script, không ảnh/liên kết ngoài.
+- Sau khi người dùng chọn mới dựng vào CAD/BIM; hình SVG chỉ là sơ đồ để chọn phương án, không thay bản vẽ kỹ thuật.
 
 ## 6 phép thử
 

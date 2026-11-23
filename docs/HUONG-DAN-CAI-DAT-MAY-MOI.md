@@ -159,7 +159,24 @@ LiteBIM chưa mở thì agent vẫn kết nối được nhưng chưa có tool; 
 
 Lệnh `run_script` chạy tối đa 30 giây trong LiteBIM; quá thời gian chờ của cầu nối (120 giây) thì cầu nối báo "có thể vẫn đang chạy" và không tự gửi lại.
 
-### 2.12 Kiểm tra cài đặt xong
+### 2.12 Claude CLI cho CAD Studio (cài và đăng nhập trên máy mới)
+
+CAD Studio (web chat của launcher) dùng Claude CLI (`claude`) làm agent. Máy mới chưa có thì làm ngay trong CAD Studio, không cần mở terminal:
+
+1. Mở CAD Studio, tab **Cài đặt > Trợ lý AI**. Dòng **Claude CLI** báo "Chưa cài": bấm **Cài**. Launcher tải bộ cài chính thức từ `claude.ai` (không cần Node.js, không cần quyền quản trị), cài vào `%USERPROFILE%\.local\bin\claude.exe`; khoảng 30 giây. Không cần khởi động lại launcher: CAD Studio tìm thẳng ở đó dù PATH chưa cập nhật.
+2. Bấm **Đăng nhập**: một cửa sổ đen "claude" hiện ra và trình duyệt mở trang đăng nhập Claude. Đăng nhập trên trình duyệt; trình duyệt không tự mở thì chép đường link in trong cửa sổ đen dán vào trình duyệt (nếu trang đưa mã thì dán mã vào cửa sổ đen). Xong thì đóng cửa sổ đen; CAD Studio tự cập nhật "Đã đăng nhập".
+3. Bấm **Kiểm tra máy** (cùng trang) để xem từng điều kiện: mạng tới `claude.ai`, Claude CLI (phiên bản, đường dẫn), Git for Windows, PATH, Node/npm, đăng nhập, hồ sơ Claude, thư mục tài khoản. Mục chưa đạt có nút xử lý ngay.
+
+Khi gặp lỗi, CAD Studio báo nguyên nhân thay vì chỉ "Cài không thành công":
+
+- **Bị chặn khi tải bộ cài** (mạng, proxy, tường lửa công ty): kiểm tra mạng/proxy rồi bấm Cài lại, hoặc **Mở hướng dẫn cài Claude Code** để cài tay.
+- **PowerShell chặn chạy script** (ExecutionPolicy) hoặc lỗi khác của bộ cài: nếu máy có Node.js, launcher tự thử cài qua `npm i -g @anthropic-ai/claude-code`; cũng có nút **Cài qua npm**.
+- **Git for Windows**: không bắt buộc (Claude Code bản hiện tại chạy lệnh bằng PowerShell khi không có Git Bash); nên cài nếu muốn agent chạy lệnh bash/git. Nút **Cài Git** dùng `winget` nếu có, không thì mở trang tải.
+- Tên tài khoản Windows có dấu hoặc khoảng trắng (ví dụ `C:\Users\Nguyễn Văn A`) đã được hỗ trợ.
+
+Đã thử tự động trên môi trường giả lập máy mới (tài khoản trống tên có dấu, PATH không có claude/node/npm/git, hồ sơ Claude riêng): cài thật thành công trong khoảng 30 giây, trạng thái tự cập nhật không cần khởi động lại, cửa sổ đăng nhập hiện ra thấy được và trình duyệt mở trang đăng nhập. Bài thử: `cad-web-local/gateway/scripts/fresh-machine.mjs`.
+
+### 2.13 Kiểm tra cài đặt xong
 1. `http://127.0.0.1:8764/status` trả trạng thái JSON. Trang chủ launcher hiện trạng thái `dutoan` (sẵn sàng hoặc chưa có dữ liệu).
 2. Trong agent mới, hỏi: "Liệt kê tool MCP bạn có." Phải thấy `knowledge` (đọc tri thức chung), `knowledge_propose` (gửi đề xuất), `skills`, `launcher_set_backend`, các tool CAD của `autocad_beiming`/`autocad_puran`, và 12 tool của `dutoan` (`search_don_gia`, `phan_tich_don_gia`, `create_project`, `add_project_item`, `get_project_summary`, `search_vat_tu`, `calculate_cvc`, `lookup_svdt`, `calculate_svdt`, `compare_prices`, `get_thvt`, `list_projects`).
 3. Hỏi agent: "Tra tri thức chung về cách đọc mặt bằng kết cấu Revit." Nó phải gọi tool `knowledge` (hoặc skill `knowledge-query`) và nêu trang nó dựa vào. Tool `knowledge` đọc thư mục tri thức của launcher nên hoạt động cả khi agent không được cấp quyền vào thư mục đó; chưa tải tri thức thì nó báo `KNOWLEDGE_NOT_DOWNLOADED`.

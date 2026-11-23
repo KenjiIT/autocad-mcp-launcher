@@ -1,10 +1,12 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-process.env.CAD_DATA_DIR = mkdtempSync(join(tmpdir(), "cad-usage-")) + "/";
+const USAGE_DIR = mkdtempSync(join(tmpdir(), "cad-usage-"));
+process.env.CAD_DATA_DIR = USAGE_DIR + "/";
+after(() => rmSync(USAGE_DIR, { recursive: true, force: true }));
 const { usageOf, cleanUsage } = await import("../src/usage.js");
 const S = await import("../src/store.js");
 

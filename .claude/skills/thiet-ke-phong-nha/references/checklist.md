@@ -39,6 +39,17 @@
 - [ ] Cửa ≥ 900 mm (cửa phòng ≥ 800 mm); trước/sau cửa có chỗ 1 400 × 1 400 mm.
 - [ ] WC tiếp cận: chỗ xe lăn 1 400 × 1 400 mm quanh bệ xí, cửa không lấn vào chỗ đó.
 
+### Lộ trình
+- [ ] Đã thu thập thông tin lô đất và nhu cầu trước khi đề xuất.
+- [ ] Đã cho người dùng chọn hướng/phong cách bằng lựa chọn.
+- [ ] Trong hướng đã chọn: 2-3 phương án KHÁC NHAU, mỗi phương án một hình SVG, kèm bảng so sánh (diện tích, ưu nhược, 6 phép thử); không hỏi "muốn xem phương án thế nào".
+- [ ] Chỉ dựng 3D/vẽ CAD sau khi người dùng chọn phương án; xong thì hoàn thiện mặt đứng, mặt cắt, thống kê.
+
+### Trình bày phương án
+- [ ] Mỗi phương án là một hình SVG vẽ theo tỷ lệ (không sơ đồ chữ/ASCII), đã lưu trong `phuong-an/` của dự án và chèn vào câu trả lời.
+- [ ] Hình có tường, cửa đi + cung mở, cửa sổ, tên + diện tích phòng, kích thước tổng và trục chính, hướng Bắc, lối vào/mặt tiền.
+- [ ] Các phương án cùng tỷ lệ, đặt cạnh nhau, kèm ưu/nhược và chỉ số chính.
+
 ### Số liệu
 - [ ] Mọi con số ghi lên bản vẽ đã xác nhận theo hồ sơ dự án hoặc tiêu chuẩn đúng loại nhà (13967 nhà riêng lẻ, 9411 nhà phố, 4451 chung cư), không dùng số từ tài liệu nguồn nước ngoài.
 - [ ] Diện tích phòng đạt mức tối thiểu của Bảng 1 TCVN 13967 (ngủ đơn 9, ngủ đôi 12, sinh hoạt chung 13, khách 13, bếp ăn 12, vệ sinh 3 m²).

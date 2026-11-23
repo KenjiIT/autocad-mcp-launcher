@@ -163,6 +163,16 @@ def open_pipe(prefix=PIPE_PREFIX):
     raise LiteBimUnavailable(last)
 
 
+def status(product, info):
+    """(mức, mô tả ngắn) cho dòng dịch vụ ở tab Điều khiển. Mức: ok / busy / off."""
+    info = info or {}
+    if info.get("connected"):
+        return "ok", "Đã nối qua gateway"
+    if info.get("available"):
+        return "ok", "Đang mở, MCP bật (nối khi agent gọi)"
+    return "off", "Chưa mở hoặc MCP đang tắt"
+
+
 def describe(product, info):
     """Dòng trạng thái ở tab Điều khiển."""
     title = PRODUCTS[product][0]

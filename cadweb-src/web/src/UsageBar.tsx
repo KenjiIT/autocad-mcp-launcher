@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CliUpdates } from "./CliUpdates";
 import { getPlanUsage, niceError, refreshPlanUsage, type PlanSide, type PlanUsage } from "./api";
 
 /** "1h2m", "2d2h", "45m" — thời gian còn lại tới lúc đặt lại hạn mức. */
@@ -52,6 +53,8 @@ export function UsageBar({ tick }: { tick: number }) {
       {err && <span className="err-msg">{err}</span>}
       <button type="button" className="ghost" disabled={busy} onClick={() => void refresh()}
         title="Lấy số mới của Claude ngay (gửi một câu rất ngắn bằng Haiku, có tính vào gói)">{busy ? "Đang lấy…" : "↻ Làm mới"}</button>
+      <span className="ubar-sep" aria-hidden="true" />
+      <CliUpdates />
     </footer>
   );
 }

@@ -23,6 +23,7 @@ from logfile import RotatingLog, start_logged
 import knowledge_propose
 import knowledge_read
 import litebim_bridge
+import litebim_reference
 import remote_agent
 import skillgate
 import skillserve
@@ -447,12 +448,47 @@ def pipe_with_skills(bridge, item):
             "content": [{"type": "text", "text": json.dumps(payload, ensure_ascii=False)}], "isError": is_error}}
     reply = bridge.handle(item)
     result = reply.get("result") if isinstance(reply, dict) else None
+    remember_reference(bridge, item, result)
     if method == "initialize" and isinstance(result, dict):
         result["instructions"] = (str(result.get("instructions") or "") + "\n\n" + PIPE_SKILLS_NOTE).strip()
     elif method == "tools/list" and isinstance(result, dict) and isinstance(result.get("tools"), list):
         if not any(t.get("name") == "skills" for t in result["tools"] if isinstance(t, dict)):
             result["tools"] = [*result["tools"], PIPE_SKILLS_TOOL]
     return reply
+
+
+def remember_reference(bridge, item, result):
+    """Giữ tài liệu get_reference trong launcher/state/<sản phẩm>/reference/ (xem litebim_reference.py)."""
+    try:
+        method, params = item.get("method"), item.get("params") or {}
+        if method == "tools/call" and params.get("name") == litebim_reference.TOOL and not params.get("arguments"):
+            text = litebim_reference._text_of(result)
+            version = str(((bridge._hello or {}).get("serverInfo") or {}).get("version") or "")
+            if text and version:
+                litebim_reference.store(bridge.product, bridge.title, version, text)
+        elif method == "initialize" and isinstance(result, dict):
+            version = str((result.get("serverInfo") or {}).get("version") or "")
+            meta = litebim_reference.read_meta(bridge.product)
+            if version and version != "launcher" and (not meta or meta.get("version") != version):
+                litebim_reference.refresh_async(bridge)   # LiteBIM mới mở hoặc đổi phiên bản
+    except Exception as exc:  # không để việc ghi bộ đệm làm hỏng lệnh của agent
+        print(f"reference cache: {exc}", file=sys.stderr)
+
+
+async def reference_route(request: Request):
+    """GET: tài liệu API đã lưu (markdown) của litebim/litecad; ?info=1 trả đường dẫn/phiên bản. POST .../refresh: lấy lại."""
+    key = request.path_params["key"]
+    if key not in PIPE_BRIDGES:
+        return JSONResponse({"error": "Unknown product"}, status_code=404)
+    if request.method == "POST":
+        result = await asyncio.to_thread(litebim_reference.refresh, PIPE_BRIDGES[key](), True)
+        return JSONResponse({**result, **litebim_reference.info(key)}, status_code=200 if result.get("state") in ("updated", "current") else 409)
+    data = litebim_reference.info(key)
+    if request.query_params.get("info") or not data["available"]:
+        return JSONResponse(data, status_code=200 if data["available"] else 404)
+    path = Path(data["path"])
+    return Response(path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8",
+                    headers={"X-Reference-Version": str(data.get("version") or "")})
 
 
 async def litebim_route(request: Request, bridge=None):
@@ -645,6 +681,7 @@ async def status_route(request: Request):
                          "dutoan": dutoan.status(),
                          "litebim": litebim.status(),
                          "litecad": litecad.status(),
+                         "reference": {k: litebim_reference.info(k) for k in PIPE_BRIDGES},
                          "remote_agent": remote_agent.STATE.snapshot()})
 
 
@@ -682,6 +719,9 @@ async def remote_status():
 async def lifespan(_app):
     # Chế độ agent (kết nối ra server) chạy như tác vụ nền; tắt mặc định nên không ảnh hưởng gì khi chưa cấu hình.
     remote_agent.configure_logging(LOG_DIR)
+    for key in PIPE_BRIDGES:   # LiteBIM đang mở mà chưa có tài liệu / đổi phiên bản: lấy ngay
+        if litebim_bridge.installed(key):
+            litebim_reference.refresh_async(PIPE_BRIDGES[key]())
     remote_task = asyncio.ensure_future(remote_agent.run_forever(
         knowledge_propose.load_settings, status_source=remote_status, version=launcher_version()))
     yield
@@ -697,6 +737,8 @@ app = Starlette(routes=[
     Route("/status", status_route),
     Route("/dutoan/stop", dutoan_stop_route, methods=["POST"]),
     Route("/{key}/select", select_route, methods=["POST"]),
+    Route("/{key}/reference", reference_route, methods=["GET"]),
+    Route("/{key}/reference/refresh", reference_route, methods=["POST"]),
     Route("/{key}/mcp", queued_mcp_route, methods=["GET", "POST", "DELETE"]),
 ], lifespan=lifespan)
 

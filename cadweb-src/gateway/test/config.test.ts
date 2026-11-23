@@ -1,12 +1,14 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
 
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 // Dùng file cấu hình riêng (chưa tồn tại): kết quả không được phụ thuộc vào lựa chọn engine/model trong .config.json thật của người dùng
-process.env.CAD_CONFIG_FILE = join(mkdtempSync(join(tmpdir(), "cad-cfg-")), "config.json");
+const CFG_DIR = mkdtempSync(join(tmpdir(), "cad-cfg-"));
+process.env.CAD_CONFIG_FILE = join(CFG_DIR, "config.json");
+after(() => rmSync(CFG_DIR, { recursive: true, force: true }));
 delete process.env.CHAT_ENGINE;
 const C = await import("../src/config.js");
 
@@ -41,4 +43,13 @@ test("engine codex: danh sách model và model mặc định là của Codex, kh
     assert.equal(C.modelFor("claude-opus-5-5"), "codex-default", "model của Claude không dùng được khi chạy Codex");
     assert.equal(C.modelFor("codex-default"), "codex-default");
   } finally { delete process.env.CHAT_ENGINE; }
+});
+
+test("engine theo từng phiên: model hợp lệ tính theo engine của phiên, không theo Cài đặt", () => {
+  assert.equal(C.engineFor("codex"), "codex");
+  assert.equal(C.engineFor("api"), "api");
+  assert.equal(C.engineFor("rm -rf"), C.getEngine(), "engine lạ quay về mặc định");
+  assert.equal(C.modelFor("claude-opus-5-5", "codex"), "codex-default");
+  assert.equal(C.modelFor("claude-opus-5-5", "cli"), "claude-opus-5-5");
+  assert.equal(C.getModel("codex"), "codex-default");
 });

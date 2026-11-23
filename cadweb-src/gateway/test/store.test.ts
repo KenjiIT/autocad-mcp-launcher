@@ -1,11 +1,13 @@
-import { test } from "node:test";
+import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const DIR = mkdtempSync(join(tmpdir(), "cad-data-"));
+process.on("exit", () => rmSync(DIR, { recursive: true, force: true }));   // không để rác trong %TEMP%
 process.env.CAD_DATA_DIR = DIR + "/";
+after(() => rmSync(DIR, { recursive: true, force: true }));
 const S = await import("../src/store.js");
 
 const A = S.userScope("aaaaaaaa-0000-0000-0000-000000000001");
@@ -66,4 +68,13 @@ test("xóa dữ liệu một tài khoản không đụng tới tài khoản khá
   S.removeScopeData(A);
   assert.deepEqual(S.listConversations(A), []);
   assert.equal(S.getConversation(B, "conv-bbbb-0002")?.title, "B giữ");
+});
+
+test("mức suy nghĩ lưu theo phiên: giá trị hợp lệ được giữ, lần lưu sau không gửi thì giữ nguyên, giá trị lạ bị bỏ", () => {
+  S.putConversation(A, "conv-eff-0001", { title: "t", effort: "high" } as any);
+  assert.equal(S.getConversation(A, "conv-eff-0001")?.effort, "high");
+  S.putConversation(A, "conv-eff-0001", { title: "t2" });
+  assert.equal(S.getConversation(A, "conv-eff-0001")?.effort, "high");
+  S.putConversation(A, "conv-eff-0002", { title: "t", effort: "rat-cao" } as any);
+  assert.equal(S.getConversation(A, "conv-eff-0002")?.effort, undefined);
 });

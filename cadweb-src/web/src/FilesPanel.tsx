@@ -10,7 +10,7 @@ const parentOf = (path: string) => path.includes("/") ? path.slice(0, path.lastI
 const ROOT: Entry = { name: "", path: "", dir: true, size: 0, mtime: 0 };
 
 /** Cột phải kiểu Orca: cây file của thư mục dự án đang chọn (cả file người dùng đưa vào lẫn file agent tạo ra). */
-export function FilesPanel({ project, tick }: { project: string; tick: number }) {
+export function FilesPanel({ project, tick, tabs }: { project: string; tick: number; tabs?: React.ReactNode }) {
   const [info, setInfo] = useState<Project | null>(null);
   const [tree, setTree] = useState<Record<string, Entry[]>>({});
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -186,12 +186,13 @@ export function FilesPanel({ project, tick }: { project: string; tick: number })
       </li>
     ));
 
-  if (!info) return <aside className="files" aria-label="File dự án">{err && <p className="err-msg small">{err}</p>}</aside>;
+  if (!info) return <aside className="files" aria-label="File dự án">{tabs}{err && <p className="err-msg small">{err}</p>}</aside>;
   return (
     <aside className={`files${dropOn === "" ? " drop" : ""}`} aria-label="File dự án" onContextMenu={ev => { if (info.dir) showMenu(ev, entryMenu(ROOT)); }}
       onDragOver={ev => over(ev, "")} onDrop={ev => drop(ev, "")}
       onDragLeave={ev => { if (!ev.currentTarget.contains(ev.relatedTarget as Node)) setDropOn(null); }}>
       <Resizer name="files" def={280} min={200} max={560} edge="left" />
+      {tabs}
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
       <div className="files-head">
         <b title={info.dir ?? ""}>{info.name}</b>

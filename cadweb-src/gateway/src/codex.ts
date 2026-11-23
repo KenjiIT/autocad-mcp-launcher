@@ -7,6 +7,8 @@ import type { McpServer } from "./config.js";
 import type { Emit } from "./chat.js";
 import { attachLocalImages } from "./localImages.js";
 import { ASK_DESCRIPTION, ASK_SCHEMA, type Run } from "./ask.js";
+import { COORD_TOOLS } from "./coord.js";
+import type { CoordTurn } from "./cli.js";
 import { CODEX_BIN, DEFAULT_CODEX_MODEL } from "./codexmodels.js";
 
 // Chế độ chat bằng Codex CLI: `codex exec --json` (và `codex exec resume <thread_id>` để nối tiếp).
@@ -14,8 +16,10 @@ import { CODEX_BIN, DEFAULT_CODEX_MODEL } from "./codexmodels.js";
 
 const WORK = join(tmpdir(), "cad-web-codex");
 const ASK_MCP = fileURLToPath(new URL("./ask-mcp.mjs", import.meta.url));
+const COORD_MCP = fileURLToPath(new URL("./coord-mcp.mjs", import.meta.url));
 
 export const INSTRUCTIONS =
+  "Khi cần trình bày bố cục, mặt bằng hay sơ đồ không gian thì vẽ thành hình SVG (lưu file .svg trong thư mục dự án và nhắc đường dẫn, hoặc đặt nguyên SVG trong khối ```svg), không vẽ bằng ký tự/ASCII. " +
   "Bạn là trợ lý điều khiển AutoCAD qua các tool MCP. Trả lời bằng tiếng Việt, ngắn gọn. " +
   "Trước khi sửa bản vẽ hãy đọc/đo để chắc chắn, và nói rõ bạn đã thay đổi gì. " +
   "Chỉ dùng các tool MCP được cấp: KHÔNG chạy lệnh shell và KHÔNG đọc hay ghi tệp trên máy. " +
@@ -27,11 +31,21 @@ export function codexVersion(): Promise<string | null> {
 
 const toml = (v: unknown) => JSON.stringify(v);   // chuỗi hoặc mảng JSON cũng là TOML hợp lệ (có thoát \\ và \")
 
+/** Codex đã cài và đã đăng nhập chưa (`codex login status` thoát 0 khi đã đăng nhập). */
+export async function codexStatus(): Promise<{ installed: boolean; loggedIn: boolean; version: string | null }> {
+  const version = await codexVersion();
+  if (!version) return { installed: false, loggedIn: false, version: null };
+  const loggedIn = await new Promise<boolean>(res => execFile(CODEX_BIN, ["login", "status"], { timeout: 8000, windowsHide: true }, e => res(!e)));
+  return { installed: true, loggedIn, version };
+}
+
 export type CodexArgsInput = {
   writable?: boolean;
   effort?: string;      // mức suy nghĩ; Codex chỉ có tới "high" nên xhigh/max quy về high   // true: được ghi trong thư mục làm việc (thư mục dự án)
   sessionId?: string; model: string; servers: McpServer[]; allowed: string[];
   ask?: { run: Pick<Run, "token">; url: string };
+  coord?: CoordTurn;    // bảng điều phối dự án (MCP coord + khối tình trạng)
+  extra?: string;      // khối dặn thêm vào developer_instructions (danh sách skill…)
   images?: string[];   // đường dẫn ảnh người dùng đính kèm (file tạm do gateway ghi)
 };
 
@@ -43,7 +57,7 @@ export function codexArgs(o: CodexArgsInput): { args: string[]; env: Record<stri
   set("sandbox_mode", o.writable ? "workspace-write" : "read-only");
   if (o.effort) set("model_reasoning_effort", o.effort === "xhigh" || o.effort === "max" ? "high" : o.effort);
   set("approval_policy", "never");                // không có người duyệt trong chế độ này, nên tool MCP phải được duyệt sẵn (bên dưới)
-  set("developer_instructions", INSTRUCTIONS);
+  set("developer_instructions", [INSTRUCTIONS, o.coord?.prompt, o.extra].filter(Boolean).join("\n"));
 
   for (const s of o.servers) {
     const p = `mcp_servers.${s.id}`;
@@ -68,6 +82,16 @@ export function codexArgs(o: CodexArgsInput): { args: string[]; env: Record<stri
     set("mcp_servers.ask.env.ASK_SCHEMA", JSON.stringify(ASK_SCHEMA));
     set("mcp_servers.ask.default_tools_approval_mode", "approve");
     set("mcp_servers.ask.tool_timeout_sec", 1800);  // chờ người dùng trả lời
+  }
+
+  if (o.coord) {
+    set("mcp_servers.coord.command", process.execPath);
+    set("mcp_servers.coord.args", [COORD_MCP]);
+    set("mcp_servers.coord.env.COORD_URL", o.coord.url);
+    set("mcp_servers.coord.env.COORD_TOKEN", o.coord.token);
+    set("mcp_servers.coord.env.COORD_TOOLS", JSON.stringify(COORD_TOOLS));
+    set("mcp_servers.coord.default_tools_approval_mode", "approve");
+    set("mcp_servers.coord.tool_timeout_sec", 60);
   }
 
   const args = [
@@ -132,11 +156,11 @@ export function codexMapper(emit: Emit, serverNames: Record<string, string> = {}
 /** Chạy một lượt chat qua Codex CLI (dùng tài khoản Codex đã đăng nhập trên máy). Trả về thread_id để nối tiếp. */
 export function runCodex(
   prompt: string, sessionId: string | undefined, allowed: string[], emit: Emit, signal: AbortSignal, model: string,
-  ask?: { run: Run; url: string }, serverList: McpServer[] = [], images: string[] = [], workDir?: string, effort?: string,
+  ask?: { run: Run; url: string }, serverList: McpServer[] = [], images: string[] = [], workDir?: string, effort?: string, coord?: CoordTurn, extra?: string,
 ): Promise<string | undefined> {
   mkdirSync(WORK, { recursive: true });
   const servers = serverList.filter(s => s.enabled);
-  const { args, env } = codexArgs({ sessionId, model, servers, allowed, ask, images, writable: !!workDir, effort });
+  const { args, env } = codexArgs({ sessionId, model, servers, allowed, ask, images, writable: !!workDir, effort, coord, extra });
   const m = codexMapper(emit, Object.fromEntries(servers.map(s => [s.id, s.name])));
 
   return new Promise((resolve, reject) => {

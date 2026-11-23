@@ -28,6 +28,14 @@ Quy tắc chung:
 - Cổng sau phát hiện quyết định trước không đạt thì dừng, báo con số, đề xuất quay lại cổng trước và hỏi. Không lặng lẽ sửa quyết định đã duyệt.
 - Người dùng nói bỏ qua cổng thì chỉ trình ở cổng 5 và ghi việc đó vào nhật ký quyết định.
 
+## Lộ trình khi thiết kế
+
+Thứ tự bắt buộc: thu thập thông tin lô đất và nhu cầu, rồi chọn hướng/phong cách (hỏi bằng lựa chọn), rồi **tự đưa 2-3 phương án mặt bằng khác nhau trong hướng đã chọn, mỗi phương án là một hình SVG** kèm bảng so sánh ngắn, rồi hỏi chọn, rồi mới dựng 3D/vẽ CAD, cuối cùng hoàn thiện (mặt đứng, mặt cắt, thống kê). Không hỏi "muốn xem phương án thế nào", không mô tả phương án bằng chữ thay cho hình, không dựng 3D trước khi người dùng chọn. Chi tiết: mục "Lộ trình thiết kế nhà" trong [thiet-ke-phong-nha](../thiet-ke-phong-nha/SKILL.md).
+
+## Trình bày phương án: vẽ thành hình
+
+Mọi phương án mặt bằng đưa cho người dùng chọn phải là hình sơ đồ mặt bằng vẽ theo tỷ lệ (SVG), không dùng sơ đồ chữ/ASCII: tường, cửa đi kèm cung mở, cửa sổ, tên phòng + diện tích, kích thước tổng và trục chính, hướng Bắc, lối vào/mặt tiền; mỗi phương án một hình, cùng tỷ lệ, đặt cạnh nhau để so sánh. Lưu file vào thư mục dự án (ví dụ `phuong-an/PA-A.svg`) và chèn vào câu trả lời (nhắc đường dẫn file hoặc khối ```svg). Chi tiết: mục "Trình bày phương án mặt bằng" trong [thiet-ke-phong-nha](../thiet-ke-phong-nha/SKILL.md).
+
 ## Trước khi bắt đầu
 
 1. Có mặt bằng làm căn cứ thì làm Quy tắc 1 của `autocad-agent-coordinator` (xác định khu đất, chụp ảnh, người dùng xác nhận) trước khi lập kế hoạch.

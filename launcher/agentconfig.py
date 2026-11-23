@@ -48,6 +48,9 @@ class Context:
     home: Path = field(default_factory=Path.home)
     appdata: Path = field(default_factory=lambda: Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming"))
     localappdata: Path = field(default_factory=lambda: Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local"))
+    # Claude Code đọc/ghi cấu hình user ở <CLAUDE_CONFIG_DIR>/.claude.json nếu biến này có (không thì ~/.claude.json).
+    # Launcher phải kiểm tra đúng tệp mà lệnh `claude mcp` của CHÍNH tiến trình này ghi vào.
+    claude_config_dir: Optional[str] = field(default_factory=lambda: (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip() or None)
     backup_dir: Path = field(default_factory=lambda: Path.home() / ".autocad-mcp-launcher-backups")
     bridge_python: str = sys.executable
     bridge_script: str = "stdio_bridge.py"
@@ -76,7 +79,7 @@ def config_path(agent, ctx):
     if agent == "OpenAI Codex":
         return ctx.home / ".codex" / "config.toml"
     if agent == "Claude Code":
-        return ctx.home / ".claude.json"
+        return (Path(ctx.claude_config_dir) if ctx.claude_config_dir else ctx.home) / ".claude.json"
     if agent == "Cursor":
         return ctx.home / ".cursor" / "mcp.json"
     if agent == "Claude Desktop":
@@ -417,7 +420,11 @@ def _apply_claude_code(ctx, state, todo, same, remove):
     after = status("Claude Code", ctx)
     bad = [n for n in todo if (after["servers"][n] != "missing" if remove else after["servers"][n] != "ok")]
     if bad:
-        return _result(False, "Lệnh `claude mcp` báo xong nhưng cấu hình chưa như mong muốn ở: " + ", ".join(bad)
-                       + ". Kiểm tra bằng `claude mcp list`.", agent="Claude Code")
+        where = config_path("Claude Code", ctx)
+        hint = (f" Launcher đang chạy với CLAUDE_CONFIG_DIR={ctx.claude_config_dir}, nên Claude Code dùng hồ sơ đó chứ không phải ~/.claude.json."
+                if ctx.claude_config_dir else "")
+        return _result(False, "Lệnh `claude mcp` báo xong nhưng trong " + str(where) + " các mục sau chưa đúng: " + ", ".join(bad)
+                       + "." + hint + " Chạy `claude mcp list` trong cùng môi trường để xem; nếu vẫn sai, dùng Sao chép cấu hình và chạy tay.",
+                       agent="Claude Code")
     return _result(True, _done(todo, remove), changed=todo, unchanged=same,
                    backup=backup, agent="Claude Code", remove=remove)

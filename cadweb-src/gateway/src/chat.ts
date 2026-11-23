@@ -8,6 +8,7 @@ import { attachLocalImages } from "./localImages.js";
 const MAX_STEPS = Number(process.env.CHAT_MAX_STEPS ?? 20);
 const MAX_TEXT = 20_000; // cắt kết quả tool quá dài để khỏi tốn token
 const SYSTEM = process.env.CHAT_SYSTEM ??
+  "Khi cần trình bày bố cục, mặt bằng hay sơ đồ không gian thì vẽ thành hình SVG (lưu file .svg trong thư mục dự án và nhắc đường dẫn, hoặc đặt nguyên SVG trong khối ```svg), không vẽ bằng ký tự/ASCII. " +
   "Bạn là trợ lý điều khiển AutoCAD qua các tool MCP. Trả lời bằng tiếng Việt, ngắn gọn. " +
   "Trước khi sửa bản vẽ hãy đọc/đo để chắc chắn, và nói rõ bạn đã thay đổi gì. " +
   "Khi cần người dùng chọn giữa vài phương án rời rạc (xác nhận, chọn hướng, có/không), hãy gọi tool ask_user để hiện bảng lựa chọn, đừng liệt kê bằng chữ rồi chờ họ gõ.";
@@ -32,16 +33,17 @@ function toBlocks(content: any[] | undefined): Anthropic.ToolResultBlockParam["c
 
 /** Chạy vòng lặp chat + tool. Trả về toàn bộ messages sau lượt này. `servers`: danh sách server riêng của lượt này (MCP ở máy CAD của tài khoản); không có thì dùng danh sách chung của gateway. */
 export async function runChat(
-  history: Anthropic.MessageParam[], allowed: (n: string) => boolean, emit: Emit, signal: AbortSignal, model: string = getModel(), run?: Run, servers: McpServer[] = [],
+  history: Anthropic.MessageParam[], allowed: (n: string) => boolean, emit: Emit, signal: AbortSignal, model: string = getModel(), run?: Run, servers: McpServer[] = [], extraSystem = "",
 ): Promise<Anthropic.MessageParam[]> {
   const pool = tempClients(servers);
-  try { return await chatLoop(history, allowed, emit, signal, model, run, servers, (id, fn) => pool.with(id, fn)); }
+  try { return await chatLoop(history, allowed, emit, signal, model, run, servers, (id, fn) => pool.with(id, fn), extraSystem); }
   finally { await pool.close(); }
 }
 
 async function chatLoop(
   history: Anthropic.MessageParam[], allowed: (n: string) => boolean, emit: Emit, signal: AbortSignal, model: string, run: Run | undefined,
   serverList: McpServer[], withSrv: <T>(id: string, fn: (c: import("@modelcontextprotocol/sdk/client/index.js").Client) => Promise<T>) => Promise<T>,
+  extraSystem = "",
 ): Promise<Anthropic.MessageParam[]> {
   // Gộp tool của mọi server đang bật. Tên gửi cho Claude là "<id>__<tool>" để hai server trùng tên tool không đè nhau.
   const tools: Anthropic.Tool[] = [];
@@ -63,7 +65,8 @@ async function chatLoop(
 
   for (let step = 0; step < MAX_STEPS; step++) {
     const stream = ai.messages.stream(
-      { model, max_tokens: 8192, system: SYSTEM, tools, messages }, { signal });
+      { model, max_tokens: 8192, system: extraSystem ? `${SYSTEM}
+${extraSystem}` : SYSTEM, tools, messages }, { signal });
     stream.on("text", d => emit("text", d));
     const msg = await stream.finalMessage();
     emit("usage", usageOf(msg.usage));

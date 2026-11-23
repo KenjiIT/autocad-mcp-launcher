@@ -2,6 +2,8 @@ import { Component, StrictMode, useEffect, useRef, useState, type ReactNode } fr
 import { createRoot } from "react-dom/client";
 import { health, listProjects, niceError, setCurrentProject } from "./api";
 import { FilesPanel } from "./FilesPanel";
+import { Resizer } from "./Resizer";
+import { CoordPanel, CoordStrip, locksByOwner, useCoord } from "./Coord";
 import { UsageBar } from "./UsageBar";
 import { Chat } from "./Chat";
 import { SettingsPage } from "./SettingsPage";
@@ -21,6 +23,15 @@ function App() {
   const [openConv, setOpenConv] = useState<string | undefined>();   // mở sẵn cuộc trò chuyện này sau khi đổi dự án
   const [filesTick, setFilesTick] = useState(0);                    // tăng sau mỗi lượt chat để cột file tải lại
   const [treeKey, setTreeKey] = useState(0);
+  const [rtab, setRtab] = useState<"files" | "log" | "locks">("files");   // cột phải: Tệp / Trao đổi / Khoá
+  const [chatTick, setChatTick] = useState(0);                            // lượt chat bắt đầu/kết thúc: tải lại bảng điều phối ngay
+  const { coord, reload: reloadCoord } = useCoord(project, filesTick + chatTick);
+  const tabs = (
+    <div className="rtabs" role="tablist" aria-label="Cột phải">
+      {([["files", "Tệp"], ["log", "Trao đổi"], ["locks", `Khoá${coord.locks.length ? ` (${coord.locks.length})` : ""}`]] as const).map(([k, l]) =>
+        <button key={k} type="button" role="tab" aria-selected={rtab === k} className={rtab === k ? "on" : ""} onClick={() => setRtab(k)}>{l}</button>)}
+    </div>
+  );
   const pickProject = (id: string, conv?: string) => {
     setCurrentProject(id); setOpenConv(conv); setProject(id);
     try { localStorage.setItem("cad-project", id); } catch { /* bỏ qua */ }
@@ -65,11 +76,19 @@ function App() {
       </header>
       <p className="banner" role="alert">{problem}</p>
       {tab === "settings" ? <SettingsPage reloadKey={status} onSaved={() => void connect()} onMcpChanged={() => { wasOk.current = false; void connect(); }} />
-        : !project ? <div className="full" /> : <div className="full ws">
-            <Chat key={`${project}:${openConv ?? ""}`} epoch={epoch} project={project} treeKey={treeKey} initialOpen={openConv}
-              onSelectProject={id => pickProject(id)} onOpenOther={(id, conv) => pickProject(id, conv)} onTurnDone={() => setFilesTick(n => n + 1)} onProjectsChanged={() => setFilesTick(n => n + 1)} />
-            <FilesPanel project={project} tick={filesTick} />
-          </div>}
+        : !project ? <div className="full" /> : <div className="full wsw">
+          <CoordStrip coord={coord} />
+          <div className="ws">
+            <Chat key={`${project}:${openConv ?? ""}`} epoch={epoch} project={project} treeKey={treeKey} initialOpen={openConv} locks={locksByOwner(coord)}
+              onSelectProject={id => pickProject(id)} onOpenOther={(id, conv) => pickProject(id, conv)} onTurnStart={() => setTimeout(() => setChatTick(n => n + 1), 800)} onTurnDone={() => setFilesTick(n => n + 1)} onProjectsChanged={() => setFilesTick(n => n + 1)} />
+            {rtab === "files" ? <FilesPanel project={project} tick={filesTick} tabs={tabs} />
+              : <aside className="files rcoord" aria-label={rtab === "log" ? "Trao đổi giữa các agent" : "Khoá đang giữ"}>
+                  <Resizer name="files" def={280} min={200} max={560} edge="left" />
+                  {tabs}
+                  <CoordPanel tab={rtab} project={project} coord={coord} reload={reloadCoord} />
+                </aside>}
+          </div>
+        </div>}
       <UsageBar tick={filesTick} />
     </div>
   );

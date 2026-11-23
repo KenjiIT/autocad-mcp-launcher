@@ -20,6 +20,10 @@ type Props = {
 };
 
 /** Chọn model kiểu Claude: ô tìm, danh sách có mô tả, và mức cố gắng ở chân bảng. Mở lên phía trên nút. */
+/** Mức suy nghĩ của phiên mới: "Vừa". Mỗi phiên lưu mức riêng (Chat.tsx), đổi ở phiên này không ảnh hưởng phiên khác. */
+export const DEFAULT_EFFORT: Effort = "medium";
+export const isEffort = (v: unknown): v is Effort => EFFORTS.some(x => x.id === v);
+
 export function ModelMenu({ models, value, onChange, effort, onEffort, disabled }: Props) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");

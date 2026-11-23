@@ -1,4 +1,7 @@
-import { memo, useState } from "react";
+import { createContext, memo, useContext, useMemo, useState } from "react";
+import { Lightbox } from "./Lightbox";
+import { rawUrl } from "./api";
+import { imageRefs, sanitizeSvg, svgDataUrl } from "./svg";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -54,10 +57,50 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
             // <pre><code>…</code></pre>: lấy chữ gốc để nút sao chép chép đúng nội dung
             const el: any = children;
             const raw = el?.props?.children;
-            return <CodeBlock text={typeof raw === "string" ? raw.replace(/\n$/, "") : String(raw ?? "")} />;
+            const code = typeof raw === "string" ? raw.replace(/\n$/, "") : String(raw ?? "");
+            // Khối ```svg (hoặc khối bắt đầu bằng <svg): hiện thành hình đã làm sạch
+            const lang = String(el?.props?.className ?? "");
+            if (/language-svg/.test(lang) || /^\s*<svg[\s>]/i.test(code)) {
+              const clean = sanitizeSvg(code);
+              if (clean) return <SvgFigure src={svgDataUrl(clean)} name="hinh.svg" code={code} />;
+            }
+            return <CodeBlock text={code} />;
           },
         }}
       >{text}</ReactMarkdown>
+      <ProjectImages text={text} />
     </div>
   );
 });
+
+/** Dự án đang mở (id + thư mục): để hiện ảnh agent ghi trong thư mục dự án và nhắc đường dẫn. */
+export const ProjectCtx = createContext<{ id: string; dir: string | null } | null>(null);
+
+/** Một hình trong tin: bấm để phóng to, có nút tải về (và xem mã SVG nếu là khối svg). */
+function SvgFigure({ src, name, code }: { src: string; name: string; code?: string }) {
+  const [big, setBig] = useState(false);
+  const [bad, setBad] = useState(false);
+  if (bad) return null;   // file chưa có / không đọc được: không hiện khung vỡ
+  return (
+    <figure className="md-fig">
+      <button type="button" className="md-fig-img" onClick={() => setBig(true)} title="Phóng to" aria-label={`Phóng to ${name}`}>
+        <img src={src} alt={name} loading="lazy" onError={() => setBad(true)} />
+      </button>
+      <figcaption>
+        <span title={name}>{name}</span>
+        <button type="button" className="link" onClick={() => setBig(true)}>Phóng to</button>
+        <a href={src} download={name.split("/").pop()}>Tải về</a>
+        {code && <CopyButton text={code} label="Chép mã SVG" className="link" />}
+      </figcaption>
+      {big && <Lightbox src={src} name={name.split("/").pop()} onClose={() => setBig(false)} />}
+    </figure>
+  );
+}
+
+/** Ảnh (.svg/.png/.jpg…) agent nhắc tới trong tin và nằm trong thư mục dự án: hiện luôn bên dưới tin. */
+function ProjectImages({ text }: { text: string }) {
+  const proj = useContext(ProjectCtx);
+  const refs = useMemo(() => imageRefs(text, proj?.dir), [text, proj?.dir]);
+  if (!proj || !refs.length) return null;
+  return <div className="md-figs">{refs.slice(0, 8).map(p => <SvgFigure key={p} src={rawUrl(proj.id, p)} name={p} />)}</div>;
+}

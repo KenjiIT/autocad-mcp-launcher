@@ -17,7 +17,7 @@ def make_ctx(tmp_path, run=None, claude="claude", dutoan=True):
         home=tmp_path / "home", appdata=tmp_path / "appdata", localappdata=tmp_path / "local",
         backup_dir=tmp_path / "backups", bridge_python=r"C:\L\python.exe", bridge_script=r"C:\L\stdio_bridge.py",
         dutoan=dutoan, run=run or (lambda command: (0, "")),
-        which=lambda name: claude if name == "claude" else None, stamp=lambda: "T1")
+        which=lambda name: claude if name == "claude" else None, stamp=lambda: "T1", claude_config_dir=None)
 
 
 def states(agent, ctx):
@@ -261,7 +261,7 @@ def test_claude_code_reports_a_failing_command(tmp_path):
 
 def test_claude_code_checks_the_result_instead_of_trusting_the_exit_code(tmp_path):
     result = ac.apply("Claude Code", claude_ctx(tmp_path, noop=True))
-    assert not result["ok"] and "chưa như mong muốn" in result["message"]
+    assert not result["ok"] and "chưa đúng" in result["message"] and ".claude.json" in result["message"]
 
 
 def test_claude_code_without_the_cli_explains_what_to_do(tmp_path):
@@ -298,3 +298,33 @@ def test_snippets(tmp_path):
     assert json.loads(ac.snippet("Claude Desktop", ctx))["mcpServers"]["dutoan"]["args"][-1] == "dutoan"
     with pytest.raises(ValueError):
         ac.snippet("Nobody", ctx)
+
+
+def test_claude_code_theo_claude_config_dir_ghi_va_kiem_cung_mot_tep(tmp_path):
+    """Launcher chạy với CLAUDE_CONFIG_DIR: `claude mcp add` ghi vào <dir>/.claude.json, launcher phải kiểm đúng tệp đó."""
+    ctx = make_ctx(tmp_path)
+    ctx.claude_config_dir = str(tmp_path / "profile")
+    ctx.run = FakeClaude(tmp_path / "profile" / ".claude.json")
+    assert ac.config_path("Claude Code", ctx) == tmp_path / "profile" / ".claude.json"
+    result = ac.apply("Claude Code", ctx)
+    assert result["ok"] and set(states("Claude Code", ctx).values()) == {"ok"}
+    assert not (ctx.home / ".claude.json").exists()
+    assert ac.apply("Claude Code", ctx, remove=True)["ok"] and set(states("Claude Code", ctx).values()) == {"missing"}
+
+
+def test_claude_code_ghi_cho_khac_thi_bao_ro_tep_va_bien_moi_truong(tmp_path):
+    """Lệnh claude ghi vào hồ sơ khác (ví dụ CLAUDE_CONFIG_DIR của môi trường khác): báo rõ tệp đã kiểm và lý do."""
+    ctx = make_ctx(tmp_path)
+    ctx.claude_config_dir = str(tmp_path / "profile")
+    ctx.run = FakeClaude(tmp_path / "noi-khac" / ".claude.json")
+    result = ac.apply("Claude Code", ctx)
+    assert not result["ok"]
+    assert str(tmp_path / "profile" / ".claude.json") in result["message"]
+    assert "CLAUDE_CONFIG_DIR" in result["message"] and "autocad_puran" in result["message"]
+
+
+def test_context_mac_dinh_lay_claude_config_dir_tu_moi_truong(monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", r"D:\cfg")
+    assert ac.Context().claude_config_dir == r"D:\cfg"
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR")
+    assert ac.Context().claude_config_dir is None

@@ -1,15 +1,16 @@
 import { Lightbox } from "./Lightbox";
 import { Resizer } from "./Resizer";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { dialog } from "./Dialog";
 import { MAX_IMAGES, prepareImage, type Att } from "./attach";
-import { ModelMenu, type Effort } from "./ModelMenu";
+import { DEFAULT_EFFORT, isEffort, ModelMenu, type Effort } from "./ModelMenu";
 import { AskCard, type AskItem } from "./AskCard";
-import { CopyButton, Markdown } from "./Markdown";
+import { CopyButton, Markdown, ProjectCtx } from "./Markdown";
 import { collect, SessionPanel } from "./SessionPanel";
 import { ProjectTree } from "./ProjectTree";
+import { insertSkill, skillPrompt, slashAt, splitSkills } from "./slash";
 import { askNotifyPermission, notify } from "./notify";
-import { answerAsk, chat, delConv, getQuota, listModels, type Quota, type WinState, WIN_NAME, tightest, listSkills, type ModelInfo, type Usage, NO_USAGE, addUsage, type Skill, fetchImage, getConv, listConvs, newId, niceError, putConv, type Content, type ConvMeta } from "./api";
+import { AGENT_NAME, createConv, lastAgent, listAgents, rememberAgent, type Engine, answerAsk, chat, delConv, getQuota, listModels, type Quota, type WinState, WIN_NAME, tightest, listSkills, type ModelInfo, type Usage, NO_USAGE, addUsage, type Skill, fetchImage, getConv, listConvs, newId, niceError, putConv, type Content, type ConvMeta, type CoordLock, listProjects } from "./api";
 
 type Item =
   | { kind: "user"; text: string; images?: Content[] }
@@ -113,10 +114,13 @@ function ToolCard({ t }: { t: Extract<Item, { kind: "tool" }> }) {
   // Tool "skills" đang nạp một skill cụ thể thì hiện tên skill thay cho tên server.
   const skill = t.name === "skills" ? (t.input as { name?: unknown } | null)?.name : undefined;
   const tag = typeof skill === "string" && skill ? skill : t.server;
+  // coord_claim bị phiên khác giữ khoá: không phải lỗi, hiện thẻ vàng "Chờ <phiên> – <lý do>".
+  const first = t.done && !t.isError && t.name === "coord_claim" ? (t.content?.find(c => c.type === "text")?.text ?? "").split("\n")[0] : "";
+  const wait = /^busy:\s*(.+)$/.exec(first)?.[1];
   return (
     <>
-      <details className={`tool ${t.isError ? "err" : ""}`}>
-        <summary><b className={`dot ${t.done ? (t.isError ? "bad" : "ok") : "run"}`} />{t.name}{tag && <small className="srvtag">{tag}</small>}<small>{t.done ? (t.isError ? "lỗi" : "xong") : <>đang chạy · <Elapsed /></>}</small></summary>
+      <details className={`tool ${t.isError ? "err" : ""}${wait ? " busy" : ""}`}>
+        <summary><b className={`dot ${t.done ? (t.isError ? "bad" : wait ? "wait" : "ok") : "run"}`} />{t.name}{tag && <small className="srvtag">{tag}</small>}{wait && <span className="waitmsg">{wait}</span>}<small>{t.done ? (t.isError ? "lỗi" : wait ? "đang bận" : "xong") : <>đang chạy · <Elapsed /></>}</small></summary>
         <div className="tool-copy"><CopyButton text={JSON.stringify(t.input, null, 2)} label="Chép tham số" /></div>
         <pre>{JSON.stringify(t.input, null, 2)}</pre>
         {t.content?.map((c, i) => c.type === "image" ? (outside ? null : <Img key={i} c={c} />) : <pre key={i}>{(c.text ?? "").slice(0, 4000)}</pre>)}
@@ -208,28 +212,39 @@ const fold = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/
 const skillTitle = (name: string) => name.split("-").map(w => w ? w[0].toUpperCase() + w.slice(1) : w).join(" ");
 /** Tin của người dùng bắt đầu bằng "/ten-skill" (skill có thật): hiện chip skill rồi phần còn lại. */
 function UserText({ text, known }: { text: string; known: { name: string }[] }) {
-  const m = /^\/([\w-]+)\s*([\s\S]*)$/.exec(text);
-  if (!m || !known.some(k => k.name === m[1])) return <>{text}</>;
-  return <><span className="skill-chip in-bubble">{skillTitle(m[1])}</span>{m[2] ? " " + m[2] : ""}</>;
+  const parts = splitSkills(text, known.map(k => k.name));   // skill ở đầu hay giữa câu đều hiện thành chip
+  return <>{parts.map((p, i) => "skill" in p ? <span key={i} className="skill-chip in-bubble">{skillTitle(p.skill)}</span> : p.text)}</>;
 }
 const STARTER = "Phiên chat mới";   // tên phiên chat trống gateway tạo kèm dự án; đổi thành câu hỏi đầu tiên khi gửi
 
+/** Một lượt đang chạy của một phiên (giữ riêng để phiên chạy ngầm khi người dùng mở phiên khác). */
+type RunState = { items: Item[]; history: unknown[]; sessionId?: string; usage: Usage; ac: AbortController; model?: string; engine: Engine; effort: Effort };
+
 type ChatProps = {
   epoch: number; project: string; treeKey: number; initialOpen?: string;
-  onSelectProject: (id: string) => void; onOpenOther: (project: string, conv: string) => void; onTurnDone?: () => void; onProjectsChanged?: () => void;
+  locks?: Record<string, CoordLock[]>;   // khoá đang giữ theo id phiên chat (bảng điều phối)
+  onSelectProject: (id: string) => void; onOpenOther: (project: string, conv: string) => void; onTurnStart?: () => void; onTurnDone?: () => void; onProjectsChanged?: () => void;
 };
-export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, onOpenOther, onTurnDone, onProjectsChanged }: ChatProps) {
+export function Chat({ epoch, project, treeKey, initialOpen, locks, onSelectProject, onOpenOther, onTurnStart, onTurnDone, onProjectsChanged }: ChatProps) {
   const [convs, setConvs] = useState<ConvMeta[]>([]);
-  const [curId, setCurId] = useState(newId);
+  const [curId, setCurIdState] = useState(newId);
+  const curIdRef = useRef(curId);
+  const setCurId = (id: string) => { curIdRef.current = id; setCurIdState(id); };
   const [items, setItems] = useState<Item[]>([]);
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
+  // Lượt đang chạy theo từng phiên: mỗi phiên chạy độc lập, chuyển sang phiên khác thì phiên cũ vẫn chạy ngầm
+  // (stream không bị cắt) và ghi vào bản riêng của nó; quay lại thì thấy tiếp. Mỗi phiên chỉ một lượt một lúc.
+  const runs = useRef(new Map<string, RunState>());
+  const [, setRunTick] = useState(0);
+  const bumpRuns = () => setRunTick(t => t + 1);
   const [listErr, setListErr] = useState("");
   const [skills, setSkills] = useState<Skill[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
-  const [effort, setEffortState] = useState<Effort>(() => { try { return (localStorage.getItem("cad-effort") as Effort) || "medium"; } catch { return "medium"; } });
-  const setEffort = (e: Effort) => { setEffortState(e); try { localStorage.setItem("cad-effort", e); } catch { /* bỏ qua */ } };
+  // Mức suy nghĩ lưu theo TỪNG phiên (như model): phiên mới mặc định "Vừa"; phiên người dùng đã chọn mức khác giữ mức đó.
+  const [effort, setEffortState] = useState<Effort>(DEFAULT_EFFORT);
+  const setEffort = (e: Effort) => { setEffortState(e); if (convsRef.current.some(c => c.id === curIdRef.current)) putConv(curIdRef.current, { effort: e }).catch(() => {}); };
   const [model, setModel] = useState("");                  // model của phiên đang mở; lưu cùng hội thoại
+  const [engine, setEngine] = useState<Engine>(() => lastAgent() ?? "cli");   // agent của phiên đang mở (chọn lúc tạo phiên)
   const [usage, setUsageState] = useState<Usage>(NO_USAGE);  // token đã dùng của phiên này
   const usageRef = useRef<Usage>(NO_USAGE);                // bản mới nhất, cho persist() (state trong closure có thể cũ)
   const setUsage = (u: Usage) => { usageRef.current = u; setUsageState(u); };
@@ -259,7 +274,8 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
   const itemsRef = useRef<Item[]>([]);
   const history = useRef<unknown[]>([]);        // chế độ API: messages định dạng Anthropic
   const sessionId = useRef<string | undefined>(undefined); // chế độ CLI: nối tiếp phiên cũ
-  const abort = useRef<AbortController | null>(null);
+  const busy = runs.current.has(curId);                 // phiên đang mở có lượt đang chạy
+  const running = new Set(runs.current.keys());
   const endRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
   // Ô nhập tự cao lên theo nội dung (tối đa ~8 dòng), gửi xong thì co lại.
@@ -295,24 +311,38 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
   // Tiêu đề tab báo khi lượt chạy xong trong lúc người dùng đang ở tab khác.
   useEffect(() => {
     const base = "CAD Studio";
-    if (busy) { document.title = `⏳ Đang chạy… · ${base}`; return; }
+    if (running.size) { document.title = `⏳ Đang chạy… · ${base}`; return; }
     if (!document.hidden || !items.length) { document.title = base; return; }
     document.title = `✓ Xong · ${base}`;
     const back = () => { if (!document.hidden) document.title = base; };
     document.addEventListener("visibilitychange", back);
     return () => { document.removeEventListener("visibilitychange", back); document.title = base; };
-  }, [busy, items.length]);
+  }, [running.size, items.length]);
+
+  // Thư mục dự án đang mở: ảnh agent ghi trong đó và nhắc đường dẫn được hiện ngay trong tin (Markdown.tsx).
+  const [projDir, setProjDir] = useState<string | null>(null);
+  useEffect(() => { listProjects().then(l => setProjDir(l.find(x => x.id === project)?.dir ?? null)).catch(() => setProjDir(null)); }, [project]);
+  const projCtx = useMemo(() => ({ id: project, dir: projDir }), [project, projDir]);
 
   const refresh = useCallback(() => listConvs().then(c => { setConvs(c); setListErr(""); setConvsLoaded(true); }).catch(e => setListErr(niceError(e))), []);
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => { listSkills().then(setSkills).catch(() => setSkills([])); }, [epoch]);
   useEffect(() => {
-    listModels().then(r => { setModels(r.models); defModel.current = r.default; setModel(m => m || r.default); }).catch(() => setModels([]));
+    if (!lastAgent()) listAgents().then(r => setEngine(r.default)).catch(() => {});
     refreshQuota();
   }, []);
+  // Danh sách model theo agent của phiên; model đang chọn không thuộc agent này thì về mặc định của agent.
+  useEffect(() => {
+    let live = true;
+    listModels(engine).then(r => { if (!live) return; setModels(r.models); defModel.current = r.default; setModel(m => r.models.some(x => x.id === m) ? m : r.default); }).catch(() => live && setModels([]));
+    return () => { live = false; };
+  }, [engine]);
 
   // Menu "/": chỉ hiện khi đang gõ token đầu tiên của tin nhắn, ví dụ "/chung" (chưa có dấu cách).
-  const slashQ = /^\/([\w-]*)$/.exec(input)?.[1];
+  // "/" ở đầu ô hoặc ngay sau khoảng trắng/xuống dòng, ở bất kỳ đâu trong câu (không tính "/" trong đường dẫn, URL).
+  const [caret, setCaret] = useState(0);
+  const tok = slashAt(input, caret);
+  const slashQ = tok?.query;
   const matches = slashQ === undefined || menuOff ? [] :
     skills.filter(s => fold(s.name + " " + s.description).includes(fold(slashQ)))
       .sort((a, b) => Number(b.name.includes(slashQ)) - Number(a.name.includes(slashQ)));
@@ -320,15 +350,23 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
   useEffect(() => { slashRef.current?.querySelector("li.on")?.scrollIntoView({ block: "nearest" }); }, [sel, matches.length]);
   // Chọn skill: hiện thành "chip" trong ô nhập (như Orca), không để chữ "/ten-skill" lẫn vào câu hỏi.
   const [chip, setChip] = useState<string | null>(null);
-  const pickSkill = (name: string) => { setChip(name); setInput(i => i.replace(/^\/[\w-]*\s?/, "")); setSel(0); taRef.current?.focus(); };
+  const pickSkill = (name: string) => {
+    setSel(0);
+    // Chỉ có "/chữ" ở đầu ô (chưa gõ gì khác): thành chip như cũ. Còn lại: chèn "/tên " đúng tại con trỏ, giữ chữ trước và sau.
+    if (tok && tok.start === 0 && !chip && !input.slice(caret).trim()) { setChip(name); setInput(""); setCaret(0); taRef.current?.focus(); return; }
+    const r = insertSkill(input, caret, name);
+    setInput(r.text); setCaret(r.caret); setMenuOff(true);
+    requestAnimationFrame(() => { const t = taRef.current; if (t) { t.focus(); t.setSelectionRange(r.caret, r.caret); } });
+  };
 
-  const persist = async (id: string) => {
-    const firstUser = itemsRef.current.find(i => i.kind === "user");
+  const convsRef = useRef(convs); convsRef.current = convs;
+  const persist = async (id: string, d: Pick<RunState, "items" | "history" | "sessionId" | "usage" | "model" | "engine" | "effort">) => {
+    const firstUser = d.items.find(i => i.kind === "user");
     if (!firstUser) return;
     try {
       await putConv(id, {
-        ...(convs.some(c => c.id === id && c.title !== STARTER) ? {} : { title: (firstUser as { text: string }).text.slice(0, 60) || "Ảnh đính kèm" }),
-        items: itemsRef.current, history: history.current, sessionId: sessionId.current, model: model || undefined, usage: usageRef.current,
+        ...(convsRef.current.some(c => c.id === id && c.title !== STARTER) ? {} : { title: (firstUser as { text: string }).text.slice(0, 60) || "Ảnh đính kèm" }),
+        items: d.items, history: d.history, sessionId: d.sessionId, model: d.model, engine: d.engine, usage: d.usage, effort: d.effort,
       });
       void refresh();
     } catch (e) { setListErr(`Chưa lưu được cuộc trò chuyện: ${niceError(e)}`); }
@@ -337,50 +375,61 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
   const send = async (override?: string, overrideImgs?: Content[]) => {
     const text = (override ?? (chip ? `/${chip} ${input}` : input)).trim();
     const imgs: Content[] = overrideImgs ?? atts.map(a => ({ type: "image", mimeType: a.mime, data: a.data }));
-    if ((!text && !imgs.length) || busy) return;
-    const id = curId;
+    const id = curIdRef.current;
+    if ((!text && !imgs.length) || runs.current.has(id)) return;   // không gửi 2 lượt cùng lúc trong cùng một phiên
     // "/ten-skill yêu cầu" -> chỉ Claude nạp đúng skill đó trước khi làm; khung chat vẫn hiện nguyên văn bạn gõ.
-    const m = /^\/([\w-]+)\s*([\s\S]*)$/.exec(text);
-    const skill = m && skills.find(s => s.name === m[1]);
-    const prompt = skill
-      ? `Hãy dùng skill "${skill.name}" (nạp bằng tool skills, operation=get, name=${skill.name}) cho yêu cầu sau.\n\n${m![2].trim() || "(Chưa có yêu cầu cụ thể: hãy hỏi tôi cần làm gì.)"}`
-      : text;
+    // Skill nhắc ở đầu hay giữa câu đều được dặn nạp (xem slash.ts).
+    const prompt = skillPrompt(text, skills.map(s => s.name));
     // Có ảnh: nội dung là mảng block kiểu Anthropic (ảnh trước, chữ sau). Gateway kiểm lại rồi chuyển cho từng chế độ chat.
     const content = imgs.length
       ? [...imgs.map(i => ({ type: "image", source: { type: "base64", media_type: i.mimeType, data: i.data } })), { type: "text", text: prompt || "Hãy xem ảnh đính kèm." }]
       : prompt;
-    setInput(""); setChip(null); setBusy(true); setFailed(null); setAttErr("");
+    setInput(""); setChip(null); setFailed(null); setAttErr("");
     if (overrideImgs === undefined) { dropAtts(atts); setAtts([]); }
-    push(p => [...p, { kind: "user", text, ...(imgs.length ? { images: imgs } : {}) }]);
+    const ac = new AbortController();
+    const run: RunState = { items: itemsRef.current, history: history.current, sessionId: sessionId.current, usage: usageRef.current, ac, model: model || undefined, engine, effort };
+    runs.current.set(id, run); bumpRuns();
+    // Phiên phải có trong danh sách (kèm tên) ngay khi bắt đầu chạy: người dùng mở phiên khác vẫn thấy và quay lại được.
+    const known = convsRef.current.find(c => c.id === id);
+    if (!known || known.title === STARTER)
+      putConv(id, { title: text.slice(0, 60) || "Ảnh đính kèm", engine, effort, ...(known ? {} : { items: [], history: [] }) }).then(() => refresh()).catch(() => {});
+    // Mọi cập nhật của lượt này ghi vào bản riêng của phiên; phiên đang mở thì vẽ ra luôn.
+    const up = (fn: (p: Item[]) => Item[]) => { run.items = fn(run.items); if (curIdRef.current === id) push(() => run.items); };
+    up(p => [...p, { kind: "user", text, ...(imgs.length ? { images: imgs } : {}) }]);
     queueMicrotask(() => toBottom(false));      // tự gửi thì luôn kéo xuống xem câu trả lời
-    const ac = new AbortController(); abort.current = ac;
+    onTurnStart?.();
     void askNotifyPermission();   // lần đầu: trình duyệt hỏi cho phép thông báo (cần đúng lúc người dùng vừa bấm gửi)
     let turnError = "";
     try {
-      await chat([...history.current, { role: "user", content }], sessionId.current, e => {
-        if (e.event === "text") push(p => {
+      await chat([...run.history, { role: "user", content }], run.sessionId, e => {
+        if (e.event === "text") up(p => {
           const last = p[p.length - 1];
           return last?.kind === "text" ? [...p.slice(0, -1), { kind: "text", text: last.text + e.data }] : [...p, { kind: "text", text: e.data }];
         });
-        else if (e.event === "tool_use") push(p => [...p, { kind: "tool", ...e.data }]);
-        else if (e.event === "tool_result") push(p => p.map(x => x.kind === "tool" && x.id === e.data.id ? { ...x, done: true, isError: e.data.isError, content: e.data.content } : x));
-        else if (e.event === "notice") push(p => [...p, { kind: "note", text: e.data }]);
+        else if (e.event === "tool_use") up(p => [...p, { kind: "tool", ...e.data }]);
+        else if (e.event === "tool_result") up(p => p.map(x => x.kind === "tool" && x.id === e.data.id ? { ...x, done: true, isError: e.data.isError, content: e.data.content } : x));
+        else if (e.event === "notice") up(p => [...p, { kind: "note", text: e.data }]);
         // Lỗi báo trong luồng (không ném ngoại lệ) cũng là lượt hỏng: giữ tin đã gõ để gửi lại.
-        else if (e.event === "error") { push(p => [...p, { kind: "note", text: e.data }]); setFailed(text || "ảnh"); turnError = e.data; }
-        else if (e.event === "usage") setUsage(addUsage(usageRef.current, e.data));
+        else if (e.event === "error") { up(p => [...p, { kind: "note", text: e.data }]); if (curIdRef.current === id) setFailed(text || "ảnh"); turnError = e.data; }
+        else if (e.event === "usage") { run.usage = addUsage(run.usage, e.data); if (curIdRef.current === id) setUsage(run.usage); }
         else if (e.event === "ask") {
-          push(p => [...p, { kind: "ask", id: e.data.id, questions: e.data.questions }]);
+          up(p => [...p, { kind: "ask", id: e.data.id, questions: e.data.questions }]);
           notify("CAD Studio cần bạn trả lời", e.data.questions.map(q => q.question).join(" · "), { tag: "cad-ask" });
         }
-        else if (e.event === "done") { history.current = e.data.messages; sessionId.current = e.data.sessionId; }
-      }, ac.signal, model || undefined, effort);
+        else if (e.event === "done") { run.history = e.data.messages; run.sessionId = e.data.sessionId; if (curIdRef.current === id) { history.current = run.history; sessionId.current = run.sessionId; } }
+      }, ac.signal, run.model, run.effort, { id, title: (() => { const t = convsRef.current.find(c => c.id === id)?.title; return t && t !== STARTER ? t : text.slice(0, 40) || "Phiên chat"; })() }, run.engine);
     } catch (e) {
-      push(p => [...p, { kind: "note", text: ac.signal.aborted ? "Đã dừng." : niceError(e) }]);
-      if (!ac.signal.aborted) { setFailed(text || "ảnh"); turnError = niceError(e); }     // giữ lại tin đã gõ (kèm ảnh) để gửi lại, không bắt gõ lại từ đầu
+      up(p => [...p, { kind: "note", text: ac.signal.aborted ? "Đã dừng. Tin vừa gửi đã đưa lại vào ô soạn tin để sửa và gửi lại." : niceError(e) }]);
+      // Dừng giữa chừng (Esc / nút Dừng): đưa tin vừa gửi lại vào ô soạn tin (nếu ô đang trống) để sửa rồi gửi lại, như Claude Code.
+      if (ac.signal.aborted && curIdRef.current === id && text) setInput(cur => cur.trim() ? cur : text);
+      if (!ac.signal.aborted) { if (curIdRef.current === id) setFailed(text || "ảnh"); turnError = niceError(e); }     // giữ lại tin đã gõ (kèm ảnh) để gửi lại, không bắt gõ lại từ đầu
     } finally {
-      setAll(expireAsks(itemsRef.current)); setBusy(false); abort.current = null; refreshQuota(); await persist(id); onTurnDone?.();
+      run.items = expireAsks(run.items);
+      runs.current.delete(id); bumpRuns();
+      if (curIdRef.current === id) setAll(run.items);
+      refreshQuota(); await persist(id, run); onTurnDone?.();
       if (!ac.signal.aborted) {   // tự bấm Dừng thì không báo
-        const last = [...itemsRef.current].reverse().find(x => x.kind === "text") as { text: string } | undefined;
+        const last = [...run.items].reverse().find(x => x.kind === "text") as { text: string } | undefined;
         if (turnError) notify("CAD Studio: lượt chat bị lỗi", turnError, { tag: "cad-done" });
         else notify("CAD Studio: agent đã xong", last?.text.replace(/[#*_`>|-]+/g, " ").replace(/\s+/g, " ").trim() || "Xem kết quả trong CAD Studio.", { tag: "cad-done" });
       }
@@ -388,6 +437,26 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
   };
 
   /** Gửi lại tin nhắn vừa lỗi: bỏ tin của mình và dòng báo lỗi ở cuối, rồi gửi lại nguyên văn. */
+  /** Sửa tin cuối của mình: đưa chữ về ô soạn tin, bỏ tin đó cùng mọi thứ sau nó khỏi khung chat (gửi lại thì thành lượt mới). */
+  const editLast = (i: number) => {
+    const u = itemsRef.current[i];
+    if (busy || u?.kind !== "user") return;
+    setAll(itemsRef.current.slice(0, i)); setFailed(null); setChip(null);
+    setInput(u.text);
+    requestAnimationFrame(() => { const t = taRef.current; if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } });
+  };
+  // Esc khi agent đang chạy (và không có hộp thoại/menu nào đang mở) thì dừng lượt, như Orca.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !busy || document.querySelector("dialog[open], .cmenu, .slash")) return;
+      e.preventDefault();
+      runs.current.get(curIdRef.current)?.ac.abort();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy]);
+
+  const lastUserIdx = items.map(x => x.kind).lastIndexOf("user");   // chỉ tin cuối của mình mới có nút Sửa
   const retry = () => {
     if (!failed || busy) return;
     const list = [...itemsRef.current];
@@ -399,24 +468,47 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
     void send(text, imgs);
   };
 
-  const reset = () => {
-    // Đang ở một phiên trống sẵn có trong danh sách thì không tạo thêm phiên trống nữa.
-    if (!itemsRef.current.length && convs.some(c => c.id === curId)) { taRef.current?.focus(); return; }
-    dropAtts(atts); setAtts([]); setAttErr(""); abort.current?.abort(); history.current = []; sessionId.current = undefined; setAll([]); setModel(defModel.current); setUsage(NO_USAGE);
+  const reset = (agent: Engine = engine) => {
+    rememberAgent(agent);
+    const same = agent === engine;
+    setEngine(agent);
+    // Đang ở một phiên trống sẵn có trong danh sách thì không tạo thêm phiên trống nữa (chỉ đổi agent của nó nếu cần).
+    if (!itemsRef.current.length && convs.some(c => c.id === curId)) {
+      if (!same) { setModel(""); putConv(curId, { engine: agent }).then(() => refresh()).catch(e => setListErr(niceError(e))); }
+      taRef.current?.focus(); return;
+    }
+    dropAtts(atts); setAtts([]); setAttErr(""); history.current = []; sessionId.current = undefined; setAll([]); setModel(same ? defModel.current : ""); setUsage(NO_USAGE); setEffortState(DEFAULT_EFFORT);
+    // Phiên đang chạy (nếu có) vẫn chạy ngầm, không bị dừng.
     const id = newId(); setCurId(id);
     // Tạo phiên ngay (như Orca) để nó hiện trong danh sách; câu hỏi đầu tiên sẽ thành tên phiên.
-    putConv(id, { title: STARTER, items: [], history: [] }).then(() => refresh()).catch(e => setListErr(niceError(e)));
+    putConv(id, { title: STARTER, engine: agent, items: [], history: [] }).then(() => refresh()).catch(e => setListErr(niceError(e)));
     taRef.current?.focus();
+  };
+  /** Nút + / menu "Phiên chat mới" ở cột dự án: dự án khác thì tạo phiên ở đó rồi chuyển sang. */
+  const newIn = (proj: string, agent: Engine) => {
+    if (proj === project) { reset(agent); return; }
+    rememberAgent(agent);
+    const id = newId();
+    createConv(proj, id, STARTER, agent).then(() => onOpenOther(proj, id)).catch(e => setListErr(niceError(e)));
   };
 
   const open = async (id: string) => {
-    if (busy || id === curId) return;
+    if (id === curIdRef.current) return;
+    const live = runs.current.get(id);   // phiên đang chạy ngầm: lấy bản đang chạy, không lấy bản đã lưu (cũ hơn)
+    if (live) {
+      history.current = live.history; sessionId.current = live.sessionId;
+      setAll(live.items); setCurId(id); setListErr(""); setFailed(null); setUsage(live.usage); setEffortState(live.effort);
+      if (live.engine !== engine) { setEngine(live.engine); setModel(live.model ?? ""); } else setModel(live.model ?? defModel.current);
+      setOpenTick(t => t + 1); return;
+    }
     try {
       const c = await getConv(id);
       history.current = c.history ?? []; sessionId.current = c.sessionId;
-      setAll(expireAsks((c.items ?? []) as Item[])); setCurId(id); setListErr("");
-      setUsage(c.usage ?? NO_USAGE);
-      setModel(c.model && models.some(m => m.id === c.model) ? c.model : defModel.current);   // model đã lưu bị gỡ khỏi danh sách thì quay về mặc định
+      setAll(expireAsks((c.items ?? []) as Item[])); setCurId(id); setListErr(""); setFailed(null);
+      setUsage(c.usage ?? NO_USAGE); setEffortState(isEffort(c.effort) ? c.effort : DEFAULT_EFFORT);
+      const ce: Engine = c.engine === "codex" || c.engine === "api" ? c.engine : "cli";
+      if (ce !== engine) { setEngine(ce); setModel(c.model ?? ""); }   // danh sách model của agent kia tải lại rồi kiểm model
+      else setModel(c.model && models.some(m => m.id === c.model) ? c.model : defModel.current);   // model đã lưu bị gỡ khỏi danh sách thì quay về mặc định
       setOpenTick(t => t + 1);
     } catch (e) { setListErr(niceError(e)); }
   };
@@ -445,11 +537,12 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
   };
 
   return (
+    <ProjectCtx.Provider value={projCtx}>
     <div className={`chatwrap${sideOpen ? " side-open" : ""}`}>
       {sideOpen && <div className="side-veil" onClick={() => setSideOpen(false)} aria-hidden="true" />}
       <aside className="convs" aria-label="Các cuộc trò chuyện" onClick={e => { const b = (e.target as HTMLElement).closest("button"); if (b && !b.closest(".sres-head") && !b.classList.contains("sres-row")) setSideOpen(false); }}>
         <ProjectTree key={treeKey} current={project} onSelect={onSelectProject} onOpenOther={onOpenOther}
-          convs={convs} curId={curId} busy={busy} onOpen={id => void open(id)} onRename={c => void rename(c)} onRemove={id => void remove(id)} onNew={reset} onProjectsChanged={onProjectsChanged} />
+          convs={convs} locks={locks} curId={curId} busy={busy} running={running} onOpen={id => void open(id)} onRename={c => void rename(c)} onRemove={id => void remove(id)} onNew={newIn} onProjectsChanged={onProjectsChanged} />
         {listErr && <p className="err-msg small" role="alert">{listErr}</p>}
         <SessionPanel res={collect(items)} onShot={i => {
           const el = msgsRef.current?.querySelectorAll(".shot")[i];
@@ -475,7 +568,12 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
           {items.map((it, i) => it.kind === "tool" ? <ToolCard key={i} t={it} /> :
             it.kind === "ask" ? <AskCard key={it.id} item={it} onAnswer={async answers => {
               await answerAsk(it.id, answers);
-              push(p => p.map(x => (x.kind === "ask" && x.id === it.id ? { ...x, answers } : x)));
+              const mark = (p: Item[]) => p.map(x => (x.kind === "ask" && x.id === it.id ? { ...x, answers } : x));
+              // Phiên đang chạy giữ bản items riêng (RunState); phải ghi câu trả lời vào đó, không thì sự kiện stream kế tiếp
+              // vẽ lại từ bản cũ và thẻ hỏi quay về trạng thái chưa trả lời.
+              const run = runs.current.get(curIdRef.current);
+              if (run) run.items = mark(run.items);
+              push(mark);
             }} /> :
             it.kind === "text" ? (
               <div key={i} className="bubble text">
@@ -486,6 +584,8 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
             <div key={i} className={`bubble ${it.kind}`} role={it.kind === "note" ? "alert" : undefined}>
               {it.kind === "user" && it.images?.length ? <div className="user-imgs">{it.images.map((c, j) => <Img key={c.url ?? j} c={c} />)}</div> : null}
               {it.kind === "user" ? <UserText text={it.text} known={skills} /> : it.text}
+              {it.kind === "user" && !busy && i === lastUserIdx &&
+                <button type="button" className="edit-msg" onClick={() => editLast(i)} title="Đưa tin này về ô soạn tin để sửa rồi gửi lại" aria-label="Sửa tin này">Sửa</button>}
               {it.kind === "note" && failed && i === items.length - 1 &&
                 <button className="retry" onClick={retry} disabled={busy}>Gửi lại</button>}
             </div>)}
@@ -495,7 +595,7 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
         </div>
         {!atBottom && items.length > 0 && (
           <button className="to-bottom" onClick={() => toBottom()} aria-label="Xuống cuối cuộc trò chuyện" title="Xuống cuối">
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5" /></svg>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3.5 8.5 8 13l4.5-4.5" /></svg><span>Mới nhất</span>
           </button>
         )}
         <div className={`composer${dragOver ? " drop" : ""}`}
@@ -535,7 +635,8 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
               const fs = Array.from(e.clipboardData.files).filter(f => f.type.startsWith("image/"));
               if (fs.length) { e.preventDefault(); void addFiles(fs); }   // dán chữ thường vẫn như cũ
             }}
-            onChange={e => { setInput(e.target.value); setSel(0); setMenuOff(false); }}
+            onChange={e => { setInput(e.target.value); setCaret(e.target.selectionStart ?? e.target.value.length); setSel(0); setMenuOff(false); }}
+            onSelect={e => setCaret(e.currentTarget.selectionStart ?? 0)}
             onKeyDown={e => {
               if (matches.length) {
                 if (e.key === "ArrowDown") { e.preventDefault(); setSel(i => (i + 1) % matches.length); return; }
@@ -560,9 +661,10 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
                 aria-label="Đính kèm ảnh" title={`Đính kèm ảnh (tối đa ${MAX_IMAGES}). Cũng có thể dán hoặc kéo thả vào khung chat.`}>
                 <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 7.4 7.7 12.9a3.2 3.2 0 0 1-4.5-4.5l5.6-5.6a2.1 2.1 0 0 1 3 3L6.3 11.3a1 1 0 0 1-1.5-1.5l5-5" /></svg>
               </button>
+              <span className={`pagent a-${engine}`} title="Agent của phiên này (chọn lúc tạo phiên ở nút + cạnh dự án)">{AGENT_NAME[engine]}</span>
               {models.length > 0 && <ModelMenu models={models} value={model} onChange={setModel} effort={effort} onEffort={setEffort} disabled={busy} />}
               {busy
-                ? <button className="send stop" onClick={() => abort.current?.abort()} aria-label="Dừng" title="Dừng"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /></svg></button>
+                ? <button className="send stop" onClick={() => runs.current.get(curId)?.ac.abort()} aria-label="Dừng" title="Dừng"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /></svg></button>
                 : <button className="send" onClick={() => void send()} disabled={!input.trim() && !atts.length && !chip} aria-label="Gửi" title="Gửi"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" /></svg></button>}
             </div>
           </div>
@@ -579,5 +681,6 @@ export function Chat({ epoch, project, treeKey, initialOpen, onSelectProject, on
         )}
       </div>
     </div>
+    </ProjectCtx.Provider>
   );
 }
